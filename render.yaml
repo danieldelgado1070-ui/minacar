@@ -1,0 +1,18 @@
+# Configuración automática para Render (opcional).
+# Si usas la opción "Blueprint" en Render, este archivo lo deja todo listo:
+# crea el servicio web, el disco de datos persistente y la variable DATA_DIR.
+services:
+  - type: web
+    name: minacar
+    env: python
+    region: frankfurt
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    envVars:
+      - key: DATA_DIR
+        value: /data
+    disk:
+      name: datos
+      mountPath: /data
+      sizeGB: 1

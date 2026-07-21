@@ -1,0 +1,8 @@
+# No subir a la nube los datos ni copias locales
+vehiculos.db
+documentos_adjuntos/
+index_clasico_backup.html
+__pycache__/
+*.pyc
+.claude/
+*.db

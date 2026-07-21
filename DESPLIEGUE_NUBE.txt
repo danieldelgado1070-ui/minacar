@@ -1,0 +1,121 @@
+====================================================================
+  SUBIR MIÑACAR A LA NUBE (paso a paso, sin comandos)
+  Objetivo: tener una direccion de internet (https://...) para entrar
+  desde el movil o cualquier sitio, con tus usuarios y contraseñas.
+====================================================================
+
+Vamos a usar dos webs GRATIS de registrar:
+  - GitHub  -> guarda el codigo de la aplicacion.
+  - Render  -> ejecuta la aplicacion y te da la direccion de internet.
+
+Todo se hace desde el NAVEGADOR. No hay que instalar nada ni escribir
+comandos.
+
+
+--------------------------------------------------------------------
+ANTES DE EMPEZAR: prepara los archivos a subir
+--------------------------------------------------------------------
+De la carpeta "GestionVehiculos" vas a subir SOLO estos archivos:
+
+   [SI]  app.py
+   [SI]  index.html
+   [SI]  requirements.txt
+   [SI]  render.yaml
+   [SI]  LEEME.txt
+
+   [NO]  vehiculos.db            (son tus datos: NO se sube)
+   [NO]  documentos_adjuntos     (carpeta de escaneos: NO se sube)
+   [NO]  index_clasico_backup.html
+   [NO]  Iniciar aplicacion.bat  (solo sirve en tu PC)
+
+(La nube creara su propia base de datos vacia la primera vez.)
+
+
+====================================================================
+PARTE A · SUBIR EL CODIGO A GITHUB
+====================================================================
+
+1. Entra en   https://github.com   y pulsa "Sign up". Crea una cuenta
+   (correo, contraseña, y confirma el correo). Es gratis.
+
+2. Arriba a la derecha pulsa el "+"  ->  "New repository".
+
+3. En "Repository name" escribe:   minacar
+   Marca la opcion  "Private"  (asi el codigo queda privado).
+   Pulsa el boton verde  "Create repository".
+
+4. En la pagina que sale, pulsa el enlace azul:
+   "uploading an existing file"   (subir un archivo existente).
+
+5. Arrastra ahi los 5 archivos de la lista [SI] de arriba
+   (app.py, index.html, requirements.txt, render.yaml, LEEME.txt).
+
+6. Abajo pulsa el boton verde  "Commit changes".
+   -> Ya tienes el codigo en GitHub.
+
+
+====================================================================
+PARTE B · PUBLICARLO EN RENDER
+====================================================================
+
+7. Entra en   https://render.com   y pulsa "Get Started".
+   Elige  "Sign in with GitHub"  y autoriza el acceso.
+
+8. En el panel de Render pulsa  "New +"  (arriba a la derecha)  ->
+   elige  "Blueprint".
+
+9. Te pedira elegir un repositorio: selecciona  "minacar".
+   Render leera solo el archivo render.yaml y lo dejara casi todo hecho
+   (crea el servicio, el disco de datos y la configuracion).
+   Pulsa  "Apply"  /  "Create".
+
+   *** Nota importante sobre el plan ***
+   Para que NO se borren los datos hace falta el plan "Starter" con un
+   disco (unos 7 $/mes). Render te lo indicara al crear el disco. Si
+   solo quieres una demo de prueba y no te importa que los datos se
+   reinicien, puedes usar el plan Free (gratis, pero se duerme y pierde
+   los datos al reiniciarse).
+
+10. Espera unos minutos (veras el progreso "Deploying..."). Cuando ponga
+    "Live", arriba aparecera la direccion, algo como:
+        https://minacar.onrender.com
+
+11. Abre esa direccion en el MOVIL (o donde quieras).
+    Entra con:   usuario  admin    contraseña  admin1234
+    -> Ve a la pestaña USUARIOS y CAMBIA la contraseña del admin.
+    -> Crea los usuarios de la empresa y marca sus permisos.
+
+    ¡Listo! Esa direccion ya se puede usar desde cualquier movil.
+
+
+====================================================================
+SI PREFIERES HACERLO A MANO (sin Blueprint) EN EL PASO 8
+====================================================================
+- "New +" -> "Web Service" -> elige el repo "minacar".
+- Region: Frankfurt.   Branch: main.   Language: Python 3.
+- Start Command:   python app.py
+- Instance Type:   Starter  (para poder tener disco).
+- En "Advanced" -> "Add Environment Variable":
+      Key: DATA_DIR      Value: /data
+- "Add Disk":   Name: datos    Mount Path: /data    Size: 1
+- Pulsa "Create Web Service".
+
+
+====================================================================
+ACTUALIZAR LA APP MAS ADELANTE
+====================================================================
+Si se hace alguna mejora en app.py o index.html:
+  - Entra en tu repositorio de GitHub.
+  - Abre el archivo, pulsa el lapiz (editar) o subelo de nuevo
+    reemplazando al anterior, y "Commit changes".
+  - Render se actualiza solo en un par de minutos.
+Los datos (base de datos y documentos) NO se tocan: viven en el disco.
+
+====================================================================
+COPIA DE SEGURIDAD EN LA NUBE
+====================================================================
+En Render, dentro de tu servicio, hay una seccion "Disks". Los datos
+estan en el disco "datos". Para una copia, se puede usar el "Shell"
+de Render y descargar el archivo vehiculos.db. (Si quieres, te preparo
+un boton de copia de seguridad dentro de la propia aplicacion.)
+====================================================================

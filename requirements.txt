@@ -1,0 +1,4 @@
+# MIÑACAR · Gestión 360
+# No hay dependencias externas: la aplicación usa solo la librería estándar
+# de Python. Este archivo existe para que la nube detecte que es un
+# proyecto Python.

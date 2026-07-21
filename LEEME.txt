@@ -1,0 +1,90 @@
+====================================================================
+  GESTION DE COMPRAVENTA DE VEHICULOS
+====================================================================
+
+COMO ABRIR LA APLICACION
+------------------------
+1. Haz doble clic en el archivo:  "Iniciar aplicacion.bat"
+2. Se abrira una ventana negra (NO la cierres mientras trabajas).
+3. Automaticamente se abrira la aplicacion en tu navegador.
+   Si no se abriera sola, entra en:  http://localhost:8000
+
+ACCESO (USUARIOS Y CONTRASEÑA)
+------------------------------
+- La primera vez entra con:   usuario: admin    contraseña: admin1234
+- IMPORTANTE: cambia esa contraseña cuanto antes (pestaña USUARIOS ->
+  editar el usuario admin -> escribe una contraseña nueva).
+- Desde la pestaña USUARIOS (solo el administrador) puedes crear mas
+  usuarios y marcar a que areas puede entrar cada uno.
+
+ACCESO DESDE OTROS EQUIPOS O EL MOVIL (misma red WiFi)
+-----------------------------------------------------
+- Al arrancar, la ventana negra muestra una direccion tipo
+  http://192.168.x.x:8000
+- Escribe esa direccion en el navegador del movil o de otro PC que
+  este en la MISMA red WiFi. (Puede que Windows pida permitir el acceso
+  en el cortafuegos la primera vez: acepta.)
+
+COMO CERRARLA
+-------------
+- Cierra la pestaña del navegador y luego cierra la ventana negra
+  (o pulsa Ctrl + C dentro de ella).
+
+QUE TIENE
+---------
+- PANEL: estadisticas de compras y ventas con filtros por fecha,
+  marca y agrupacion (mes, marca, modelo o combustible). Grafico y
+  tabla con margen (ventas menos coste de compra). Incluye el VALOR
+  DEL STOCK valorado al precio de compra de cada vehiculo disponible.
+- CLIENTES: alta, edicion, borrado y buscador.
+- VEHICULOS: alta, edicion, borrado y buscador. Muestra el estado
+  (disponible / reservado / vendido) y los precios de compra y venta.
+  Permite adjuntar una FOTOGRAFIA (clic en la miniatura para ampliar).
+- COMPRAS: registra la compra con matricula, marca, modelo, bastidor,
+  nº de factura, proveedor y regimen (General / REBU). Si el vehiculo
+  no existe, se crea solo al guardar la compra.
+- VENTAS: registra la venta con nº de factura, regimen, cliente, etc.
+  Al vender, el vehiculo pasa automaticamente a estado "vendido".
+- LOGISTICA: seguimiento del transporte de cada vehiculo, con
+  transportista, ciudad origen y destino, destinatario, fechas de
+  recogida y entrega, y estado (Pendiente / Recogido / En transito /
+  Entregado). Al marcar ENTREGADO se pide la UBICACION y el coche
+  entra automaticamente en el STOCK (no antes).
+- TRANSPORTISTAS: alta/edicion/borrado como clientes; luego se eligen
+  en el desplegable de Logistica.
+
+NOVEDADES IMPORTANTES
+---------------------
+- FLUJO DE STOCK: al comprar, el vehiculo queda "pendiente". Solo entra
+  en el stock cuando se marca como ENTREGADO en Logistica. No se puede
+  vender un coche que no este en stock.
+- VERIFICACION DE NIF/DNI/CIF: al escribir un NIF avisa si el digito de
+  control es incorrecto. En los listados aparece un aviso (triangulo).
+- MARCAS y MODELOS y CIUDADES y UBICACIONES: son desplegables. Para
+  anadir uno nuevo, elige la opcion "Anadir nuevo..." al final de la
+  lista. Los modelos dependen de la marca elegida.
+- FACTURA DE VENTA: en la pestaña Ventas, boton "Factura". Se abre una
+  ventana lista para IMPRIMIR o GUARDAR COMO PDF. (Permite las ventanas
+  emergentes del navegador.) Emisor: MIÑACAR (LYRWIRS, S.L.).
+  El precio de venta se entiende CON IVA INCLUIDO. En REBU no se
+  desglosa el IVA (regimen de bienes usados).
+- ITV: en cada vehiculo puedes indicar si tiene la ITV pasada y su fecha
+  de caducidad. En el Panel se avisa de las ITV de coches en stock que
+  caducan en los proximos 15 dias.
+- ENLACE CON LA WEB (minacar.es): cada coche tiene un campo "Ref. / enlace
+  de la web" donde pegas la URL de su ficha. En el listado aparece un
+  enlace que la abre. En la pestaña WEB, el boton "Actualizar desde la
+  web" descarga el catalogo publicado y te muestra: cuantos coches hay
+  publicados, cuales de tu stock NO estan publicados, y te deja VINCULAR
+  cada ficha de la web con un coche de la aplicacion. (Necesita internet.)
+
+DONDE SE GUARDAN LOS DATOS
+--------------------------
+- Todo se guarda en el archivo "vehiculos.db" de esta misma carpeta.
+- Para hacer una COPIA DE SEGURIDAD, copia ese archivo a lugar seguro.
+- Para restaurar, sustituye el archivo por tu copia.
+
+REQUISITOS
+----------
+- Python (ya instalado en este equipo). No necesita internet.
+====================================================================
