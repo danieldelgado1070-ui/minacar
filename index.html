@@ -343,12 +343,12 @@ const svg=(p,cls="")=>`<svg class="${cls}" viewBox="0 0 24 24" fill="none" strok
 const NAV=[
   ["panel","Panel",IC.panel,"op"],["stock","Stock",IC.car,"op"],["compras","Compras",IC.cart,"op"],
   ["taller","Taller",IC.wrench,"op"],["logistica","Logística",IC.truck,"op"],["marketing","Marketing",IC.mega,"op"],["agenda","Agenda",IC.book,"op"],
-  ["ventas","Ventas",IC.tag,"op"],["tesoreria","Cobros y pagos",IC.euro,"op"],["facturas","Facturas prov.",IC.supplier,"op"],["bancos","Bancos",IC.bank,"op"],["gestoria","Gestoría",IC.stamp,"op"],["garantias","Garantías",IC.shield,"op"],["postventa","Postventa",IC.support,"op"],["documentos","Documentos",IC.folder,"op"],["almacenes","Almacenes",IC.box,"op"],["web","Web",IC.globe,"op"],
+  ["ventas","Ventas",IC.tag,"op"],["tesoreria","Cobros y pagos",IC.euro,"op"],["facturas","Facturas prov.",IC.supplier,"op"],["flexicar","Flexicar",IC.book,"op"],["bancos","Bancos",IC.bank,"op"],["gestoria","Gestoría",IC.stamp,"op"],["garantias","Garantías",IC.shield,"op"],["postventa","Postventa",IC.support,"op"],["documentos","Documentos",IC.folder,"op"],["almacenes","Almacenes",IC.box,"op"],["web","Web",IC.globe,"op"],
   ["clientes","Clientes",IC.users,"dir"],["proveedores","Proveedores",IC.supplier,"dir"],["comerciales","Comerciales",IC.users,"dir"],["transportistas","Transportistas",IC.wheel,"dir"],["gestorias","Gestorías",IC.stamp,"dir"],
   ["itv","ITV",IC.clock,"an"],["informes","Informes",IC.chart,"an"],
   ["usuarios","Usuarios",IC.users,"adm"],
 ];
-const SUB={panel:"Visión general de la operación",stock:"Existencias y ficha 360 de cada vehículo",compras:"Facturas y pagos a proveedor",taller:"Reacondicionamiento y costes de preparación",logistica:"Transporte, entrega y coches pendientes",marketing:"Leads e interesados por vehículo",agenda:"Gestiones diarias de leads y postventa",ventas:"Operaciones cerradas y facturas",tesoreria:"Facturas pendientes de cobro y de pago",facturas:"Facturas de proveedor: pendientes de recibir y de pagar",bancos:"Extractos bancarios y conciliación de movimientos",gestoria:"Transferencias y exenciones de matriculación",garantias:"Garantías comerciales por vehículo",postventa:"Atenciones tras venta y agenda de reclamaciones",documentos:"Documentación aportada por vehículo",almacenes:"Ubicaciones, valoración del stock y traspasos",web:"Conciliación con minacar.es",clientes:"Directorio de clientes",proveedores:"Directorio de proveedores",comerciales:"Comerciales y cálculo de comisiones",transportistas:"Directorio de transportistas",gestorias:"Directorio de gestorías / asesorías",itv:"Control de ITV por vencimiento y revisiones concertadas",informes:"Rotación y margen por dimensión",usuarios:"Usuarios y permisos de acceso"};
+const SUB={panel:"Visión general de la operación",stock:"Existencias y ficha 360 de cada vehículo",compras:"Facturas y pagos a proveedor",taller:"Reacondicionamiento y costes de preparación",logistica:"Transporte, entrega y coches pendientes",marketing:"Leads e interesados por vehículo",agenda:"Gestiones diarias de leads y postventa",ventas:"Operaciones cerradas y facturas",tesoreria:"Facturas pendientes de cobro y de pago",facturas:"Facturas de proveedor: pendientes de recibir y de pagar",flexicar:"Cliente Flexicar: informe de deudas",bancos:"Extractos bancarios y conciliación de movimientos",gestoria:"Transferencias y exenciones de matriculación",garantias:"Garantías comerciales por vehículo",postventa:"Atenciones tras venta y agenda de reclamaciones",documentos:"Documentación aportada por vehículo",almacenes:"Ubicaciones, valoración del stock y traspasos",web:"Conciliación con minacar.es",clientes:"Directorio de clientes",proveedores:"Directorio de proveedores",comerciales:"Comerciales y cálculo de comisiones",transportistas:"Directorio de transportistas",gestorias:"Directorio de gestorías / asesorías",itv:"Control de ITV por vencimiento y revisiones concertadas",informes:"Rotación y margen por dimensión",usuarios:"Usuarios y permisos de acceso"};
 const NEWMAP={stock:"vehiculos",compras:"compras",taller:"taller",ventas:"ventas",logistica:"logistica",marketing:"leads",gestoria:"gestoria",garantias:"garantias",postventa:"postventa",almacenes:"almacenes",clientes:"clientes",proveedores:"proveedores",comerciales:"comerciales",transportistas:"transportistas",gestorias:"gestorias",usuarios:"usuarios"};
 const AREA_LABEL=Object.fromEntries(NAV.map(n=>[n[0],n[1]]));
 const DOC_TIPOS=["Factura proforma","Factura de compra","Pago al proveedor","Hoja de transporte","Albarán de entrega","Ficha técnica","Permiso de circulación","Facturas de reparación/mantenimiento","Garantía comercial","Factura de venta","Justificante de cobro"];
@@ -505,6 +505,7 @@ function render(){
   else if(current==="ventas")views.innerHTML=viewVentas();
   else if(current==="tesoreria")views.innerHTML=viewTesoreria();
   else if(current==="facturas")views.innerHTML=viewFacturas();
+  else if(current==="flexicar")views.innerHTML=viewFlexicar();
   else if(current==="bancos")views.innerHTML=viewBancos();
   else if(current==="usuarios")views.innerHTML=viewUsuarios();
   else if(current==="gestoria")views.innerHTML=viewGestoria();
@@ -656,19 +657,28 @@ function viewCompras(){
 
 /* ---------- VENTAS ---------- */
 function viewVentas(){
-  const rows=DATA.ventas.filter(s=>matchQ(s,[s.matricula,s.marca,s.modelo,s.cliente,s.numero_factura,s.regimen])).map(s=>{
+  const rows=DATA.ventas.filter(s=>matchQ(s,[s.matricula,s.marca,s.modelo,s.cliente,s.numero_factura,s.numero_proforma,s.regimen])).map(s=>{
     const margen=(Number(s.precio)||0)-(Number(s.coste)||0);
+    const prof=s.estado_factura!=="factura";
+    const doc=prof?`<span class="minipill" style="background:var(--warn-s);color:var(--warn)">Proforma ${esc(s.numero_proforma||"")}</span>`:`<span class="minipill" style="background:var(--ok-s);color:var(--ok)">Factura ${esc(s.numero_factura||"")}</span>`;
     return `<tr data-veh="${s.vehiculo_id||''}">
-      <td>${fdate(s.fecha)}</td><td>${esc(s.numero_factura||"")}</td>
+      <td>${fdate(s.fecha)}</td><td>${doc}</td>
       <td><span class="plate">${esc(s.matricula||"")}</span> ${esc(s.marca||"")} ${esc(s.modelo||"")}</td>
       <td>${esc(s.cliente||"")}</td>
       <td>${s.regimen?`<span class="minipill" style="background:${s.regimen==='REBU'?'var(--res-s)':'var(--accent-soft)'};color:${s.regimen==='REBU'?'var(--res)':'var(--accent)'}">${esc(s.regimen)}</span>`:""}</td>
       <td class="r">${eur2(s.precio)}</td><td class="r">${s.coste!=null?eur2(s.coste):"—"}</td>
       <td class="r" style="color:${margen>=0?'var(--ok)':'var(--danger)'};font-weight:700">${eur2(margen)}</td>
-      <td><button class="btn ghost sm" onclick="factura(${s.id})">🧾</button></td>
-      <td class="r"><button class="btn ghost sm" onclick="openForm('ventas',${s.id})">✎</button> <button class="btn danger sm" onclick="delRow('ventas',${s.id})">🗑</button></td>
+      <td>${prof?`<button class="btn accent sm" onclick="event.stopPropagation();confirmarFactura(${s.id})">✓ Confirmar factura</button>`:`<button class="btn ghost sm" onclick="event.stopPropagation();factura(${s.id})">🧾</button>`}</td>
+      <td class="r"><button class="btn ghost sm" onclick="event.stopPropagation();factura(${s.id})" title="Ver documento">🧾</button> <button class="btn ghost sm" onclick="event.stopPropagation();openForm('ventas',${s.id})">✎</button> <button class="btn danger sm" onclick="event.stopPropagation();delRow('ventas',${s.id})">🗑</button></td>
     </tr>`;}).join("");
-  return tableWrap([{t:"Fecha"},{t:"Nº factura"},{t:"Vehículo"},{t:"Cliente"},{t:"Régimen"},{t:"Precio",r:1},{t:"Coste",r:1},{t:"Margen",r:1},{t:"Fra."},{t:"",r:1}],rows);
+  return tableWrap([{t:"Fecha"},{t:"Documento"},{t:"Vehículo"},{t:"Cliente"},{t:"Régimen"},{t:"Precio",r:1},{t:"Coste",r:1},{t:"Margen",r:1},{t:""},{t:"",r:1}],rows);
+}
+async function confirmarFactura(id){
+  if(bloqueadoRO("ventas"))return;
+  if(!confirm("¿Confirmar la proforma y emitir la FACTURA de venta con número correlativo?\n\nEl coche pasará a «vendido» y ya no se podrá cambiar el número."))return;
+  const res=await api(`/api/ventas/${id}/confirmar`,{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+  if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo confirmar"));return;}
+  toast("Factura emitida ✔ "+(res.numero_factura||""));await reloadAll();
 }
 
 /* ---------- LOGÍSTICA ---------- */
@@ -1165,6 +1175,39 @@ async function factPagar(tabla,id,pf,pv){
   if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo guardar"));return;}
   toast("Factura marcada como pagada ✔");await reloadAll();
 }
+/* ---------- FLEXICAR (informe de deudas) ---------- */
+function esFlexicar(s){return s.cliente_flexicar==1||s.cliente_flexicar==="1"||s.cliente_flexicar==="Sí";}
+function flexicarItems(){
+  return DATA.ventas.filter(s=>esFlexicar(s)).map(s=>{
+    const deuda=(Number(s.precio)||0)-cobradoDe(s.vehiculo_id);
+    const veh=DATA.vehiculos.find(x=>x.id===s.vehiculo_id)||{};
+    const compra=veh._compra||null;
+    return {s,veh,compra,pagadoProv:!!(compra&&compra.pagado==="Sí"),deuda};
+  }).filter(it=>it.deuda>0.01);
+}
+function viewFlexicar(){
+  const items=flexicarItems().filter(it=>matchQ(it.s,[it.s.matricula,it.s.marca,it.s.modelo,it.s.numero_proforma]));
+  const p1=items.filter(it=>it.pagadoProv), p2=items.filter(it=>!it.pagadoProv);
+  const cols=[{t:"Marca / Modelo / Matrícula"},{t:"Importe deuda",r:1},{t:"F. proforma"},{t:"F. pago (nosotros)"},{t:"F. liberación"},{t:"F. entrega"},{t:"F. cobro (prev.)"},{t:"Entrega doc."}];
+  const row=it=>`<tr data-veh="${it.s.vehiculo_id||''}">
+    <td><span class="plate">${esc(it.s.matricula||"")}</span> ${esc(it.s.marca||"")} ${esc(it.s.modelo||"")}</td>
+    <td class="r" style="font-weight:700;color:var(--danger)">${eur2(it.deuda)}</td>
+    <td>${fdate(it.s.fecha_proforma)}</td>
+    <td>${it.compra&&it.compra.fecha_pago?fdate(it.compra.fecha_pago):"—"}</td>
+    <td>${it.veh.fecha_liberacion?fdate(it.veh.fecha_liberacion):"—"}</td>
+    <td>${fdate(it.s.fecha_entrega_cli)}</td>
+    <td>${fdate(it.s.fecha_cobro_est)}</td>
+    <td>${it.s.fecha_entrega_doc?fdate(it.s.fecha_entrega_doc):'<span style="color:var(--warn)">pendiente</span>'}</td>
+  </tr>`;
+  const tot1=p1.reduce((a,it)=>a+it.deuda,0), tot2=p2.reduce((a,it)=>a+it.deuda,0);
+  const kpi=(l,v,c)=>`<div class="kpi"><div class="k-lab">${l}</div><div class="k-val" style="color:${c}">${v}</div></div>`;
+  return `<p style="color:var(--muted);margin:0 0 14px;font-size:13px">Informe de deudas de <b>Flexicar</b>: coches vendidos a Flexicar <b>pendientes de cobro</b>, separados según si ya hemos pagado al proveedor o no. (Marca un cliente como «Flexicar» en su ficha para que sus ventas aparezcan aquí.)</p>
+    <div class="kpis" style="grid-template-columns:repeat(2,1fr);margin-bottom:16px">${kpi("Deuda · ya pagados al proveedor",eur(tot1),"var(--ok)")}${kpi("Deuda · pendientes de pagar al proveedor",eur(tot2),"var(--danger)")}</div>
+    <div class="card" style="margin-bottom:16px"><div class="card-h"><h3>1 · Pendientes de cobro y PAGADOS al proveedor (${p1.length})</h3></div>
+      <div class="card-b" style="padding:0 18px 12px">${tableWrap(cols,p1.map(row).join(""))}</div></div>
+    <div class="card"><div class="card-h"><h3>2 · Pendientes de cobro y PENDIENTES de pago al proveedor (${p2.length})</h3></div>
+      <div class="card-b" style="padding:0 18px 12px">${tableWrap(cols,p2.map(row).join(""))}</div></div>`;
+}
 function viewBancos(){
   const puedeW=puedeEscribirTabla("extractos");
   if(bancoExtracto){const e=DATA.extractos.find(x=>x.id===bancoExtracto);if(e)return viewExtracto(e,puedeW);bancoExtracto=null;}
@@ -1573,7 +1616,7 @@ function openDrawer(id){
         <button class="btn ghost sm" onclick="enviarFicha(${v.id})">📤 Enviar ficha</button>
         ${!sold&&v.estado!=="reservado"?`<button class="btn ghost sm" onclick="reservar(${v.id})">🔖 Reservar</button>`:""}
         ${v.estado==="reservado"?`<button class="btn ghost sm" onclick="liberarReserva(${v.id})">Liberar reserva</button>`:""}
-        ${sold?`<button class="btn gold sm" onclick="factura(${v._venta.id})">🧾 Factura</button>`:""}
+        ${v._venta&&v._venta.estado_factura!=="factura"?`<button class="btn ghost sm" onclick="factura(${v._venta.id})">🧾 Ver proforma</button> <button class="btn gold sm" onclick="confirmarFactura(${v._venta.id})">✓ Confirmar factura</button>`:(sold?`<button class="btn gold sm" onclick="factura(${v._venta.id})">🧾 Factura</button>`:"")}
         <button class="btn danger sm" onclick="delRow('vehiculos',${v.id},true)">🗑 Eliminar</button>
       </div>
     </div>
@@ -1841,6 +1884,7 @@ const SCHEMAS={
     {k:"email",l:"Email",t:"text"},
     {k:"direccion",l:"Dirección completa",t:"text",req:1,full:1},
     {k:"datos_cobro",l:"Datos de cobro (IBAN / forma de cobro)",t:"text",req:1,full:1},
+    {k:"es_flexicar",l:"¿Es cliente Flexicar? (activa su módulo especial)",t:"check"},
     {k:"notas",l:"Notas",t:"textarea",full:1}]},
   transportistas:{title:"transportista",fields:[
     {k:"nombre",l:"Nombre / Razón social",t:"text",req:1,full:1},
@@ -1868,6 +1912,7 @@ const SCHEMAS={
     {k:"combustible",l:"Combustible",t:"select",opts:["","Gasolina","Diésel","Híbrido","Eléctrico","GLP","GNC"]},
     {k:"itv_pasada",l:"¿ITV pasada?",t:"select",opts:["","Sí","No"]},{k:"itv_expira",l:"Caducidad ITV",t:"date"},
     {k:"etiqueta",l:"Etiqueta medioambiental (DGT)",t:"select",opts:["","0 Emisiones","ECO","C","B","Sin etiqueta"]},
+    {k:"fecha_liberacion",l:"Fecha de liberación (Flexicar, opcional)",t:"date"},
     {k:"foto",l:"Fotografía",t:"foto",full:1},{k:"notas",l:"Notas",t:"textarea",full:1}]},
   compras:{title:"compra",fields:[
     {k:"vehiculo_id",l:"Vehículo existente (o rellena los datos abajo)",t:"ref-veh",full:1},
@@ -1894,6 +1939,7 @@ const SCHEMAS={
     {k:"fecha_cobro_est",l:"Fecha estimada de cobro",t:"date"},
     {k:"entregado",l:"¿Entregado al cliente?",t:"select",opts:["","Sí","No"]},
     {k:"fecha_entrega_cli",l:"Fecha de entrega al cliente",t:"date"},
+    {k:"fecha_entrega_doc",l:"Fecha de entrega de la documentación",t:"date"},
     {k:"notas",l:"Notas",t:"textarea",full:1}]},
   logistica:{title:"transporte",fields:[
     {k:"vehiculo_id",l:"Vehículo (no aparecen los que ya están en stock)",t:"veh-transporte",req:1,full:1},
@@ -2049,6 +2095,7 @@ async function openForm(table,id=null,prefill=null){
     else if(f.t==="veh-stock"){const st=DATA.vehiculos.filter(v=>["disponible","reservado"].includes(v.estado)||String(v.id)===val);inner=`<select id="f-${f.k}"><option value="">— seleccionar —</option>`+st.map(v=>`<option value="${v.id}" ${String(v.id)===val?"selected":""}>${esc(v.matricula||"")} · ${esc(v.marca||"")} ${esc(v.modelo||"")}</option>`).join("")+`</select>`;}
     else if(f.t==="veh-transporte"){const st=DATA.vehiculos.filter(v=>(v.estado!=="disponible"&&v.estado!=="vendido")||String(v.id)===val);inner=`<select id="f-${f.k}"><option value="">— seleccionar —</option>`+st.map(v=>`<option value="${v.id}" ${String(v.id)===val?"selected":""}>${esc(v.matricula||"")} · ${esc(v.marca||"")} ${esc(v.modelo||"")}</option>`).join("")+`</select>`;}
     else if(f.t==="destinatario"){const cur=val||"MIÑACAR";inner=`<select id="f-${f.k}" onchange="onDestinatario(this)"><option ${cur==="MIÑACAR"?"selected":""}>MIÑACAR</option>`+DATA.clientes.map(c=>`<option ${cur===c.nombre?"selected":""}>${esc(c.nombre)}</option>`).join("")+`<option value="__newcli__">➕ Añadir nuevo cliente…</option></select>`;}
+    else if(f.t==="check")inner=`<label style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px"><input type="checkbox" id="f-${f.k}" ${(val==1||val==="1"||val==="Sí"||val===true)?"checked":""}> Sí</label>`;
     else inner=`<input id="f-${f.k}" type="${f.t}" value="${esc(val)}">`;
     return `<div class="field" style="flex:${f.full?"1 1 100%":"1 1 45%"}"><label>${f.l}${f.req?" *":""}</label>${inner}</div>`;
   }).join("")+"</div>";
@@ -2083,7 +2130,7 @@ $("#modal-bg").addEventListener("click",e=>{if(e.target.id==="modal-bg")closeMod
 
 async function saveForm(){
   const {table,id}=currentForm,sc=SCHEMAS[table],data={};
-  for(const f of sc.fields){const el=$("#f-"+f.k);if(!el)continue;let v=el.value;
+  for(const f of sc.fields){const el=$("#f-"+f.k);if(!el)continue;let v=(f.t==="check")?(el.checked?1:0):el.value;
     if(f.t==="number"||f.t==="veh-stock"||f.t==="veh-transporte"||f.t.startsWith("ref-"))v=v===""?null:Number(v);if(v==="__add__"||v==="__new__"||v==="__newcli__")v="";data[f.k]=v;}
   const miss=sc.fields.filter(f=>f.req&&(data[f.k]==null||data[f.k]===""));
   if(miss.length){toast("Falta: "+miss.map(f=>f.l).join(", "));return;}
@@ -2155,10 +2202,14 @@ async function factura(id){
   const s=(DATA.ventas||[]).find(v=>v.id===id)||(await api("/api/ventas")).find(v=>v.id===id);
   if(!s){toast("No se encontró la venta");return;}
   const total=Number(s.precio)||0,rebu=(s.regimen==="REBU"),base=rebu?total:total/1.21,iva=rebu?0:total-base;
+  const prof=s.estado_factura!=="factura";
+  const numDoc=prof?(s.numero_proforma||("PRO-"+s.id)):(s.numero_factura||("V-"+s.id));
+  const fechaDoc=prof?(s.fecha_proforma||s.fecha||""):(s.fecha||"");
   const veh=`${esc(s.marca||"")} ${esc(s.modelo||"")}`.trim();
   const concepto=`Venta de vehículo usado ${veh}`+(s.matricula?` · Matrícula ${esc(s.matricula)}`:"")+(s.bastidor?` · Bastidor ${esc(s.bastidor)}`:"")+(s.km!=null&&s.km!==""?` · ${num(s.km)} km`:"")+(s.anio?` · Año ${esc(s.anio)}`:"");
-  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Factura ${esc(s.numero_factura||("V-"+s.id))}</title>
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>${prof?"Proforma":"Factura"} ${esc(numDoc)}</title>
   <style>*{box-sizing:border-box}body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;margin:0;padding:32px;font-size:13px}
+  .proftag{background:#fff4d6;border:1px solid #e6b800;color:#9a6b00;padding:8px 14px;border-radius:8px;font-weight:700;margin-bottom:14px}
   .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #d6e021;padding-bottom:16px;margin-bottom:22px}
   .logo{display:flex;align-items:center;gap:12px}.logo .sq{width:46px;height:46px;background:#d6e021;border-radius:3px;display:flex;align-items:center;justify-content:center}
   .brand{font-size:26px;font-weight:800;letter-spacing:3px}.brand .c{color:#b9c400}
@@ -2174,8 +2225,9 @@ async function factura(id){
   <div class="noprint" style="margin-bottom:18px"><button class="btn" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button></div>
   <div class="top"><div class="logo"><div class="sq"><svg width="30" height="30" viewBox="0 0 44 44"><g fill="none" stroke="#1c1c1c" stroke-width="2.2" stroke-linejoin="round"><path d="M7 37 L16 18 L25 37"/><path d="M14 37 L23 12 L32 37"/><path d="M22 37 L30 22 L38 37"/></g></svg></div><div class="brand">MIÑA<span class="c">CAR</span></div></div>
     <div class="emisor"><b>${EMPRESA.razon}</b><br>${EMPRESA.dir}<br>${EMPRESA.cp} ${EMPRESA.ciudad} (${EMPRESA.prov})<br>CIF: ${EMPRESA.cif}<br><span style="font-size:10px">${EMPRESA.registro}</span></div></div>
-  <h1>FACTURA</h1>
-  <div class="meta"><div class="box"><h4>Datos de la factura</h4><b>Nº:</b> ${esc(s.numero_factura||("V-"+s.id))}<br><b>Fecha:</b> ${esc(s.fecha||"")}<br><b>Régimen:</b> ${esc(s.regimen||"General")}</div>
+  <h1>${prof?"FACTURA PROFORMA":"FACTURA"}</h1>
+  ${prof?'<div class="proftag">⚠ PROFORMA · documento sin validez fiscal. Confírmala en la app para emitir la factura definitiva.</div>':""}
+  <div class="meta"><div class="box"><h4>${prof?"Datos de la proforma":"Datos de la factura"}</h4><b>Nº:</b> ${esc(numDoc)}<br><b>Fecha:</b> ${esc(fechaDoc)}<br><b>Régimen:</b> ${esc(s.regimen||"General")}</div>
     <div class="box"><h4>Cliente</h4><b>${esc(s.cliente||"—")}</b><br>${s.cliente_nif?("NIF/CIF: "+esc(s.cliente_nif)+"<br>"):""}${s.cliente_direccion?(esc(s.cliente_direccion)+"<br>"):""}${s.cliente_telefono?("Tel: "+esc(s.cliente_telefono)):""}</div></div>
   <table><thead><tr><th>Concepto</th><th class="n">Base</th><th class="n">IVA</th><th class="n">Importe</th></tr></thead>
     <tbody><tr><td>${concepto}</td><td class="n">${rebu?"—":eur2(base)}</td><td class="n">${rebu?"—":"21%"}</td><td class="n">${eur2(total)}</td></tr></tbody></table>
@@ -2212,6 +2264,8 @@ function exportCurrentView(){
     rows=DATA.gestoria.map(g=>[g.matricula,g.marca,g.modelo,g.tipo,g.estado,g.gestoria,g.fecha_solicitud,g.fecha_resolucion]);}
   else if(v==="facturas"){name="facturas_proveedor";cols=["Origen","Concepto","Proveedor","Nº factura","Importe","Factura recibida","Pagada","Pago previsto"];
     rows=factItems().filter(x=>x.noRec||(x.recibida&&!x.paid)).map(x=>[x.s.lbl,x.s.con(x.r),x.s.prov(x.r),x.num,x.imp,x.recibida?"Sí":"No",x.paid?"Sí":"No",x.fest]);}
+  else if(v==="flexicar"){name="flexicar_deudas";cols=["Marca","Modelo","Matrícula","Pago al proveedor","Importe deuda","F. proforma","F. pago (nosotros)","F. liberación","F. entrega","F. cobro prev.","Entrega doc."];
+    rows=flexicarItems().map(it=>[it.s.marca,it.s.modelo,it.s.matricula,it.pagadoProv?"Pagado":"Pendiente",it.deuda,it.s.fecha_proforma,(it.compra?it.compra.fecha_pago:""),it.veh.fecha_liberacion,it.s.fecha_entrega_cli,it.s.fecha_cobro_est,it.s.fecha_entrega_doc]);}
   else if(v==="almacenes"){name="almacenes_stock";cols=["Matrícula","Marca","Modelo","Almacén","Posición","Valor compra"];
     rows=DATA.vehiculos.filter(x=>x.estado==="disponible").map(x=>[x.matricula,x.marca,x.modelo,x.almacen_nombre||"Sin asignar",x.ubicacion,x._base]);}
   else if(v==="clientes"){name="clientes";cols=["Nombre","NIF","NIF válido","Teléfono","Email","Dirección"];

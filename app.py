@@ -635,8 +635,18 @@ def migrate(conn):
             add("leads", "proxima_fecha TEXT")       # próxima gestión (#5)
             add("leads", "email TEXT")               # contacto (#19)
         add("clientes", "datos_cobro TEXT")          # datos de cobro obligatorios en clientes (#19)
+        add("clientes", "es_flexicar INTEGER DEFAULT 0")  # cliente del módulo Flexicar
         if has_table("usuarios"):
             add("usuarios", "comercial_id INTEGER")   # vincular usuario con comercial (#21)
+        # Proforma obligatoria + campos Flexicar
+        add("vehiculos", "fecha_liberacion TEXT")
+        add("compras", "fecha_pago TEXT")            # fecha real de pago al proveedor
+        add("ventas", "estado_factura TEXT")          # 'proforma' | 'factura'
+        add("ventas", "numero_proforma TEXT")
+        add("ventas", "fecha_proforma TEXT")
+        add("ventas", "fecha_entrega_doc TEXT")       # entrega de documentación al cliente
+        # Ventas existentes = ya son facturas confirmadas
+        conn.execute("UPDATE ventas SET estado_factura='factura' WHERE estado_factura IS NULL OR estado_factura=''")
         conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS gestorias (
@@ -793,20 +803,22 @@ def validar_nif(valor):
 
 # Campos permitidos por tabla (para inserciones/actualizaciones seguras)
 FIELDS = {
-    "clientes": ["nombre", "nif", "telefono", "email", "direccion", "datos_cobro", "notas"],
+    "clientes": ["nombre", "nif", "telefono", "email", "direccion", "datos_cobro", "es_flexicar", "notas"],
     "transportistas": ["nombre", "nif", "telefono", "email", "direccion", "notas"],
     "vehiculos": ["matricula", "bastidor", "marca", "modelo", "anio", "km",
                   "color", "combustible", "estado", "recepcionado",
                   "reserva_cliente_id", "reserva_fecha", "almacen_id", "ubicacion",
-                  "itv_pasada", "itv_expira", "proxima_revision", "etiqueta", "ref_web", "foto", "notas"],
+                  "itv_pasada", "itv_expira", "proxima_revision", "etiqueta",
+                  "fecha_liberacion", "ref_web", "foto", "notas"],
     "compras": ["vehiculo_id", "proveedor_id", "prov_id", "numero_factura",
                 "regimen", "fecha", "precio", "gastos", "iva_pct", "forma_pago",
-                "pagado", "fecha_pago_est", "factura_recibida", "fecha_factura", "notas"],
+                "pagado", "fecha_pago_est", "fecha_pago", "factura_recibida", "fecha_factura", "notas"],
     "proveedores": ["nombre", "nif", "telefono", "email", "direccion", "notas"],
     "ventas": ["vehiculo_id", "cliente_id", "comercial_id", "numero_factura",
                "regimen", "fecha", "precio", "cruz_fin", "cruz_seg", "cruz_gar",
                "forma_pago", "fecha_cobro_est", "entregado",
-               "fecha_entrega_cli", "notas"],
+               "fecha_entrega_cli", "estado_factura", "numero_proforma",
+               "fecha_proforma", "fecha_entrega_doc", "notas"],
     "comerciales": ["nombre", "nif", "telefono", "email", "fecha_incorporacion",
                     "comision_pct", "franquicia", "activo", "notas"],
     "logistica": ["vehiculo_id", "transportista_id", "transportista", "origen",
@@ -894,6 +906,38 @@ def siguiente_factura(conn):
     conn.execute("UPDATE contadores SET valor = valor + 1 WHERE clave=?", (clave,))
     val = conn.execute("SELECT valor FROM contadores WHERE clave=?", (clave,)).fetchone()["valor"]
     return f"{year}/{val:04d}"
+
+
+def siguiente_proforma(conn):
+    """Numero de proforma correlativo del año, formato PRO-AAAA/NNNN (contador propio)."""
+    year = date.today().year
+    clave = f"proforma:{year}"
+    conn.execute("INSERT OR IGNORE INTO contadores (clave, valor) VALUES (?, 0)", (clave,))
+    conn.execute("UPDATE contadores SET valor = valor + 1 WHERE clave=?", (clave,))
+    val = conn.execute("SELECT valor FROM contadores WHERE clave=?", (clave,)).fetchone()["valor"]
+    return f"PRO-{year}/{val:04d}"
+
+
+def confirmar_venta(venta_id):
+    """Convierte una proforma en factura de venta: asigna nº correlativo,
+    marca el coche como vendido y la venta como 'factura'."""
+    conn = get_db()
+    try:
+        v = conn.execute("SELECT * FROM ventas WHERE id=?", (venta_id,)).fetchone()
+        if not v:
+            raise ReglaNegocio("Venta no encontrada.")
+        if v["estado_factura"] == "factura":
+            raise ReglaNegocio("Esta venta ya está confirmada como factura.")
+        num = v["numero_factura"] if (v["numero_factura"] or "").strip() else siguiente_factura(conn)
+        conn.execute(
+            "UPDATE ventas SET estado_factura='factura', numero_factura=?, fecha=? WHERE id=?",
+            (num, date.today().isoformat(), venta_id))
+        if v["vehiculo_id"]:
+            conn.execute("UPDATE vehiculos SET estado='vendido' WHERE id=?", (v["vehiculo_id"],))
+        conn.commit()
+        return num
+    finally:
+        conn.close()
 
 
 def _nombre_comercial(conn, cid):
@@ -1036,9 +1080,14 @@ def insert_row(table, data):
                 raise ReglaNegocio(
                     f"El vehículo {v['matricula'] or ''} no está en stock "
                     f"(estado: {v['estado']}). Solo se pueden vender vehículos entregados/en stock.")
-            # Numeracion de factura correlativa automatica si viene vacia
-            if not (str(data.get("numero_factura") or "").strip()):
-                data["numero_factura"] = siguiente_factura(conn)
+            # Toda venta nace como PROFORMA: nº de proforma propio; la factura
+            # correlativa se asigna solo al CONFIRMAR la proforma.
+            data["estado_factura"] = "proforma"
+            data["numero_factura"] = ""
+            if not (str(data.get("numero_proforma") or "").strip()):
+                data["numero_proforma"] = siguiente_proforma(conn)
+            if not (str(data.get("fecha_proforma") or "").strip()):
+                data["fecha_proforma"] = data.get("fecha") or date.today().isoformat()
 
         # traspasos: registra el movimiento y actualiza el almacen del vehiculo
         if table == "traspasos":
@@ -1078,7 +1127,8 @@ def insert_row(table, data):
         new_id = cur.lastrowid
 
         if table == "ventas" and data.get("vehiculo_id"):
-            conn.execute("UPDATE vehiculos SET estado='vendido' WHERE id=?",
+            # Proforma nueva → el coche queda RESERVADO (se vende al confirmar la factura)
+            conn.execute("UPDATE vehiculos SET estado='reservado' WHERE id=? AND estado!='vendido'",
                          (data.get("vehiculo_id"),))
         if table == "logistica":
             _aplicar_entrega(conn, data)
@@ -1096,6 +1146,11 @@ def update_row(table, row_id, data):
     try:
         if table == "compras":
             _ensure_vehiculo(conn, data)
+            # Al marcar la compra pagada, guardar la fecha real de pago (si no la había)
+            if data.get("pagado") == "Sí" and not (str(data.get("fecha_pago") or "").strip()):
+                cur = conn.execute("SELECT fecha_pago FROM compras WHERE id=?", (row_id,)).fetchone()
+                if not (cur and (cur["fecha_pago"] or "").strip()):
+                    data["fecha_pago"] = date.today().isoformat()
 
         # Cerrar una gestión (lead o reclamación) exige consignar el motivo
         if table in ("leads", "agenda") and data.get("cerrado"):
@@ -1132,8 +1187,10 @@ def update_row(table, row_id, data):
         conn.execute(f"UPDATE {table} SET {assignments} WHERE id=?", values)
 
         if table == "ventas" and data.get("vehiculo_id"):
-            conn.execute("UPDATE vehiculos SET estado='vendido' WHERE id=?",
-                         (data.get("vehiculo_id"),))
+            ef = conn.execute("SELECT estado_factura FROM ventas WHERE id=?", (row_id,)).fetchone()
+            nuevo = "vendido" if (ef and ef["estado_factura"] == "factura") else "reservado"
+            conn.execute("UPDATE vehiculos SET estado=? WHERE id=? AND estado!='vendido'",
+                         (nuevo, data.get("vehiculo_id")))
         if table == "logistica":
             _aplicar_entrega(conn, data)
         conn.commit()
@@ -1416,7 +1473,7 @@ def list_ventas(q=None):
         SELECT s.*, v.matricula, v.marca, v.modelo, v.bastidor, v.anio, v.km,
                cl.nombre AS cliente, cl.nif AS cliente_nif,
                cl.direccion AS cliente_direccion, cl.email AS cliente_email,
-               cl.telefono AS cliente_telefono, co.nombre AS comercial,
+               cl.telefono AS cliente_telefono, cl.es_flexicar AS cliente_flexicar, co.nombre AS comercial,
                (COALESCE((SELECT precio + gastos FROM compras c WHERE c.vehiculo_id=v.id ORDER BY c.id DESC LIMIT 1),0)
                 + COALESCE((SELECT SUM(coste) FROM taller t WHERE t.vehiculo_id=v.id),0)
                 + COALESCE((SELECT SUM(coste) FROM logistica l WHERE l.vehiculo_id=v.id),0)) AS coste
@@ -2869,6 +2926,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 return self.send_json({"ok": False, "error": f"Error al importar: {e}"}, status=400)
             return self.send_json(res)
+
+        # Confirmar una proforma → factura de venta correlativa
+        mconf = re.match(r"^/api/ventas/(\d+)/confirmar$", path)
+        if mconf:
+            if not puede_escribir(user, "ventas"):
+                return self.send_json({"ok": False, "error": "No tienes permiso de edición en ventas."}, status=403)
+            try:
+                num = confirmar_venta(int(mconf.group(1)))
+            except ReglaNegocio as e:
+                return self.send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:
+                return self.send_json({"ok": False, "error": f"Error al confirmar: {e}"}, status=400)
+            return self.send_json({"ok": True, "numero_factura": num})
 
         if path == "/api/usuarios":
             if user["rol"] != "admin":
