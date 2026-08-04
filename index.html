@@ -677,6 +677,20 @@ function viewLogistica(){
       <td class="r">${diasTxt}</td>
       <td class="r"><button class="btn ghost sm" onclick="openForm('logistica',${l.id})">✎</button> <button class="btn danger sm" onclick="delRow('logistica',${l.id})">🗑</button></td>
     </tr>`;}).join("");
+  // SIN TRANSPORTE ASIGNADO: comprados, sin recepcionar y sin ninguna fila de transporte
+  const sinAsig=DATA.vehiculos.filter(v=>v._compra&&!v.recepcionado&&v.estado!=="vendido"
+      &&!DATA.logistica.some(l=>l.vehiculo_id===v.id)
+      &&matchQ(v,[v.matricula,v.marca,v.modelo]));
+  const sinRows=sinAsig.map(v=>{
+    const dias=v._compra&&v._compra.fecha?daysBetween(v._compra.fecha,todayISO()):null;
+    return `<tr data-veh="${v.id}">
+      <td><span class="minipill" style="background:var(--danger-s);color:var(--danger)">Sin transporte asignado</span></td>
+      <td><span class="plate">${esc(v.matricula||"")}</span> ${esc(v.marca||"")} ${esc(v.modelo||"")}</td>
+      <td colspan="4" style="color:var(--muted)">Comprado a ${esc(v._compra.proveedor||"—")} · sin transporte ni recepción</td>
+      <td>${fdate(v._compra.fecha)}</td><td>—</td>
+      <td class="r">${dias!=null?`<b style="color:${dias>15?'var(--danger)':'var(--ink)'}">${dias} d</b>`:"—"}</td>
+      <td class="r"><button class="btn accent sm" onclick="openForm('logistica',null,{vehiculo_id:${v.id}})">➕ Asignar transporte</button></td>
+    </tr>`;}).join("");
   // Pendientes de RECIBIR (comprados, aún no en stock)
   const recibir=DATA.vehiculos.filter(v=>v.estado==="pendiente"&&matchQ(v,[v.matricula,v.marca,v.modelo]));
   const recRows=recibir.map(v=>`<tr><td><span class="plate">${esc(v.matricula||"")}</span> ${esc(v.marca||"")} ${esc(v.modelo||"")}</td>
@@ -693,7 +707,7 @@ function viewLogistica(){
       <div class="card"><div class="card-h"><h3>⬆ Pendientes de entregar (${entregar.length})</h3><span class="hint">vendidos, no entregados</span></div>
         <div class="card-b" style="padding:0 18px 12px">${tableWrap([{t:"Vehículo"},{t:"Cliente"},{t:"F. venta"},{t:"",r:1}],entRows)}</div></div>
     </div>
-    <div class="card"><div class="card-h"><h3>Transportes</h3><span class="hint">días = desde la compra hasta la entrega</span></div><div class="card-b" style="padding:0 18px 12px">${tableWrap([{t:"Estado"},{t:"Vehículo"},{t:"Transportista"},{t:"Origen"},{t:"Destino"},{t:"Destinatario"},{t:"Recogida"},{t:"Entrega"},{t:"Días",r:1},{t:"",r:1}],rows)}</div></div>`;
+    <div class="card"><div class="card-h"><h3>Transportes</h3><span class="hint">${sinAsig.length?`⚠ ${sinAsig.length} coche(s) comprados sin transporte asignado · `:""}días = desde la compra hasta la entrega</span></div><div class="card-b" style="padding:0 18px 12px">${tableWrap([{t:"Estado"},{t:"Vehículo"},{t:"Transportista"},{t:"Origen"},{t:"Destino"},{t:"Destinatario"},{t:"Recogida"},{t:"Entrega"},{t:"Días",r:1},{t:"",r:1}],sinRows+rows)}</div></div>`;
 }
 /* ---- Recepción del vehículo (alta en stock + parte de desperfectos) ---- */
 const CAR_SVG=`<svg viewBox="0 0 200 380" width="100%" style="max-height:360px;display:block;margin:auto" xmlns="http://www.w3.org/2000/svg">
