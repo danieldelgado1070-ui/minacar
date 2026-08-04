@@ -445,9 +445,11 @@ def seed_admin(conn):
 
 def crear_sesion(row):
     tok = secrets.token_hex(32)
+    keys = row.keys()
     SESSIONS[tok] = {
         "id": row["id"], "username": row["username"], "nombre": row["nombre"],
-        "rol": row["rol"], "permisos": json.loads(row["permisos"] or "[]")}
+        "rol": row["rol"], "permisos": json.loads(row["permisos"] or "[]"),
+        "comercial_id": (row["comercial_id"] if "comercial_id" in keys else None)}
     return tok
 
 
@@ -467,7 +469,7 @@ def autenticar(username, password):
 def list_usuarios():
     conn = get_db()
     rows = conn.execute(
-        "SELECT id, username, nombre, rol, permisos, activo, creado FROM usuarios ORDER BY username"
+        "SELECT id, username, nombre, rol, permisos, activo, comercial_id, creado FROM usuarios ORDER BY username"
     ).fetchall()
     conn.close()
     out = []
@@ -486,10 +488,10 @@ def crear_usuario(data):
     conn = get_db()
     try:
         cur = conn.execute(
-            "INSERT INTO usuarios (username, nombre, salt, hash, rol, permisos, activo)"
-            " VALUES (?,?,?,?,?,?,1)",
+            "INSERT INTO usuarios (username, nombre, salt, hash, rol, permisos, activo, comercial_id)"
+            " VALUES (?,?,?,?,?,?,1,?)",
             (data.get("username").strip(), data.get("nombre"), salt, h,
-             data.get("rol") or "usuario", perms))
+             data.get("rol") or "usuario", perms, data.get("comercial_id") or None))
         conn.commit()
         return cur.lastrowid
     except sqlite3.IntegrityError:
@@ -504,6 +506,9 @@ def actualizar_usuario(uid, data):
         if k in data:
             sets.append(f"{k}=?")
             vals.append(data[k])
+    if "comercial_id" in data:
+        sets.append("comercial_id=?")
+        vals.append(data.get("comercial_id") or None)
     if "permisos" in data:
         sets.append("permisos=?")
         vals.append(json.dumps(data["permisos"] or []))
@@ -591,11 +596,21 @@ def migrate(conn):
         add("ventas", "cruz_gar REAL DEFAULT 0")
         if has_table("taller"):
             add("taller", "prov_id INTEGER")
+        if has_table("logistica"):
+            add("logistica", "numero_factura TEXT")      # facturación del transporte (#17)
+            add("logistica", "factura_recibida TEXT")
+            add("logistica", "fecha_factura TEXT")
+            add("logistica", "pagado TEXT")
+            add("logistica", "destinatario_id INTEGER")
         add("vehiculos", "proxima_revision TEXT")   # ITV: próxima revisión concertada (#11)
         if has_table("gestoria"):
             add("gestoria", "gestoria_id INTEGER")   # enlaza con la gestoría del directorio
         if has_table("leads"):
             add("leads", "proxima_fecha TEXT")       # próxima gestión (#5)
+            add("leads", "email TEXT")               # contacto (#19)
+        add("clientes", "datos_cobro TEXT")          # datos de cobro obligatorios en clientes (#19)
+        if has_table("usuarios"):
+            add("usuarios", "comercial_id INTEGER")   # vincular usuario con comercial (#21)
         conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS gestorias (
@@ -697,7 +712,7 @@ def validar_nif(valor):
 
 # Campos permitidos por tabla (para inserciones/actualizaciones seguras)
 FIELDS = {
-    "clientes": ["nombre", "nif", "telefono", "email", "direccion", "notas"],
+    "clientes": ["nombre", "nif", "telefono", "email", "direccion", "datos_cobro", "notas"],
     "transportistas": ["nombre", "nif", "telefono", "email", "direccion", "notas"],
     "vehiculos": ["matricula", "bastidor", "marca", "modelo", "anio", "km",
                   "color", "combustible", "estado", "recepcionado",
@@ -714,8 +729,9 @@ FIELDS = {
     "comerciales": ["nombre", "nif", "telefono", "email", "fecha_incorporacion",
                     "comision_pct", "franquicia", "activo", "notas"],
     "logistica": ["vehiculo_id", "transportista_id", "transportista", "origen",
-                  "destino", "destinatario", "ubicacion", "almacen_id", "coste",
-                  "fecha_recogida", "fecha_entrega", "estado", "notas"],
+                  "destino", "destinatario", "destinatario_id", "ubicacion", "almacen_id", "coste",
+                  "fecha_recogida", "fecha_entrega", "estado",
+                  "numero_factura", "factura_recibida", "fecha_factura", "pagado", "notas"],
     "almacenes": ["nombre", "direccion", "notas"],
     "recepciones": ["vehiculo_id", "fecha", "responsable", "almacen_id",
                     "ubicacion", "tiene_desperfectos", "desperfectos", "marcas", "notas"],
@@ -731,7 +747,7 @@ FIELDS = {
     "taller": ["vehiculo_id", "tipo", "descripcion", "proveedor", "prov_id", "fecha",
                "coste", "pago", "fecha_pago_est",
                "numero_factura", "nif_proveedor", "iva_pct", "notas"],
-    "leads": ["vehiculo_id", "comercial_id", "nombre", "canal", "telefono",
+    "leads": ["vehiculo_id", "comercial_id", "nombre", "canal", "telefono", "email",
               "fecha", "estado", "proxima_fecha", "cerrado", "motivo_cierre", "notas"],
     "seguimientos": ["ambito", "ref_id", "fecha", "contacto", "detalle",
                      "proxima_fecha", "comercial_id"],
@@ -833,6 +849,14 @@ def registrar_recepcion(data):
         raise ReglaNegocio("Falta indicar el vehículo a recepcionar.")
     conn = get_db()
     try:
+        # No recepcionar sin transporte, salvo confirmación (con motivo en las notas)
+        if not data.get("forzar"):
+            n = conn.execute("SELECT COUNT(*) AS c FROM logistica WHERE vehiculo_id=?", (vid,)).fetchone()["c"]
+            if not n:
+                raise ReglaNegocio(
+                    "Este vehículo no tiene ningún transporte dado de alta. Da de alta el "
+                    "transporte en Logística, o confirma que el vehículo NO necesita transporte "
+                    "indicando el motivo.", puede_forzar=True)
         marcas = data.get("marcas")
         if isinstance(marcas, (list, dict)):
             marcas = json.dumps(marcas, ensure_ascii=False)
@@ -2688,6 +2712,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):
+        self.__dict__.pop("_parsed_body", None)   # nueva petición: no reutilizar el cuerpo cacheado
         path = urlparse(self.path).path
 
         if path == "/api/login":
@@ -2791,7 +2816,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             try:
                 rid = registrar_recepcion(data)
             except ReglaNegocio as e:
-                return self.send_json({"ok": False, "error": str(e)}, status=400)
+                return self.send_json({"ok": False, "error": str(e),
+                                       "puede_forzar": getattr(e, "puede_forzar", False)}, status=400)
             except Exception as e:
                 return self.send_json({"ok": False, "error": f"Error al registrar la recepción: {e}"}, status=400)
             return self.send_json({"id": rid, "ok": True})
@@ -2807,6 +2833,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_json({"id": new_id, "ok": True})
 
     def do_PUT(self):
+        self.__dict__.pop("_parsed_body", None)   # nueva petición: no reutilizar el cuerpo cacheado
         self.read_body()   # drena/cachea el cuerpo para no desincronizar keep-alive en respuestas tempranas
         user = self.current_user()
         if not user:
@@ -2835,6 +2862,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_json({"ok": True})
 
     def do_DELETE(self):
+        self.__dict__.pop("_parsed_body", None)   # nueva petición: no reutilizar el cuerpo cacheado
         user = self.current_user()
         if not user:
             return self.send_json({"ok": False, "error": "no autenticado"}, status=401)

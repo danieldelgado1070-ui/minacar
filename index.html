@@ -768,7 +768,13 @@ async function guardarRecepcion(){
     almacen_id:alm&&alm!=="__new__"?Number(alm):null,ubicacion:$("#rc-ubi").value.trim(),
     tiene_desperfectos:tiene?1:0,desperfectos:tiene?$("#rc-desptxt").value.trim():"",
     marcas:tiene?JSON.stringify(recMarcas):"",notas:$("#rc-notas").value.trim()};
-  const res=await api("/api/recepciones",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+  let res=await api("/api/recepciones",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+  if(res&&res.ok===false&&res.puede_forzar){
+    const motivo=(prompt("⚠ "+res.error+"\n\nSi el vehículo NO necesita transporte, escribe el motivo para continuar:")||"").trim();
+    if(!motivo){return;}
+    payload.forzar=true;payload.notas=(payload.notas?payload.notas+" · ":"")+"Sin transporte: "+motivo;
+    res=await api("/api/recepciones",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+  }
   if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo registrar la recepción"));return;}
   document.querySelector(".modal .actions button.accent").setAttribute("onclick","saveForm()");
   closeModal();toast("Recepción registrada ✔ · coche en stock");await reloadAll();
@@ -796,21 +802,45 @@ function viewTaller(){
 }
 
 /* ---------- MARKETING / LEADS ---------- */
+let mktF={comercial:"",canal:"",estado:"",veh:""};
+function miComercial(){return (CURRENTUSER&&CURRENTUSER.rol!=="admin"&&CURRENTUSER.comercial_id)?String(CURRENTUSER.comercial_id):"";}
+function leadsFiltrados(){
+  const mc=miComercial();
+  return DATA.leads.filter(l=>{
+    if(mc&&String(l.comercial_id||"")!==mc)return false;
+    if(mktF.comercial&&String(l.comercial_id||"")!==mktF.comercial)return false;
+    if(mktF.canal&&(l.canal||"")!==mktF.canal)return false;
+    if(mktF.estado&&(l.estado||"Nuevo")!==mktF.estado)return false;
+    if(mktF.veh&&String(l.vehiculo_id||"")!==mktF.veh)return false;
+    return matchQ(l,[l.matricula,l.marca,l.modelo,l.nombre,l.canal,l.estado,l.telefono,l.email]);
+  });
+}
 function viewMarketing(){
   const lc={Nuevo:"var(--muted)",Contactado:"var(--info)",Cita:"var(--res)","Negociación":"var(--warn)",Ganado:"var(--ok)",Perdido:"var(--danger)"};
-  const arr=DATA.leads.filter(l=>matchQ(l,[l.matricula,l.marca,l.modelo,l.nombre,l.canal,l.estado]));
+  const arr=leadsFiltrados();
   const activos=arr.filter(l=>!["Ganado","Perdido"].includes(l.estado)).length;
   const ganados=arr.filter(l=>l.estado==="Ganado").length;
   const kpi=(l,v)=>`<div class="kpi"><div class="k-lab">${l}</div><div class="k-val">${v}</div></div>`;
+  const canales=["Coches.net","Wallapop","Milanuncios","Web propia","Teléfono","B2B","Otro"];
+  const estados=["Nuevo","Contactado","Cita","Negociación","Ganado","Perdido"];
+  const mc=miComercial();
+  const selVeh=DATA.vehiculos.filter(v=>DATA.leads.some(l=>l.vehiculo_id===v.id));
+  const toolbar=`<div class="toolbar" style="margin-bottom:14px;flex-wrap:wrap;gap:8px">
+    ${mc?"":`<select onchange="mktF.comercial=this.value;render()"><option value="">Comercial: todos</option>${DATA.comerciales.map(c=>`<option value="${c.id}" ${mktF.comercial===String(c.id)?"selected":""}>${esc(c.nombre)}</option>`).join("")}</select>`}
+    <select onchange="mktF.canal=this.value;render()"><option value="">Canal: todos</option>${canales.map(c=>`<option ${mktF.canal===c?"selected":""}>${esc(c)}</option>`).join("")}</select>
+    <select onchange="mktF.estado=this.value;render()"><option value="">Estado: todos</option>${estados.map(e=>`<option ${mktF.estado===e?"selected":""}>${esc(e)}</option>`).join("")}</select>
+    <select onchange="mktF.veh=this.value;render()"><option value="">Vehículo: todos</option>${selVeh.map(v=>`<option value="${v.id}" ${mktF.veh===String(v.id)?"selected":""}>${esc(v.matricula||"")} ${esc(v.marca||"")} ${esc(v.modelo||"")}</option>`).join("")}</select>
+    ${(mktF.comercial||mktF.canal||mktF.estado||mktF.veh)?`<button class="btn ghost sm" onclick="mktF={comercial:'',canal:'',estado:'',veh:''};render()">Quitar filtros</button>`:""}</div>`;
   const rows=arr.map(l=>`
     <tr data-veh="${l.vehiculo_id||''}">
       <td><span class="plate">${esc(l.matricula||"")}</span> ${esc(l.marca||"")} ${esc(l.modelo||"")}</td>
-      <td><b>${esc(l.nombre||"")}</b></td><td>${esc(l.comercial||"")}</td><td>${esc(l.canal||"")}</td><td>${esc(l.telefono||"")}</td><td>${fdate(l.fecha)}</td>
+      <td><b>${esc(l.nombre||"")}</b></td><td>${esc(l.comercial||"")}</td><td>${esc(l.canal||"")}</td><td>${esc(l.telefono||"")}${l.email?" · "+esc(l.email):""}</td><td>${fdate(l.fecha)}</td>
       <td>${estadoDot(lc[l.estado]||"var(--muted)",l.estado||"Nuevo")}</td>
       <td class="r">${l.vehiculo_id?`<button class="btn ghost sm" onclick="event.stopPropagation();enviarFicha(${l.vehiculo_id})">📤 Ficha</button> `:""}<button class="btn accent sm" onclick="event.stopPropagation();openGestionForm('lead',${l.id})">📝 Gestión</button> <button class="btn ghost sm" onclick="event.stopPropagation();openForm('leads',${l.id})">✎</button> <button class="btn danger sm" onclick="event.stopPropagation();delRow('leads',${l.id})">🗑</button></td>
     </tr>`).join("");
-  return `<div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">${kpi("Leads totales",arr.length)}${kpi("Activos (en embudo)",activos)}${kpi("Ganados",ganados)}</div>`
-    +tableWrap([{t:"Vehículo"},{t:"Contacto"},{t:"Comercial"},{t:"Canal"},{t:"Teléfono"},{t:"Fecha"},{t:"Estado"},{t:"",r:1}],rows);
+  return `<div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">${kpi("Leads (filtro)",arr.length)}${kpi("Activos (en embudo)",activos)}${kpi("Ganados",ganados)}</div>`
+    +toolbar
+    +tableWrap([{t:"Vehículo"},{t:"Contacto"},{t:"Comercial"},{t:"Canal"},{t:"Contacto"},{t:"Fecha"},{t:"Estado"},{t:"",r:1}],rows);
 }
 
 /* ---------- GESTORÍA ---------- */
@@ -944,6 +974,7 @@ function viewTesoreria(){
   DATA.compras.filter(c=>c.pagado!=="Sí").forEach(c=>pagos.push({fuente:"Compra",tabla:"compras",id:c.id,pf:"pagado",pv:"Sí",concepto:`${esc(c.matricula||"")} ${esc(c.marca||"")} ${esc(c.modelo||"")} · Fra ${esc(c.numero_factura||"—")}`,prov:c.proveedor,imp:(Number(c.precio)||0)+(Number(c.gastos)||0),fest:c.fecha_pago_est}));
   DATA.taller.filter(t=>t.pago!=="Pagado").forEach(t=>pagos.push({fuente:"Taller",tabla:"taller",id:t.id,pf:"pago",pv:"Pagado",concepto:`${esc(t.matricula||"")} · ${esc(t.tipo||"")} ${esc(t.descripcion||"")}`,prov:t.proveedor,imp:Number(t.coste)||0,fest:t.fecha_pago_est}));
   DATA.postventa.filter(p=>p.pago!=="Pagado").forEach(p=>pagos.push({fuente:"Postventa",tabla:"postventa",id:p.id,pf:"pago",pv:"Pagado",concepto:`${esc(p.matricula||"")} · ${esc(p.tipo||"")} ${esc(p.descripcion||"")}`,prov:p.proveedor,imp:Number(p.coste)||0,fest:p.fecha_pago_est}));
+  DATA.logistica.filter(l=>l.factura_recibida==="Sí"&&l.pagado!=="Sí"&&(Number(l.coste)||0)>0).forEach(l=>pagos.push({fuente:"Transporte",tabla:"logistica",id:l.id,pf:"pagado",pv:"Sí",concepto:`${esc(l.matricula||"")} ${esc(l.marca||"")} ${esc(l.modelo||"")} · Fra ${esc(l.numero_factura||"—")}`,prov:l.transportista_nombre,imp:Number(l.coste)||0,fest:l.fecha_factura}));
   const pagosF=pagos.filter(p=>matchQ({x:p.concepto+" "+(p.prov||"")},["x",p.concepto,p.prov]));
   const totPago=pagosF.reduce((a,p)=>a+p.imp,0);
   const pagRows=pagosF.map(p=>`
@@ -1049,7 +1080,8 @@ function openUserForm(id){
     <div class="field" style="flex:1 1 45%"><label>Nombre</label><input id="u-nombre" value="${esc(u.nombre||"")}"></div>
     <div class="field" style="flex:1 1 45%"><label>Contraseña ${id?"(dejar vacío = no cambiar)":"*"}</label><input id="u-pass" type="text" placeholder="${id?"••••••":"contraseña"}"></div>
     <div class="field" style="flex:1 1 45%"><label>Rol</label><select id="u-rol"><option value="usuario" ${u.rol!=="admin"?"selected":""}>Usuario</option><option value="admin" ${u.rol==="admin"?"selected":""}>Administrador</option></select></div>
-    <div class="field" style="flex:1 1 100%"><label>Estado</label><select id="u-activo"><option value="1" ${u.activo?"selected":""}>Activo</option><option value="0" ${!u.activo?"selected":""}>Inactivo</option></select></div>
+    <div class="field" style="flex:1 1 45%"><label>Estado</label><select id="u-activo"><option value="1" ${u.activo?"selected":""}>Activo</option><option value="0" ${!u.activo?"selected":""}>Inactivo</option></select></div>
+    <div class="field" style="flex:1 1 45%"><label>Comercial vinculado (verá solo sus leads/agenda)</label><select id="u-comercial"><option value="">— ninguno —</option>${DATA.comerciales.map(c=>`<option value="${c.id}" ${String(u.comercial_id||"")===String(c.id)?"selected":""}>${esc(c.nombre)}</option>`).join("")}</select></div>
     <div class="field" style="flex:1 1 100%"><label>Acceso por área (si no es administrador)</label>
       <div class="perms">${areas.map(a=>`<label style="justify-content:space-between"><span>${esc(AREA_LABEL[a]||a)}</span>
         <select class="u-perm" data-area="${a}" style="width:auto;padding:3px 6px"><option value="" ${!pobj[a]?"selected":""}>Sin acceso</option><option value="r" ${pobj[a]==="r"?"selected":""}>Ver</option><option value="w" ${pobj[a]==="w"?"selected":""}>Editar</option></select></label>`).join("")}</div></div>
@@ -1061,7 +1093,7 @@ function openUserForm(id){
 async function saveUserForm(){
   const {id}=currentForm;
   const permisos={};document.querySelectorAll(".u-perm").forEach(s=>{if(s.value)permisos[s.dataset.area]=s.value;});
-  const data={nombre:$("#u-nombre").value.trim(),rol:$("#u-rol").value,activo:$("#u-activo").value==="1",permisos};
+  const data={nombre:$("#u-nombre").value.trim(),rol:$("#u-rol").value,activo:$("#u-activo").value==="1",permisos,comercial_id:$("#u-comercial").value?Number($("#u-comercial").value):null};
   const pass=$("#u-pass").value;if(pass)data.password=pass;
   if(!id){data.username=$("#u-username").value.trim();if(!data.username){toast("Falta el usuario");return;}if(!pass){toast("Falta la contraseña");return;}}
   const res=await api(id?`/api/usuarios/${id}`:"/api/usuarios",{method:id?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
@@ -1145,7 +1177,17 @@ function adjuntarAgendaDoc(vid,agendaId){
 }
 
 /* ---------- AGENDA DE GESTIONES (leads y postventa) ---------- */
-let agendaComercial="";
+let agendaComercial="",agendaHoy=false;
+function agendaFiltrada(){
+  const hoy=todayISO(),mc=miComercial();
+  let items=itemsAgenda();
+  if(mc)items=items.filter(i=>String(i.comercial_id||"")===mc);        // el comercial solo ve las suyas
+  if(agendaComercial)items=items.filter(i=>String(i.comercial_id||"")===agendaComercial);
+  if(agendaHoy)items=items.filter(i=>i.proxima&&i.proxima<=hoy);       // pendientes de hoy o vencidas
+  if(query)items=items.filter(i=>matchQ({x:i.veh+" "+(i.quien||"")+" "+(i.comercial||"")},["x"]));
+  items.sort((a,b)=>{const pa=a.proxima||"9999",pb=b.proxima||"9999";return pa.localeCompare(pb);});
+  return items;
+}
 function segsDe(ambito,id){return DATA.seguimientos.filter(s=>s.ambito===ambito&&s.ref_id===id).sort((a,b)=>((a.fecha||"").localeCompare(b.fecha||""))||(a.id-b.id));}
 function itemsAgenda(){
   const items=[];
@@ -1157,11 +1199,7 @@ function itemsAgenda(){
 }
 function viewAgenda(){
   const hoy=todayISO();
-  let items=itemsAgenda();
-  if(agendaComercial)items=items.filter(i=>String(i.comercial_id||"")===agendaComercial);
-  if(query)items=items.filter(i=>matchQ({x:i.veh+" "+(i.quien||"")+" "+(i.comercial||"")},["x"]));
-  // orden: primero las que tienen próxima fecha (vencidas/hoy antes), luego sin planificar
-  items.sort((a,b)=>{const pa=a.proxima||"9999",pb=b.proxima||"9999";return pa.localeCompare(pb);});
+  let items=agendaFiltrada();
   const vencidas=items.filter(i=>i.proxima&&i.proxima<hoy).length;
   const hoyN=items.filter(i=>i.proxima===hoy).length;
   const kpi=(l,v,c)=>`<div class="kpi"><div class="k-lab">${l}</div><div class="k-val" style="color:${c||"var(--ink)"}">${v}</div></div>`;
@@ -1180,9 +1218,13 @@ function viewAgenda(){
         <button class="btn ghost sm" onclick="verHistorial('${i.ambito}',${i.id})">📋</button>
         <button class="btn danger sm" onclick="cerrarGestion('${i.ambito}',${i.id})">✖ Cerrar</button></td>
     </tr>`;}).join("");
+  const mc=miComercial();
+  const toolbar=`<div class="toolbar" style="margin-bottom:14px;flex-wrap:wrap;gap:10px;align-items:center">
+      ${mc?`<span style="font-size:12.5px;color:var(--muted)">Viendo <b>solo tus gestiones</b></span>`:`<span style="font-size:12.5px;color:var(--muted)">Comercial:</span>
+      <select onchange="agendaComercial=this.value;render()"><option value="">Todos</option>${DATA.comerciales.map(c=>`<option value="${c.id}" ${agendaComercial===String(c.id)?"selected":""}>${esc(c.nombre)}</option>`).join("")}</select>`}
+      <label style="font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" ${agendaHoy?"checked":""} onchange="agendaHoy=this.checked;render()"> Solo las de hoy (y vencidas)</label></div>`;
   return `<div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">${kpi("Gestiones abiertas",items.length)}${kpi("Vencidas",vencidas,vencidas?"var(--danger)":"var(--ink)")}${kpi("Para hoy",hoyN,hoyN?"var(--warn)":"var(--ink)")}</div>
-    <div class="toolbar" style="margin-bottom:14px"><span style="font-size:12.5px;color:var(--muted)">Comercial:</span>
-      <select onchange="agendaComercial=this.value;render()"><option value="">Todos</option>${DATA.comerciales.map(c=>`<option value="${c.id}" ${agendaComercial===String(c.id)?"selected":""}>${esc(c.nombre)}</option>`).join("")}</select></div>
+    ${toolbar}
     <p style="color:var(--muted);margin:0 0 12px;font-size:12.5px">Cada gestión se anota con lo hablado y la <b>próxima fecha</b>, hasta que se cierra (con motivo). Ordenadas por próxima gestión: <span style="color:var(--danger)">vencidas</span> y <span style="color:var(--warn)">de hoy</span> primero.</p>`
     +tableWrap([{t:"Tipo"},{t:"Vehículo"},{t:"Contacto / asunto"},{t:"Comercial"},{t:"Última gestión"},{t:"Próxima"},{t:"",r:1}],rows);
 }
@@ -1625,10 +1667,13 @@ function verFoto(src){$("#lightbox-img").src=src;$("#lightbox").classList.add("o
 /* ================= FORMULARIOS (CRUD) ================= */
 const EMPRESA={comercial:"MIÑACAR",razon:"LYRWIRS, S.L.",cif:"B29441938",dir:"C/ Genalguacil, 3",cp:"29004",ciudad:"Málaga",prov:"Málaga",registro:"Inscrita en el Registro Mercantil de Málaga, Tomo 1.171, Libro 84, Hoja MA-3788"};
 const SCHEMAS={
-  clientes:{title:"cliente",fields:[
-    {k:"nombre",l:"Nombre / Razón social",t:"text",req:1,full:1},
-    {k:"nif",l:"NIF / DNI / CIF",t:"text"},{k:"telefono",l:"Teléfono",t:"text"},
-    {k:"email",l:"Email",t:"text"},{k:"direccion",l:"Dirección",t:"text",full:1},{k:"notas",l:"Notas",t:"textarea",full:1}]},
+  clientes:{title:"cliente",nota:"El cliente (comprador) debe estar completo: nombre/razón social, CIF/DNI, dirección completa y datos de cobro.",fields:[
+    {k:"nombre",l:"Nombre completo / Razón social",t:"text",req:1,full:1},
+    {k:"nif",l:"CIF / DNI",t:"text",req:1},{k:"telefono",l:"Teléfono",t:"text",req:1},
+    {k:"email",l:"Email",t:"text"},
+    {k:"direccion",l:"Dirección completa",t:"text",req:1,full:1},
+    {k:"datos_cobro",l:"Datos de cobro (IBAN / forma de cobro)",t:"text",req:1,full:1},
+    {k:"notas",l:"Notas",t:"textarea",full:1}]},
   transportistas:{title:"transportista",fields:[
     {k:"nombre",l:"Nombre / Razón social",t:"text",req:1,full:1},
     {k:"nif",l:"NIF / CIF",t:"text"},{k:"telefono",l:"Teléfono",t:"text"},
@@ -1648,17 +1693,12 @@ const SCHEMAS={
     {k:"comision_pct",l:"% de comisión (sobre importe de venta)",t:"number"},
     {k:"franquicia",l:"Nº de coches sin comisión (franquicia)",t:"number"},
     {k:"notas",l:"Notas",t:"textarea",full:1}]},
-  vehiculos:{title:"vehículo",fields:[
+  vehiculos:{title:"vehículo",nota:"El estado, el almacén/posición, la próxima revisión de ITV y la referencia web se gestionan en sus propias pantallas (Logística/Recepción, Almacenes, ITV y la ficha 360). Aquí solo los datos propios del coche.",fields:[
     {k:"matricula",l:"Matrícula",t:"text"},{k:"bastidor",l:"Bastidor (VIN)",t:"text"},
     {k:"marca",l:"Marca",t:"marca"},{k:"modelo",l:"Modelo",t:"modelo"},
     {k:"anio",l:"Año",t:"number"},{k:"km",l:"Kilómetros",t:"number"},{k:"color",l:"Color",t:"text"},
     {k:"combustible",l:"Combustible",t:"select",opts:["","Gasolina","Diésel","Híbrido","Eléctrico","GLP","GNC"]},
-    {k:"estado",l:"Estado",t:"select",opts:["pendiente","disponible","reservado","vendido"]},
-    {k:"almacen_id",l:"Almacén",t:"ref-almacen"},
-    {k:"ubicacion",l:"Posición / detalle",t:"ubicacion"},
     {k:"itv_pasada",l:"¿ITV pasada?",t:"select",opts:["","Sí","No"]},{k:"itv_expira",l:"Caducidad ITV",t:"date"},
-    {k:"proxima_revision",l:"Próxima revisión ITV concertada",t:"date"},
-    {k:"ref_web",l:"Ref. / enlace de la ficha en la web",t:"text",full:1},
     {k:"foto",l:"Fotografía",t:"foto",full:1},{k:"notas",l:"Notas",t:"textarea",full:1}]},
   compras:{title:"compra",fields:[
     {k:"vehiculo_id",l:"Vehículo existente (o rellena los datos abajo)",t:"ref-veh",full:1},
@@ -1686,14 +1726,20 @@ const SCHEMAS={
     {k:"fecha_entrega_cli",l:"Fecha de entrega al cliente",t:"date"},
     {k:"notas",l:"Notas",t:"textarea",full:1}]},
   logistica:{title:"transporte",fields:[
-    {k:"vehiculo_id",l:"Vehículo",t:"ref-veh",full:1},{k:"transportista_id",l:"Transportista",t:"ref-trans"},
+    {k:"vehiculo_id",l:"Vehículo (no aparecen los que ya están en stock)",t:"veh-transporte",req:1,full:1},
+    {k:"transportista_id",l:"Transportista (elígelo o añádelo con ➕)",t:"ref-trans"},
     {k:"estado",l:"Estado",t:"select",opts:["En tránsito","Entregado"]},
     {k:"origen",l:"Ciudad origen",t:"ciudad"},{k:"destino",l:"Ciudad destino",t:"ciudad"},
-    {k:"destinatario",l:"Destinatario",t:"text"},{k:"coste",l:"Coste transporte (€)",t:"number"},
+    {k:"destinatario",l:"Destinatario",t:"destinatario"},{k:"coste",l:"Precio pactado del transporte (€)",t:"number"},
     {k:"fecha_recogida",l:"Fecha de recogida",t:"date"},
     {k:"fecha_entrega",l:"Fecha de entrega",t:"date"},
     {k:"almacen_id",l:"Almacén de destino (al entregar)",t:"ref-almacen"},
-    {k:"ubicacion",l:"Posición / detalle (al entregar)",t:"ubicacion"},{k:"notas",l:"Notas",t:"textarea",full:1}]},
+    {k:"ubicacion",l:"Posición / detalle (al entregar)",t:"ubicacion"},
+    {k:"factura_recibida",l:"¿Factura del transportista recibida?",t:"select",opts:["","No","Sí"]},
+    {k:"numero_factura",l:"Nº factura del transportista",t:"text"},
+    {k:"fecha_factura",l:"Fecha de la factura",t:"date"},
+    {k:"pagado",l:"¿Pagada?",t:"select",opts:["","No","Sí"]},
+    {k:"notas",l:"Notas",t:"textarea",full:1}]},
   taller:{title:"intervención de taller",fields:[
     {k:"vehiculo_id",l:"Vehículo",t:"ref-veh",req:1,full:1},
     {k:"tipo",l:"Tipo",t:"select",opts:["Mecánica","Chapa","Pintura","Limpieza","Neumáticos","Electricidad","Otros"]},
@@ -1704,12 +1750,12 @@ const SCHEMAS={
     {k:"coste",l:"Coste total con IVA (€)",t:"number"},{k:"iva_pct",l:"% IVA",t:"number"},
     {k:"pago",l:"Pago",t:"select",opts:["Pendiente","Pagado"]},
     {k:"fecha_pago_est",l:"Fecha estimada de pago",t:"date"},{k:"notas",l:"Notas",t:"textarea",full:1}]},
-  leads:{title:"lead / interesado",fields:[
+  leads:{title:"lead / contacto",nota:"Contacto (interesado): basta con el nombre y un email y/o teléfono.",fields:[
     {k:"vehiculo_id",l:"Vehículo de interés",t:"ref-veh",req:1,full:1},
     {k:"comercial_id",l:"Comercial que atiende",t:"ref-comercial"},
-    {k:"nombre",l:"Nombre del contacto",t:"text",full:1},
+    {k:"nombre",l:"Nombre del contacto",t:"text",req:1,full:1},
     {k:"canal",l:"Canal",t:"select",opts:["","Coches.net","Wallapop","Milanuncios","Web propia","Teléfono","B2B","Otro"]},
-    {k:"telefono",l:"Teléfono",t:"text"},{k:"fecha",l:"Fecha",t:"date",def:1},
+    {k:"telefono",l:"Teléfono (email o teléfono obligatorio)",t:"text"},{k:"email",l:"Email (email o teléfono obligatorio)",t:"text"},{k:"fecha",l:"Fecha",t:"date",def:1},
     {k:"estado",l:"Estado",t:"select",opts:["Nuevo","Contactado","Cita","Negociación","Ganado","Perdido"]},
     {k:"gestion_hoy",l:"Gestión realizada hoy",t:"textarea",full:1},
     {k:"gestion_prox",l:"Gestión a realizar (aparecerá en la Agenda ese día)",t:"textarea",full:1},
@@ -1789,16 +1835,16 @@ function refSelect(kind,key,val){
 function refRebuild(sel,kind,val){const k=REF_KINDS[kind];
   sel.innerHTML=`<option value="">${k.empty}</option>`+k.arr().map(c=>`<option value="${c.id}">${esc(c.nombre)}</option>`).join("")+`<option value="__new__">➕ Añadir nuevo…</option>`;
   sel.value=val==null?"":String(val);}
-async function onRefAdd(sel,kind){
+let formReturn=null;
+function grabForm(){const o={};document.querySelectorAll('#modal-body [id^="f-"]').forEach(e=>{o[e.id]=e.value;});return o;}
+function onRefAdd(sel,kind){
   if(sel.value!=="__new__")return;
   const k=REF_KINDS[kind];
-  const nombre=(prompt("Nombre del nuevo "+k.label+":","")||"").trim();
-  if(!nombre){sel.value="";return;}
-  const body={nombre,...(k.extra||{})};
-  if(k.nif){const nif=(prompt("NIF/CIF (opcional, se puede completar luego en Directorio):","")||"").trim();if(nif)body.nif=nif;}
-  const res=await api("/api/"+k.api,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-  if(res&&res.id){await loadAll();refRebuild(sel,kind,res.id);toast(k.label.charAt(0).toUpperCase()+k.label.slice(1)+" creado ✔");}
-  else{sel.value="";toast("⚠ "+((res&&res.error)||"No se pudo crear"));}
+  sel.value="";
+  // Guarda el formulario actual y abre la FICHA COMPLETA de la nueva entidad;
+  // al guardarla se vuelve al formulario anterior con la nueva ya seleccionada.
+  formReturn={table:currentForm.table,id:currentForm.id,values:grabForm(),field:sel.id,kind,entity:k.api};
+  openForm(k.api);
 }
 
 async function openForm(table,id=null,prefill=null){
@@ -1825,21 +1871,47 @@ async function openForm(table,id=null,prefill=null){
     else if(f.t==="ref-gestoria")inner=refSelect("gestoria",f.k,val);
     else if(f.t==="ref-veh")inner=`<select id="f-${f.k}"><option value="">— seleccionar —</option>`+DATA.vehiculos.map(v=>`<option value="${v.id}" ${String(v.id)===val?"selected":""}>${esc(v.matricula||"")} · ${esc(v.marca||"")} ${esc(v.modelo||"")}</option>`).join("")+`</select>`;
     else if(f.t==="veh-stock"){const st=DATA.vehiculos.filter(v=>["disponible","reservado"].includes(v.estado)||String(v.id)===val);inner=`<select id="f-${f.k}"><option value="">— seleccionar —</option>`+st.map(v=>`<option value="${v.id}" ${String(v.id)===val?"selected":""}>${esc(v.matricula||"")} · ${esc(v.marca||"")} ${esc(v.modelo||"")}</option>`).join("")+`</select>`;}
+    else if(f.t==="veh-transporte"){const st=DATA.vehiculos.filter(v=>(v.estado!=="disponible"&&v.estado!=="vendido")||String(v.id)===val);inner=`<select id="f-${f.k}"><option value="">— seleccionar —</option>`+st.map(v=>`<option value="${v.id}" ${String(v.id)===val?"selected":""}>${esc(v.matricula||"")} · ${esc(v.marca||"")} ${esc(v.modelo||"")}</option>`).join("")+`</select>`;}
+    else if(f.t==="destinatario"){const cur=val||"MIÑACAR";inner=`<select id="f-${f.k}" onchange="onDestinatario(this)"><option ${cur==="MIÑACAR"?"selected":""}>MIÑACAR</option>`+DATA.clientes.map(c=>`<option ${cur===c.nombre?"selected":""}>${esc(c.nombre)}</option>`).join("")+`<option value="__newcli__">➕ Añadir nuevo cliente…</option></select>`;}
     else inner=`<input id="f-${f.k}" type="${f.t}" value="${esc(val)}">`;
     return `<div class="field" style="flex:${f.full?"1 1 100%":"1 1 45%"}"><label>${f.l}${f.req?" *":""}</label>${inner}</div>`;
   }).join("")+"</div>";
+  if(sc.nota)$("#modal-body").insertAdjacentHTML("afterbegin",`<div style="background:var(--info-s);border-radius:8px;padding:8px 12px;font-size:12.5px;color:var(--info);margin-bottom:10px">${sc.nota}</div>`);
   const nifEl=$("#f-nif");if(nifEl){nifEl.insertAdjacentHTML("afterend",'<div id="nif-msg" class="nif-msg"></div>');nifEl.oninput=()=>chkNif(nifEl.value);chkNif(nifEl.value);}
   $("#modal-bg").classList.add("open");
 }
-function closeModal(){$("#modal-bg").classList.remove("open");const act=document.querySelector(".modal .actions");if(act)act.innerHTML='<button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn accent" onclick="saveForm()">Guardar</button>';}
+function closeModal(){
+  const fr=formReturn;formReturn=null;
+  $("#modal-bg").classList.remove("open");const act=document.querySelector(".modal .actions");if(act)act.innerHTML='<button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn accent" onclick="saveForm()">Guardar</button>';
+  if(fr){volverAlFormulario(fr,null);}   // cancelaron el alta: recuperar el formulario anterior sin selección
+}
+function onDestinatario(sel){
+  if(sel.value!=="__newcli__")return;
+  sel.value="MIÑACAR";
+  formReturn={table:currentForm.table,id:currentForm.id,values:grabForm(),field:sel.id,dest:true,entity:"clientes"};
+  openForm("clientes");
+}
+async function volverAlFormulario(fr,nuevoId){
+  await openForm(fr.table,fr.id);
+  Object.entries(fr.values).forEach(([k,v])=>{if(k===fr.field)return;const e=document.getElementById(k);if(e)e.value=v;});
+  const fsel=document.getElementById(fr.field);
+  if(!fsel)return;
+  if(fr.dest){   // destinatario del transporte (por nombre de cliente)
+    const nuevo=nuevoId?DATA.clientes.find(c=>c.id===nuevoId):null;
+    fsel.innerHTML=`<option>MIÑACAR</option>`+DATA.clientes.map(c=>`<option>${esc(c.nombre)}</option>`).join("")+`<option value="__newcli__">➕ Añadir nuevo cliente…</option>`;
+    fsel.value=nuevo?nuevo.nombre:"MIÑACAR";
+  }else if(nuevoId){refRebuild(fsel,fr.kind,nuevoId);}
+  else{fsel.value="";}
+}
 $("#modal-bg").addEventListener("click",e=>{if(e.target.id==="modal-bg")closeModal();});
 
 async function saveForm(){
   const {table,id}=currentForm,sc=SCHEMAS[table],data={};
   for(const f of sc.fields){const el=$("#f-"+f.k);if(!el)continue;let v=el.value;
-    if(f.t==="number"||f.t==="veh-stock"||f.t.startsWith("ref-"))v=v===""?null:Number(v);if(v==="__add__")v="";data[f.k]=v;}
+    if(f.t==="number"||f.t==="veh-stock"||f.t==="veh-transporte"||f.t.startsWith("ref-"))v=v===""?null:Number(v);if(v==="__add__"||v==="__new__"||v==="__newcli__")v="";data[f.k]=v;}
   const miss=sc.fields.filter(f=>f.req&&(data[f.k]==null||data[f.k]===""));
   if(miss.length){toast("Falta: "+miss.map(f=>f.l).join(", "));return;}
+  if(table==="leads"&&!(String(data.telefono||"").trim())&&!(String(data.email||"").trim())){toast("Indica al menos un email o un teléfono del contacto");return;}
   const url=id?`/api/${table}/${id}`:`/api/${table}`;
   let res=await api(url,{method:id?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
   if(res&&res.ok===false&&res.puede_forzar){
@@ -1854,6 +1926,14 @@ async function saveForm(){
     res=await api(url,{method:id?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
   }
   if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo guardar"));return;}
+  // Alta desde un desplegable: volver al formulario anterior con la nueva entidad ya seleccionada
+  if(formReturn&&!id&&res&&res.id&&table===formReturn.entity){
+    const fr=formReturn;formReturn=null;
+    await loadAll();
+    await volverAlFormulario(fr,res.id);
+    toast("Creado y seleccionado ✔");
+    return;
+  }
   // Lead nuevo: registrar la primera gestión (para que aparezca en la Agenda)
   if(table==="leads"&&!id&&res&&res.id&&(data.gestion_hoy||data.gestion_prox||data.proxima_fecha)){
     await api("/api/seguimientos",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
@@ -1948,8 +2028,8 @@ function exportCurrentView(){
     rows=DATA.ventas.map(s=>[s.fecha,s.numero_factura,s.matricula,s.marca,s.modelo,s.cliente,s.cliente_nif,s.regimen,s.precio,s.coste,(Number(s.precio)||0)-(Number(s.coste)||0),s.cruz_fin,s.cruz_seg,s.cruz_gar,s.forma_pago]);}
   else if(v==="taller"){name="taller";cols=["Matrícula","Marca","Modelo","Tipo","Intervención","Proveedor","Fecha","Coste","Pago"];
     rows=DATA.taller.map(t=>[t.matricula,t.marca,t.modelo,t.tipo,t.descripcion,t.proveedor,t.fecha,t.coste,t.pago]);}
-  else if(v==="marketing"){name="leads";cols=["Matrícula","Marca","Modelo","Contacto","Canal","Teléfono","Fecha","Estado"];
-    rows=DATA.leads.map(l=>[l.matricula,l.marca,l.modelo,l.nombre,l.canal,l.telefono,l.fecha,l.estado]);}
+  else if(v==="marketing"){name="leads";cols=["Matrícula","Marca","Modelo","Contacto","Comercial","Canal","Teléfono","Email","Fecha","Estado"];
+    rows=leadsFiltrados().map(l=>[l.matricula,l.marca,l.modelo,l.nombre,l.comercial,l.canal,l.telefono,l.email,l.fecha,l.estado]);}
   else if(v==="logistica"){name="logistica";cols=["Estado","Matrícula","Marca","Modelo","Transportista","Origen","Destino","Destinatario","Coste","Recogida","Entrega"];
     rows=DATA.logistica.map(l=>[l.estado,l.matricula,l.marca,l.modelo,l.transportista_nombre,l.origen,l.destino,l.destinatario,l.coste,l.fecha_recogida,l.fecha_entrega]);}
   else if(v==="gestoria"){name="gestoria";cols=["Matrícula","Marca","Modelo","Trámite","Estado","Gestoría","Solicitud","Resolución"];
@@ -1975,7 +2055,7 @@ function exportCurrentView(){
   else if(v==="postventa"){name="postventa";cols=["Matrícula","Marca","Modelo","Tipo","Actuación","Proveedor","Fecha","Coste","Asume","Pago"];
     rows=DATA.postventa.map(p=>[p.matricula,p.marca,p.modelo,p.tipo,p.descripcion,p.proveedor,p.fecha,p.coste,p.asume,p.pago]);}
   else if(v==="agenda"){name="agenda_gestiones";cols=["Tipo","Vehículo","Contacto/Asunto","Comercial","Última gestión","Próxima"];
-    rows=itemsAgenda().map(i=>[i.tipoLbl,i.veh,i.quien,i.comercial,i.ultima?(i.ultima.detalle||""):"",i.proxima||""]);}
+    rows=agendaFiltrada().map(i=>[i.tipoLbl,i.veh,i.quien,i.comercial,i.ultima?(i.ultima.detalle||""):"",i.proxima||""]);}
   else if(v==="bancos"){name="movimientos_banco";cols=["Extracto","Cuenta","Fecha","Concepto","Importe","Saldo","Conciliación","Observación app","Tu observación"];
     rows=DATA.movimientos.map(m=>{const e=DATA.extractos.find(x=>x.id===m.extracto_id)||{};return [e.nombre_archivo||"",e.cuenta||"",m.fecha,m.concepto,m.importe,m.saldo,m.conciliado?(m.categoria||"Conciliado"):"Sin conciliar",m.observacion_app,m.observacion_usuario];});}
   else if(v==="itv"){name="itv";cols=["Matrícula","Marca","Modelo","Estado","ITV pasada","Caduca","Próxima revisión","Situación"];
