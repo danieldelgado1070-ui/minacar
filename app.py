@@ -955,6 +955,13 @@ def registrar_recepcion(data):
                    almacen_id=COALESCE(?, almacen_id)
                WHERE id=?""",
             (data.get("ubicacion") or None, data.get("almacen_id") or None, vid))
+        # Al recepcionar, el transporte deja de estar 'En tránsito' → 'Entregado'
+        fentrega = data.get("fecha") or date.today().isoformat()
+        conn.execute(
+            """UPDATE logistica SET estado='Entregado',
+                   fecha_entrega=COALESCE(NULLIF(fecha_entrega,''), ?)
+               WHERE vehiculo_id=? AND (estado IS NULL OR estado!='Entregado')""",
+            (fentrega, vid))
         conn.commit()
         return rid
     finally:

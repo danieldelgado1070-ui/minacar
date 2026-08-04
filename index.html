@@ -149,6 +149,7 @@
   .cal-in{color:var(--ok);font-weight:700}
   .cal-out{color:var(--danger);font-weight:700}
   .cal-iva{color:var(--res);font-weight:700;margin-top:1px}
+  .cal-prov{color:var(--warn);font-weight:700;margin-top:1px}
   @media(max-width:640px){.cal-cell{min-height:54px;font-size:10px}}
   .thumb{width:44px;height:32px;object-fit:cover;border-radius:6px;border:1px solid var(--line);cursor:pointer}
   .warn-ic{color:var(--warn);cursor:help}
@@ -968,28 +969,33 @@ function calendarioTeso(){
   const add=(map,date,amt)=>{if(!date||String(date).slice(0,7)!==mes||!(amt>0))return;map[date]=(map[date]||0)+amt;};
   DATA.ventas.forEach(s=>{const pend=(Number(s.precio)||0)-cobradoDe(s.vehiculo_id);if(pend>0.01){if(s.fecha_cobro_est)add(inflow,s.fecha_cobro_est,pend);else sinFCob+=pend;}});
   const pag=[];
-  DATA.compras.filter(c=>c.pagado!=="Sí").forEach(c=>pag.push({f:c.fecha_pago_est,a:(Number(c.precio)||0)+(Number(c.gastos)||0)}));
-  DATA.taller.filter(t=>t.pago!=="Pagado").forEach(t=>pag.push({f:t.fecha_pago_est,a:Number(t.coste)||0}));
-  DATA.postventa.filter(p=>p.pago!=="Pagado").forEach(p=>pag.push({f:p.fecha_pago_est,a:Number(p.coste)||0}));
-  DATA.logistica.filter(l=>l.pagado!=="Sí").forEach(l=>pag.push({f:l.fecha_pago_est,a:Number(l.coste)||0}));
-  DATA.gestoria.filter(g=>g.pagado!=="Sí").forEach(g=>pag.push({f:g.fecha_pago_est,a:Number(g.coste)||0}));
-  pag.forEach(p=>{if(!(p.a>0))return;if(p.f)add(outflow,p.f,p.a);else sinFPag+=p.a;});
+  DATA.compras.filter(c=>c.pagado!=="Sí").forEach(c=>pag.push({f:c.fecha_pago_est,a:(Number(c.precio)||0)+(Number(c.gastos)||0),noRec:c.factura_recibida==="No"}));
+  DATA.taller.filter(t=>t.pago!=="Pagado").forEach(t=>pag.push({f:t.fecha_pago_est,a:Number(t.coste)||0,noRec:t.factura_recibida==="No"}));
+  DATA.postventa.filter(p=>p.pago!=="Pagado").forEach(p=>pag.push({f:p.fecha_pago_est,a:Number(p.coste)||0,noRec:p.factura_recibida==="No"}));
+  DATA.logistica.filter(l=>l.pagado!=="Sí").forEach(l=>pag.push({f:l.fecha_pago_est,a:Number(l.coste)||0,noRec:l.factura_recibida==="No"}));
+  DATA.gestoria.filter(g=>g.pagado!=="Sí").forEach(g=>pag.push({f:g.fecha_pago_est,a:Number(g.coste)||0,noRec:g.factura_recibida==="No"}));
+  // con fecha → a su día; sin fecha y factura NO recibida → provisional día 25; sin fecha y recibida → nota
+  let provTotal=0;
+  pag.forEach(p=>{if(!(p.a>0))return;if(p.f)add(outflow,p.f,p.a);else if(p.noRec)provTotal+=p.a;else sinFPag+=p.a;});
   const lastDay=new Date(y,m,0).getDate(),diaIva=Math.min(30,lastDay),fIva=`${mes}-${String(diaIva).padStart(2,"0")}`;
   const iva=calcIvaMes(mes),ivaImp=iva>0.01?iva:0;
   if(ivaImp)outflow[fIva]=(outflow[fIva]||0)+ivaImp;
   const primerDia=(new Date(y,m-1,1).getDay()+6)%7,hoy=todayISO();
   let cells="";for(let i=0;i<primerDia;i++)cells+=`<div class="cal-cell empty"></div>`;
   let run=0,minRun=0;
+  const diaProv=Math.min(25,lastDay);   // facturas no recibidas (sin fecha) → provisional día 25
   for(let d=1;d<=lastDay;d++){
-    const fecha=`${mes}-${String(d).padStart(2,"0")}`,inn=inflow[fecha]||0,out=outflow[fecha]||0,net=inn-out;
+    const fecha=`${mes}-${String(d).padStart(2,"0")}`,inn=inflow[fecha]||0,out=outflow[fecha]||0;
+    const prov=(d===diaProv)?provTotal:0,net=inn-out-prov;
     run+=net;if(run<minRun)minRun=run;
     const esHoy=fecha===hoy,esIva=fecha===fIva&&ivaImp>0;
     cells+=`<div class="cal-cell${esHoy?' hoy':''}" style="${net<0?'background:var(--danger-s)':(net>0?'background:var(--ok-s)':'')}">
       <div class="cal-d">${d}${esHoy?' <span style="color:var(--accent)">hoy</span>':''}</div>
       ${inn?`<div class="cal-in">+${eur(inn)}</div>`:''}${out?`<div class="cal-out">−${eur(out)}</div>`:''}
+      ${prov?`<div class="cal-prov" title="Facturas aún no recibidas (provisional)">−${eur(prov)} ⏳</div>`:''}
       ${esIva?`<div class="cal-iva">IVA</div>`:''}</div>`;
   }
-  const totIn=Object.values(inflow).reduce((a,b)=>a+b,0),totOut=Object.values(outflow).reduce((a,b)=>a+b,0),neto=totIn-totOut,necesidad=minRun<0?-minRun:0;
+  const totIn=Object.values(inflow).reduce((a,b)=>a+b,0),totOut=Object.values(outflow).reduce((a,b)=>a+b,0)+provTotal,neto=totIn-totOut,necesidad=minRun<0?-minRun:0;
   const dow=["L","M","X","J","V","S","D"].map(x=>`<div class="cal-h">${x}</div>`).join("");
   const kpi=(l,v,c)=>`<div class="kpi"><div class="k-lab">${l}</div><div class="k-val" style="color:${c||'var(--ink)'}">${v}</div></div>`;
   return `<div class="card" style="margin-bottom:18px"><div class="card-h">
@@ -1004,7 +1010,12 @@ function calendarioTeso(){
         ${kpi("Cobros previstos",eur(totIn),"var(--ok)")}${kpi("Pagos previstos (con IVA)",eur(totOut),"var(--danger)")}${kpi(neto>=0?"Saldo del mes":"Déficit del mes",eur(neto),neto>=0?"var(--ok)":"var(--danger)")}${kpi("Mayor necesidad de caja",eur(necesidad),necesidad>0?"var(--danger)":"var(--ok)")}</div>
       <div class="cal-grid">${dow}${cells}</div>
       ${(sinFCob>0.01||sinFPag>0.01)?`<div style="margin-top:10px;background:var(--warn-s);border-radius:8px;padding:8px 12px;font-size:12px;color:#8a6a2a">Sin fecha estimada (no salen en el calendario): cobros <b>${eur(sinFCob)}</b> · pagos <b>${eur(sinFPag)}</b>. Ponles fecha en las tablas de abajo para que cuenten.</div>`:''}
-      <div style="font-size:11.5px;color:var(--muted-2);margin-top:8px">La <b>cuota de IVA</b> se coloca el día ${diaIva} con el importe calculado a hoy (${eur(ivaImp)}). «Mayor necesidad de caja» = el punto más bajo del saldo acumulado del mes.</div>
+      <div style="font-size:11.5px;color:var(--muted-2);margin-top:8px;display:flex;gap:14px;flex-wrap:wrap">
+        <span><b style="color:var(--ok)">+ verde</b> cobros</span>
+        <span><b style="color:var(--danger)">− rojo</b> pagos con fecha</span>
+        <span><b style="color:var(--warn)">− ámbar ⏳</b> facturas aún no recibidas (provisional, día ${diaProv})</span>
+        <span><b style="color:var(--res)">IVA</b> día ${diaIva}</span></div>
+      <div style="font-size:11.5px;color:var(--muted-2);margin-top:6px">Las <b>facturas no recibidas</b> se colocan provisionalmente el día ${diaProv} (${eur(provTotal)} en total); cuando recibas la factura y le pongas fecha de pago, se recolocan en su día. La <b>cuota de IVA</b> va el día ${diaIva} (${eur(ivaImp)}). «Mayor necesidad de caja» = el punto más bajo del saldo acumulado del mes.</div>
     </div></div>`;
 }
 function viewTesoreria(){
