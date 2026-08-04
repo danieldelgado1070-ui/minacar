@@ -1563,6 +1563,7 @@ function openDrawer(id){
       <h2>${esc(v.marca||"")} ${esc(v.modelo||"")}</h2>
       <div class="d-sub"><span>${v.anio?esc(v.anio):""}</span><span>${v.km!=null?num(v.km)+" km":""}</span><span>${esc(v.combustible||"")}</span><span>${esc(v.color||"")}</span>${v.bastidor?`<span>VIN ${esc(v.bastidor)}</span>`:""}</div>
       <div style="margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${estadoPill(v.estado)}
+        ${v.etiqueta?`<span title="Etiqueta DGT: ${esc(v.etiqueta)}" style="display:inline-flex">${etiquetaSVG(v.etiqueta,30)}</span>`:""}
         ${!v.recepcionado?'<span class="minipill" style="background:var(--warn-s);color:var(--warn)">⚠ No recepcionado</span>':""}
         ${v.estado==="reservado"&&v.reserva_cliente_id?`<span class="minipill" style="background:var(--res-s);color:var(--res)">Reservado: ${esc((DATA.clientes.find(c=>c.id===v.reserva_cliente_id)||{}).nombre||"")}</span>`:""}
         ${v.ubicacion?`<span class="minipill" style="background:var(--line-2);color:var(--muted)">📍 ${esc(v.ubicacion)}</span>`:""}${v.ref_web?webCell(v):""}</div>
@@ -1618,6 +1619,17 @@ function recepcionCard(v){
       ${r.notas?`<div style="margin-top:8px;font-size:12.5px;color:var(--muted)">${esc(r.notas)}</div>`:""}
     </div></div>`;
 }
+/* Dibujo de la etiqueta medioambiental DGT */
+function etiquetaSVG(tipo,s){
+  s=s||46;const T=(tipo||"").toString();
+  const wrap=inner=>`<svg width="${s}" height="${s}" viewBox="0 0 100 100" style="vertical-align:middle">${inner}</svg>`;
+  if(/^0|CERO/i.test(T))return wrap(`<circle cx="50" cy="50" r="47" fill="#1f7fc9"/><text x="50" y="58" font-size="46" font-weight="700" fill="#fff" text-anchor="middle" font-family="Arial">0</text><text x="50" y="80" font-size="14" font-weight="700" fill="#fff" text-anchor="middle" font-family="Arial">CERO</text>`);
+  if(/ECO/i.test(T))return wrap(`<circle cx="50" cy="50" r="47" fill="#1f7fc9"/><path d="M50 3 A47 47 0 0 1 50 97 Z" fill="#39a935"/><text x="50" y="60" font-size="26" font-weight="700" fill="#fff" text-anchor="middle" font-family="Arial">ECO</text>`);
+  if(/^C/i.test(T))return wrap(`<circle cx="50" cy="50" r="47" fill="#39a935"/><text x="50" y="70" font-size="60" font-weight="700" fill="#fff" text-anchor="middle" font-family="Arial">C</text>`);
+  if(/^B/i.test(T))return wrap(`<circle cx="50" cy="50" r="47" fill="#f4c020"/><text x="50" y="70" font-size="60" font-weight="700" fill="#2a2a2a" text-anchor="middle" font-family="Arial">B</text>`);
+  if(/sin/i.test(T))return wrap(`<circle cx="50" cy="50" r="46" fill="#eceff1" stroke="#b0bec5" stroke-width="2"/><text x="50" y="46" font-size="15" font-weight="700" fill="#78909c" text-anchor="middle" font-family="Arial">SIN</text><text x="50" y="66" font-size="15" font-weight="700" fill="#78909c" text-anchor="middle" font-family="Arial">ETIQ.</text>`);
+  return "";
+}
 function datosCard(v){
   const itv=v.itv_pasada==="No"?'<span style="color:var(--danger)">Sin pasar</span>':(v.itv_expira?("Caduca "+fdate(v.itv_expira)):"—");
   const rows=[
@@ -1628,7 +1640,8 @@ function datosCard(v){
     ["Estado",estInfo(v.estado).lab+(v.recepcionado?"":" · <span style='color:var(--warn)'>no recepcionado</span>")],
     ["Días en stock",v._dias!=null?v._dias+" días":"—"],
     ["Almacén",esc(v.almacen_nombre||"—")],["Posición",esc(v.ubicacion||"—")],
-    ["ITV",itv],["Ref. web",v.ref_web?webCell(v):"—"],
+    ["ITV",itv],["Etiqueta DGT",v.etiqueta?`<span style="display:inline-flex;align-items:center;gap:6px">${etiquetaSVG(v.etiqueta,34)} ${esc(v.etiqueta)}</span>`:"—"],
+    ["Ref. web",v.ref_web?webCell(v):"—"],
     ["Reservado por",v.estado==="reservado"&&v.reserva_cliente_id?esc((DATA.clientes.find(c=>c.id===v.reserva_cliente_id)||{}).nombre||"—"):"—"],
     ["Alta en el sistema",fdate(v.creado)],
   ];
@@ -1854,6 +1867,7 @@ const SCHEMAS={
     {k:"anio",l:"Año",t:"number"},{k:"km",l:"Kilómetros",t:"number"},{k:"color",l:"Color",t:"text"},
     {k:"combustible",l:"Combustible",t:"select",opts:["","Gasolina","Diésel","Híbrido","Eléctrico","GLP","GNC"]},
     {k:"itv_pasada",l:"¿ITV pasada?",t:"select",opts:["","Sí","No"]},{k:"itv_expira",l:"Caducidad ITV",t:"date"},
+    {k:"etiqueta",l:"Etiqueta medioambiental (DGT)",t:"select",opts:["","0 Emisiones","ECO","C","B","Sin etiqueta"]},
     {k:"foto",l:"Fotografía",t:"foto",full:1},{k:"notas",l:"Notas",t:"textarea",full:1}]},
   compras:{title:"compra",fields:[
     {k:"vehiculo_id",l:"Vehículo existente (o rellena los datos abajo)",t:"ref-veh",full:1},

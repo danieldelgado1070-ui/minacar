@@ -604,6 +604,12 @@ def migrate(conn):
             add("logistica", "pagado TEXT")
             add("logistica", "fecha_pago_est TEXT")
             add("logistica", "destinatario_id INTEGER")
+            # Backfill: coches ya recepcionados cuyo transporte quedó 'En tránsito' → 'Entregado'
+            conn.execute(
+                """UPDATE logistica SET estado='Entregado',
+                       fecha_entrega=COALESCE(NULLIF(fecha_entrega,''), date('now','localtime'))
+                   WHERE estado='En tránsito'
+                     AND vehiculo_id IN (SELECT id FROM vehiculos WHERE recepcionado=1)""")
         # Control de facturas de proveedor: factura recibida sí/no + fecha
         if has_table("taller"):
             add("taller", "factura_recibida TEXT")
@@ -622,6 +628,7 @@ def migrate(conn):
             add("gestoria", "fecha_pago_est TEXT")
             add("gestoria", "nif_gestoria TEXT")
         add("vehiculos", "proxima_revision TEXT")   # ITV: próxima revisión concertada (#11)
+        add("vehiculos", "etiqueta TEXT")            # etiqueta medioambiental DGT
         if has_table("gestoria"):
             add("gestoria", "gestoria_id INTEGER")   # enlaza con la gestoría del directorio
         if has_table("leads"):
@@ -791,7 +798,7 @@ FIELDS = {
     "vehiculos": ["matricula", "bastidor", "marca", "modelo", "anio", "km",
                   "color", "combustible", "estado", "recepcionado",
                   "reserva_cliente_id", "reserva_fecha", "almacen_id", "ubicacion",
-                  "itv_pasada", "itv_expira", "proxima_revision", "ref_web", "foto", "notas"],
+                  "itv_pasada", "itv_expira", "proxima_revision", "etiqueta", "ref_web", "foto", "notas"],
     "compras": ["vehiculo_id", "proveedor_id", "prov_id", "numero_factura",
                 "regimen", "fecha", "precio", "gastos", "iva_pct", "forma_pago",
                 "pagado", "fecha_pago_est", "factura_recibida", "fecha_factura", "notas"],
