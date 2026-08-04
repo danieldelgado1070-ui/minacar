@@ -327,6 +327,20 @@ def init_db():
             creado              TEXT DEFAULT (datetime('now','localtime'))
         );
 
+        CREATE TABLE IF NOT EXISTS recepciones (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            vehiculo_id  INTEGER REFERENCES vehiculos(id) ON DELETE CASCADE,
+            fecha        TEXT,
+            responsable  TEXT,
+            almacen_id   INTEGER,
+            ubicacion    TEXT,
+            tiene_desperfectos INTEGER DEFAULT 0,
+            desperfectos TEXT,
+            marcas       TEXT,
+            notas        TEXT,
+            creado       TEXT DEFAULT (datetime('now','localtime'))
+        );
+
         CREATE TABLE IF NOT EXISTS almacenes (
             id        INTEGER PRIMARY KEY AUTOINCREMENT,
             nombre    TEXT NOT NULL,
@@ -390,6 +404,7 @@ TABLE_AREA = {
     "clientes": "clientes", "proveedores": "proveedores",
     "comerciales": "comerciales", "transportistas": "transportistas",
     "extractos": "bancos", "movimientos": "bancos",
+    "recepciones": "logistica", "gestorias": "gestoria",
 }
 
 
@@ -574,6 +589,22 @@ def migrate(conn):
         add("ventas", "cruz_fin REAL DEFAULT 0")
         add("ventas", "cruz_seg REAL DEFAULT 0")
         add("ventas", "cruz_gar REAL DEFAULT 0")
+        if has_table("taller"):
+            add("taller", "prov_id INTEGER")
+        add("vehiculos", "proxima_revision TEXT")   # ITV: próxima revisión concertada (#11)
+        if has_table("gestoria"):
+            add("gestoria", "gestoria_id INTEGER")   # enlaza con la gestoría del directorio
+        if has_table("leads"):
+            add("leads", "proxima_fecha TEXT")       # próxima gestión (#5)
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS gestorias (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL, nif TEXT, telefono TEXT, email TEXT,
+                direccion TEXT, notas TEXT,
+                creado TEXT DEFAULT (datetime('now','localtime'))
+            );
+            """)
         conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS taller (
@@ -671,7 +702,7 @@ FIELDS = {
     "vehiculos": ["matricula", "bastidor", "marca", "modelo", "anio", "km",
                   "color", "combustible", "estado", "recepcionado",
                   "reserva_cliente_id", "reserva_fecha", "almacen_id", "ubicacion",
-                  "itv_pasada", "itv_expira", "ref_web", "foto", "notas"],
+                  "itv_pasada", "itv_expira", "proxima_revision", "ref_web", "foto", "notas"],
     "compras": ["vehiculo_id", "proveedor_id", "prov_id", "numero_factura",
                 "regimen", "fecha", "precio", "gastos", "iva_pct", "forma_pago",
                 "pagado", "fecha_pago_est", "notas"],
@@ -686,6 +717,8 @@ FIELDS = {
                   "destino", "destinatario", "ubicacion", "almacen_id", "coste",
                   "fecha_recogida", "fecha_entrega", "estado", "notas"],
     "almacenes": ["nombre", "direccion", "notas"],
+    "recepciones": ["vehiculo_id", "fecha", "responsable", "almacen_id",
+                    "ubicacion", "tiene_desperfectos", "desperfectos", "marcas", "notas"],
     "traspasos": ["vehiculo_id", "almacen_destino", "fecha", "notas"],
     "garantias": ["vehiculo_id", "cliente_id", "tipo", "fecha_inicio", "meses",
                   "fecha_fin", "alcance", "estado", "notas"],
@@ -695,18 +728,19 @@ FIELDS = {
     "agenda": ["vehiculo_id", "fecha", "tipo", "asunto", "detalle",
                "cerrado", "motivo_cierre", "notas"],
     "cobros": ["venta_id", "fecha", "medio", "importe", "veh_cambio_id", "notas"],
-    "taller": ["vehiculo_id", "tipo", "descripcion", "proveedor", "fecha",
+    "taller": ["vehiculo_id", "tipo", "descripcion", "proveedor", "prov_id", "fecha",
                "coste", "pago", "fecha_pago_est",
                "numero_factura", "nif_proveedor", "iva_pct", "notas"],
     "leads": ["vehiculo_id", "comercial_id", "nombre", "canal", "telefono",
-              "fecha", "estado", "cerrado", "motivo_cierre", "notas"],
+              "fecha", "estado", "proxima_fecha", "cerrado", "motivo_cierre", "notas"],
     "seguimientos": ["ambito", "ref_id", "fecha", "contacto", "detalle",
                      "proxima_fecha", "comercial_id"],
     "extractos": ["fecha", "cuenta", "nombre_archivo", "notas"],
     "movimientos": ["categoria", "ref_tipo", "ref_id", "conciliado",
                     "observacion_usuario", "observacion_app"],
-    "gestoria": ["vehiculo_id", "tipo", "estado", "gestoria",
+    "gestoria": ["vehiculo_id", "tipo", "estado", "gestoria", "gestoria_id",
                  "fecha_solicitud", "fecha_resolucion", "notas"],
+    "gestorias": ["nombre", "nif", "telefono", "email", "direccion", "notas"],
     "documentos": ["vehiculo_id", "tipo", "importe", "fecha", "notas"],
     "listas": ["tipo", "valor", "padre"],
 }
@@ -790,6 +824,53 @@ def _aplicar_entrega(conn, data):
              data.get("vehiculo_id")))
 
 
+def registrar_recepcion(data):
+    """Recepción del vehículo en las instalaciones: lo da de alta en stock,
+    guarda el parte de desperfectos (con las marcas del diagrama), el responsable
+    y la localización."""
+    vid = data.get("vehiculo_id")
+    if not vid:
+        raise ReglaNegocio("Falta indicar el vehículo a recepcionar.")
+    conn = get_db()
+    try:
+        marcas = data.get("marcas")
+        if isinstance(marcas, (list, dict)):
+            marcas = json.dumps(marcas, ensure_ascii=False)
+        cur = conn.execute(
+            """INSERT INTO recepciones
+               (vehiculo_id, fecha, responsable, almacen_id, ubicacion,
+                tiene_desperfectos, desperfectos, marcas, notas)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (vid, data.get("fecha") or date.today().isoformat(),
+             data.get("responsable"), data.get("almacen_id") or None,
+             data.get("ubicacion"), 1 if data.get("tiene_desperfectos") else 0,
+             data.get("desperfectos"), marcas, data.get("notas")))
+        rid = cur.lastrowid
+        conn.execute(
+            """UPDATE vehiculos SET recepcionado=1,
+                   estado=CASE WHEN estado='pendiente' THEN 'disponible' ELSE estado END,
+                   ubicacion=COALESCE(?, ubicacion),
+                   almacen_id=COALESCE(?, almacen_id)
+               WHERE id=?""",
+            (data.get("ubicacion") or None, data.get("almacen_id") or None, vid))
+        conn.commit()
+        return rid
+    finally:
+        conn.close()
+
+
+def list_recepciones(q=None):
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT r.*, v.matricula, v.marca, v.modelo, a.nombre AS almacen_nombre
+           FROM recepciones r
+           LEFT JOIN vehiculos v ON v.id=r.vehiculo_id
+           LEFT JOIN almacenes a ON a.id=r.almacen_id
+           ORDER BY r.fecha DESC, r.id DESC""").fetchall()
+    conn.close()
+    return rows_to_list(rows)
+
+
 def insert_row(table, data):
     conn = get_db()
     try:
@@ -804,6 +885,16 @@ def insert_row(table, data):
                     f"El vehículo {vg['matricula'] or ''} aún NO ha sido recepcionado en las "
                     f"instalaciones (pendiente de llegar). No deberían registrarse cargos ni "
                     f"gestiones sobre él hasta su recepción.", puede_forzar=True)
+
+        # Gestoría: no iniciar trámites si el coche aún no ha sido recepcionado
+        if table == "gestoria" and data.get("vehiculo_id"):
+            vg = _estado_vehiculo(conn, data["vehiculo_id"])
+            if vg and not vg["recepcionado"] and not data.get("forzar"):
+                raise ReglaNegocio(
+                    f"El vehículo {vg['matricula'] or ''} aún NO ha sido recepcionado en las "
+                    f"instalaciones. No debería enviarse documentación a la gestoría antes de "
+                    f"recibirlo. ¿Confirmas que quieres enviar la documentación igualmente?",
+                    puede_forzar=True)
 
         # Coche a cambio: verificar la documentacion de la compra antes de aceptarlo como pago
         if table == "cobros" and data.get("medio") == "Coche a cambio" and data.get("veh_cambio_id"):
@@ -1236,19 +1327,29 @@ def list_ventas(q=None):
 def list_taller(q=None):
     conn = get_db()
     base = """
-        SELECT t.*, v.matricula, v.marca, v.modelo
-        FROM taller t LEFT JOIN vehiculos v ON v.id = t.vehiculo_id
+        SELECT t.*, v.matricula, v.marca, v.modelo,
+               COALESCE(p.nombre, t.proveedor) AS proveedor
+        FROM taller t
+        LEFT JOIN vehiculos v ON v.id = t.vehiculo_id
+        LEFT JOIN proveedores p ON p.id = t.prov_id
     """
     if q:
         like = f"%{q}%"
         rows = conn.execute(
-            base + """ WHERE t.tipo LIKE ? OR t.descripcion LIKE ? OR t.proveedor LIKE ?
+            base + """ WHERE t.tipo LIKE ? OR t.descripcion LIKE ? OR COALESCE(p.nombre, t.proveedor) LIKE ?
                              OR v.matricula LIKE ? OR v.marca LIKE ? OR v.modelo LIKE ?
                        ORDER BY t.fecha DESC, t.id DESC""",
             (like, like, like, like, like, like),
         ).fetchall()
     else:
         rows = conn.execute(base + " ORDER BY t.fecha DESC, t.id DESC").fetchall()
+    conn.close()
+    return rows_to_list(rows)
+
+
+def list_gestorias(q=None):
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM gestorias ORDER BY nombre").fetchall()
     conn.close()
     return rows_to_list(rows)
 
@@ -1315,13 +1416,16 @@ def list_traspasos(q=None):
 def list_gestoria(q=None):
     conn = get_db()
     base = """
-        SELECT g.*, v.matricula, v.marca, v.modelo
-        FROM gestoria g LEFT JOIN vehiculos v ON v.id = g.vehiculo_id
+        SELECT g.*, v.matricula, v.marca, v.modelo,
+               COALESCE(ge.nombre, g.gestoria) AS gestoria
+        FROM gestoria g
+        LEFT JOIN vehiculos v ON v.id = g.vehiculo_id
+        LEFT JOIN gestorias ge ON ge.id = g.gestoria_id
     """
     if q:
         like = f"%{q}%"
         rows = conn.execute(
-            base + """ WHERE g.tipo LIKE ? OR g.estado LIKE ? OR g.gestoria LIKE ?
+            base + """ WHERE g.tipo LIKE ? OR g.estado LIKE ? OR COALESCE(ge.nombre, g.gestoria) LIKE ?
                              OR v.matricula LIKE ? OR v.marca LIKE ? OR v.modelo LIKE ?
                        ORDER BY g.fecha_solicitud DESC, g.id DESC""",
             (like, like, like, like, like, like),
@@ -1728,6 +1832,122 @@ def build_xlsx(sheets):
         for i, (name, cols, rows) in enumerate(sheets):
             z.writestr(f"xl/worksheets/sheet{i+1}.xml", _sheet_xml(cols, rows))
     return buf.getvalue()
+
+
+# ---- Importación desde Excel/CSV -------------------------------------------
+# Para cada tabla importable: lista de (etiqueta de columna, campo, tipo)
+IMPORT_SPECS = {
+    "clientes": [("Nombre", "nombre", "t"), ("NIF", "nif", "t"), ("Teléfono", "telefono", "t"),
+                 ("Email", "email", "t"), ("Dirección", "direccion", "t"), ("Notas", "notas", "t")],
+    "proveedores": [("Nombre", "nombre", "t"), ("NIF", "nif", "t"), ("Teléfono", "telefono", "t"),
+                    ("Email", "email", "t"), ("Dirección", "direccion", "t"), ("Notas", "notas", "t")],
+    "transportistas": [("Nombre", "nombre", "t"), ("NIF", "nif", "t"), ("Teléfono", "telefono", "t"),
+                       ("Email", "email", "t"), ("Dirección", "direccion", "t"), ("Notas", "notas", "t")],
+    "gestorias": [("Nombre", "nombre", "t"), ("NIF", "nif", "t"), ("Teléfono", "telefono", "t"),
+                  ("Email", "email", "t"), ("Dirección", "direccion", "t"), ("Notas", "notas", "t")],
+    "comerciales": [("Nombre", "nombre", "t"), ("NIF", "nif", "t"), ("Teléfono", "telefono", "t"),
+                    ("Email", "email", "t"), ("Fecha incorporación", "fecha_incorporacion", "d"),
+                    ("% Comisión", "comision_pct", "n"), ("Franquicia", "franquicia", "n"), ("Notas", "notas", "t")],
+    "vehiculos": [("Matrícula", "matricula", "t"), ("Bastidor", "bastidor", "t"), ("Marca", "marca", "t"),
+                  ("Modelo", "modelo", "t"), ("Año", "anio", "n"), ("Kilómetros", "km", "n"),
+                  ("Color", "color", "t"), ("Combustible", "combustible", "t"), ("Estado", "estado", "t"),
+                  ("ITV pasada", "itv_pasada", "t"), ("Caducidad ITV", "itv_expira", "d"),
+                  ("Próxima revisión", "proxima_revision", "d"), ("Notas", "notas", "t")],
+}
+
+
+def _norm(s):
+    s = unicodedata.normalize("NFKD", str(s or "")).encode("ascii", "ignore").decode("ascii")
+    return s.strip().lower()
+
+
+def _archivo_a_filas(data):
+    """Convierte el archivo subido (xlsx / html-xls / csv, en base64 o texto) en filas."""
+    b64 = data.get("archivo_b64")
+    if b64:
+        try:
+            raw = base64.b64decode(b64.split(",")[-1])
+        except Exception:
+            raise ReglaNegocio("No he podido leer el archivo subido.")
+        if not raw:
+            return []
+        if raw[:2] == b"PK":
+            return _xlsx_rows(raw)
+        if raw[:4] == b"\xd0\xcf\x11\xe0":
+            raise ReglaNegocio("Ese archivo es un Excel antiguo (.xls binario). Ábrelo en Excel y "
+                               "guárdalo como «Libro de Excel (.xlsx)» o «CSV», y súbelo de nuevo.")
+        text = None
+        for enc in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
+            try:
+                text = raw.decode(enc); break
+            except Exception:
+                continue
+        if not text:
+            return []
+    else:
+        text = data.get("csv") or ""
+    if not text.strip():
+        return []
+    low = text.lower()
+    if "<table" in low or "<tr" in low or "</td>" in low:
+        return _html_rows(text)
+    delim = ";" if text[:3000].count(";") >= text[:3000].count(",") else ","
+    return [r for r in csv.reader(io.StringIO(text), delimiter=delim)]
+
+
+def importar_tabla(table, data):
+    if table not in IMPORT_SPECS:
+        raise ReglaNegocio("Este módulo no admite importación.")
+    spec = IMPORT_SPECS[table]
+    rows = _archivo_a_filas(data)
+    rows = [r for r in rows if any((c or "").strip() for c in r)]
+    if not rows:
+        raise ReglaNegocio("El archivo no tiene datos. Usa la plantilla y rellena al menos una fila.")
+    header = [_norm(c) for c in rows[0]]
+    # localizar la columna de cada campo por su etiqueta
+    label_by_field = {f: lab for lab, f, _ in spec}
+    type_by_field = {f: t for _, f, t in spec}
+    col = {}
+    for lab, field, _t in spec:
+        for j, h in enumerate(header):
+            if h == _norm(lab):
+                col[field] = j
+                break
+    if not col:
+        raise ReglaNegocio("No reconozco las columnas. Descarga la plantilla y respeta la "
+                           "primera fila de títulos.")
+    insertados, errores = 0, []
+    for i, r in enumerate(rows[1:], start=2):
+        rec = {}
+        for field, j in col.items():
+            if j < len(r):
+                val = (r[j] or "").strip() if isinstance(r[j], str) else r[j]
+                if val in ("", None):
+                    continue
+                t = type_by_field[field]
+                if t == "n":
+                    v = _num_es(val) if isinstance(val, str) else val
+                    if v is not None:
+                        rec[field] = v
+                elif t == "d":
+                    rec[field] = _fecha_es(str(val))
+                else:
+                    rec[field] = val
+        if not rec:
+            continue
+        # requisito mínimo: nombre / matrícula
+        if table != "vehiculos" and not (rec.get("nombre") or "").strip():
+            errores.append(f"Fila {i}: falta el nombre.")
+            continue
+        if table == "vehiculos" and not (str(rec.get("matricula") or "").strip() or str(rec.get("bastidor") or "").strip()):
+            errores.append(f"Fila {i}: falta matrícula o bastidor.")
+            continue
+        try:
+            insert_row(table, rec)
+            insertados += 1
+        except Exception as e:
+            errores.append(f"Fila {i}: {e}")
+    return {"ok": True, "insertados": insertados, "errores": errores, "total": len(rows) - 1}
 
 
 def backup_zip():
@@ -2247,20 +2467,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def read_body(self):
+        # Idempotente: consume el cuerpo una sola vez y lo cachea. Así, aunque un
+        # handler responda 401/403/404 antes de leerlo, el cuerpo queda drenado y
+        # la conexión keep-alive no se desincroniza.
+        if hasattr(self, "_parsed_body"):
+            return self._parsed_body
         te = (self.headers.get("Transfer-Encoding", "") or "").lower()
         if "chunked" in te:
             raw = self._read_chunked()
         else:
             length = int(self.headers.get("Content-Length", 0) or 0)
-            if length == 0:
-                return {}
-            raw = self.rfile.read(length)
-        for enc in ("utf-8", "cp1252", "latin-1"):
-            try:
-                return json.loads(raw.decode(enc))
-            except Exception:
-                continue
-        return {}
+            raw = self.rfile.read(length) if length else b""
+        result = {}
+        if raw:
+            for enc in ("utf-8", "cp1252", "latin-1"):
+                try:
+                    result = json.loads(raw.decode(enc))
+                    break
+                except Exception:
+                    continue
+        self._parsed_body = result
+        return result
 
     def _read_chunked(self):
         data = b""
@@ -2365,6 +2592,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_json(list_gestoria(params.get("q", [None])[0]))
         if path == "/api/almacenes":
             return self.send_json(list_almacenes(params.get("q", [None])[0]))
+        if path == "/api/recepciones":
+            return self.send_json(list_recepciones(params.get("q", [None])[0]))
+        if path == "/api/gestorias":
+            return self.send_json(list_gestorias(params.get("q", [None])[0]))
         if path == "/api/traspasos":
             return self.send_json(list_traspasos(params.get("q", [None])[0]))
         if path == "/api/documentos":
@@ -2387,19 +2618,39 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.send_json({"ok": False, "error": "no autorizado"}, status=403)
             data = backup_zip()
             self.send_response(200)
+            self.close_connection = True
             self.send_header("Content-Type", "application/zip")
             self.send_header("Content-Length", str(len(data)))
             self.send_header("Content-Disposition",
                              f'attachment; filename="copia_minacar_{date.today().isoformat()}.zip"')
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        if path == "/api/plantilla.xlsx":
+            table = params.get("table", [""])[0]
+            spec = IMPORT_SPECS.get(table)
+            if not spec:
+                return self.send_json({"ok": False, "error": "Módulo no importable"}, status=400)
+            labels = [lab for lab, _, _ in spec]
+            data = build_xlsx([(f"plantilla_{table}", labels, [])])
+            self.close_connection = True
+            self.send_response(200)
+            self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Content-Disposition", f'attachment; filename="plantilla_{table}.xlsx"')
+            self.send_header("Connection", "close")
             self.end_headers()
             self.wfile.write(data)
             return
         if path == "/api/informe.xlsx":
             data = informe_xlsx()
+            self.close_connection = True
             self.send_response(200)
             self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             self.send_header("Content-Length", str(len(data)))
             self.send_header("Content-Disposition", 'attachment; filename="informe_minacar.xlsx"')
+            self.send_header("Connection", "close")
             self.end_headers()
             self.wfile.write(data)
             return
@@ -2426,11 +2677,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_response(404); self.end_headers(); return
         with open(fpath, "rb") as f:
             body = f.read()
+        self.close_connection = True
         self.send_response(200)
         self.send_header("Content-Type", row["mime"] or "application/octet-stream")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Content-Disposition",
                          f'inline; filename="{row["nombre_original"] or row["archivo"]}"')
+        self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(body)
 
@@ -2462,9 +2715,43 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(b'{"ok":true}')
             return
 
+        self.read_body()   # drena/cachea el cuerpo para no desincronizar keep-alive en respuestas tempranas
         user = self.current_user()
         if not user:
             return self.send_json({"ok": False, "error": "no autenticado"}, status=401)
+
+        # Exportar a Excel la tabla que el usuario está viendo (cualquier ventana)
+        if path == "/api/tabla.xlsx":
+            data = self.read_body()
+            name = (data.get("name") or "datos")
+            cols = data.get("cols") or []
+            rows = data.get("rows") or []
+            xls = build_xlsx([(name, cols, rows)])
+            self.close_connection = True   # descarga puntual: cerrar evita desincronizar keep-alive en el navegador
+            self.send_response(200)
+            self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            self.send_header("Content-Disposition", f'attachment; filename="minacar_{name}.xlsx"')
+            self.send_header("Content-Length", str(len(xls)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(xls)
+            return
+
+        # Importar datos desde Excel/CSV a un módulo
+        if path == "/api/importar":
+            data = self.read_body()
+            table = data.get("table")
+            if table not in IMPORT_SPECS:
+                return self.send_json({"ok": False, "error": "Este módulo no admite importación."}, status=400)
+            if not puede_escribir(user, table):
+                return self.send_json({"ok": False, "error": "No tienes permiso de edición en este módulo."}, status=403)
+            try:
+                res = importar_tabla(table, data)
+            except ReglaNegocio as e:
+                return self.send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:
+                return self.send_json({"ok": False, "error": f"Error al importar: {e}"}, status=400)
+            return self.send_json(res)
 
         if path == "/api/usuarios":
             if user["rol"] != "admin":
@@ -2500,6 +2787,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 return self.send_json({"ok": False, "error": f"Error al guardar el documento: {e}"}, status=400)
             return self.send_json({"id": did, "ok": True})
+        if table == "recepciones":
+            try:
+                rid = registrar_recepcion(data)
+            except ReglaNegocio as e:
+                return self.send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:
+                return self.send_json({"ok": False, "error": f"Error al registrar la recepción: {e}"}, status=400)
+            return self.send_json({"id": rid, "ok": True})
         try:
             new_id = insert_row(table, data)
         except ReglaNegocio as e:
@@ -2512,6 +2807,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_json({"id": new_id, "ok": True})
 
     def do_PUT(self):
+        self.read_body()   # drena/cachea el cuerpo para no desincronizar keep-alive en respuestas tempranas
         user = self.current_user()
         if not user:
             return self.send_json({"ok": False, "error": "no autenticado"}, status=401)
@@ -2570,7 +2866,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "vehiculos", "compras", "ventas", "logistica", "taller",
                     "leads", "gestoria", "documentos", "almacenes", "traspasos",
                     "garantias", "postventa", "agenda", "cobros",
-                    "seguimientos", "extractos", "movimientos", "listas"}
+                    "seguimientos", "extractos", "movimientos", "listas",
+                    "recepciones", "gestorias"}
 
     def _table_from_path(self):
         parts = urlparse(self.path).path.strip("/").split("/")
