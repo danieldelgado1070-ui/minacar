@@ -601,7 +601,25 @@ def migrate(conn):
             add("logistica", "factura_recibida TEXT")
             add("logistica", "fecha_factura TEXT")
             add("logistica", "pagado TEXT")
+            add("logistica", "fecha_pago_est TEXT")
             add("logistica", "destinatario_id INTEGER")
+        # Control de facturas de proveedor: factura recibida sí/no + fecha
+        if has_table("taller"):
+            add("taller", "factura_recibida TEXT")
+            add("taller", "fecha_factura TEXT")
+        if has_table("postventa"):
+            add("postventa", "factura_recibida TEXT")
+            add("postventa", "fecha_factura TEXT")
+        add("compras", "factura_recibida TEXT")
+        add("compras", "fecha_factura TEXT")
+        if has_table("gestoria"):
+            add("gestoria", "coste REAL")
+            add("gestoria", "numero_factura TEXT")
+            add("gestoria", "factura_recibida TEXT")
+            add("gestoria", "fecha_factura TEXT")
+            add("gestoria", "pagado TEXT")
+            add("gestoria", "fecha_pago_est TEXT")
+            add("gestoria", "nif_gestoria TEXT")
         add("vehiculos", "proxima_revision TEXT")   # ITV: próxima revisión concertada (#11)
         if has_table("gestoria"):
             add("gestoria", "gestoria_id INTEGER")   # enlaza con la gestoría del directorio
@@ -720,7 +738,7 @@ FIELDS = {
                   "itv_pasada", "itv_expira", "proxima_revision", "ref_web", "foto", "notas"],
     "compras": ["vehiculo_id", "proveedor_id", "prov_id", "numero_factura",
                 "regimen", "fecha", "precio", "gastos", "iva_pct", "forma_pago",
-                "pagado", "fecha_pago_est", "notas"],
+                "pagado", "fecha_pago_est", "factura_recibida", "fecha_factura", "notas"],
     "proveedores": ["nombre", "nif", "telefono", "email", "direccion", "notas"],
     "ventas": ["vehiculo_id", "cliente_id", "comercial_id", "numero_factura",
                "regimen", "fecha", "precio", "cruz_fin", "cruz_seg", "cruz_gar",
@@ -731,7 +749,7 @@ FIELDS = {
     "logistica": ["vehiculo_id", "transportista_id", "transportista", "origen",
                   "destino", "destinatario", "destinatario_id", "ubicacion", "almacen_id", "coste",
                   "fecha_recogida", "fecha_entrega", "estado",
-                  "numero_factura", "factura_recibida", "fecha_factura", "pagado", "notas"],
+                  "numero_factura", "factura_recibida", "fecha_factura", "pagado", "fecha_pago_est", "notas"],
     "almacenes": ["nombre", "direccion", "notas"],
     "recepciones": ["vehiculo_id", "fecha", "responsable", "almacen_id",
                     "ubicacion", "tiene_desperfectos", "desperfectos", "marcas", "notas"],
@@ -740,13 +758,15 @@ FIELDS = {
                   "fecha_fin", "alcance", "estado", "notas"],
     "postventa": ["vehiculo_id", "tipo", "descripcion", "proveedor", "fecha",
                   "coste", "asume", "pago", "fecha_pago_est",
-                  "numero_factura", "nif_proveedor", "iva_pct", "notas"],
+                  "numero_factura", "nif_proveedor", "iva_pct",
+                  "factura_recibida", "fecha_factura", "notas"],
     "agenda": ["vehiculo_id", "fecha", "tipo", "asunto", "detalle",
                "cerrado", "motivo_cierre", "notas"],
     "cobros": ["venta_id", "fecha", "medio", "importe", "veh_cambio_id", "notas"],
     "taller": ["vehiculo_id", "tipo", "descripcion", "proveedor", "prov_id", "fecha",
                "coste", "pago", "fecha_pago_est",
-               "numero_factura", "nif_proveedor", "iva_pct", "notas"],
+               "numero_factura", "nif_proveedor", "iva_pct",
+               "factura_recibida", "fecha_factura", "notas"],
     "leads": ["vehiculo_id", "comercial_id", "nombre", "canal", "telefono", "email",
               "fecha", "estado", "proxima_fecha", "cerrado", "motivo_cierre", "notas"],
     "seguimientos": ["ambito", "ref_id", "fecha", "contacto", "detalle",
@@ -755,7 +775,9 @@ FIELDS = {
     "movimientos": ["categoria", "ref_tipo", "ref_id", "conciliado",
                     "observacion_usuario", "observacion_app"],
     "gestoria": ["vehiculo_id", "tipo", "estado", "gestoria", "gestoria_id",
-                 "fecha_solicitud", "fecha_resolucion", "notas"],
+                 "fecha_solicitud", "fecha_resolucion",
+                 "coste", "numero_factura", "nif_gestoria", "factura_recibida",
+                 "fecha_factura", "pagado", "fecha_pago_est", "notas"],
     "gestorias": ["nombre", "nif", "telefono", "email", "direccion", "notas"],
     "documentos": ["vehiculo_id", "tipo", "importe", "fecha", "notas"],
     "listas": ["tipo", "valor", "padre"],

@@ -332,12 +332,12 @@ const svg=(p,cls="")=>`<svg class="${cls}" viewBox="0 0 24 24" fill="none" strok
 const NAV=[
   ["panel","Panel",IC.panel,"op"],["stock","Stock",IC.car,"op"],["compras","Compras",IC.cart,"op"],
   ["taller","Taller",IC.wrench,"op"],["logistica","Logística",IC.truck,"op"],["marketing","Marketing",IC.mega,"op"],["agenda","Agenda",IC.book,"op"],
-  ["ventas","Ventas",IC.tag,"op"],["tesoreria","Cobros y pagos",IC.euro,"op"],["bancos","Bancos",IC.bank,"op"],["gestoria","Gestoría",IC.stamp,"op"],["garantias","Garantías",IC.shield,"op"],["postventa","Postventa",IC.support,"op"],["documentos","Documentos",IC.folder,"op"],["almacenes","Almacenes",IC.box,"op"],["web","Web",IC.globe,"op"],
+  ["ventas","Ventas",IC.tag,"op"],["tesoreria","Cobros y pagos",IC.euro,"op"],["facturas","Facturas prov.",IC.supplier,"op"],["bancos","Bancos",IC.bank,"op"],["gestoria","Gestoría",IC.stamp,"op"],["garantias","Garantías",IC.shield,"op"],["postventa","Postventa",IC.support,"op"],["documentos","Documentos",IC.folder,"op"],["almacenes","Almacenes",IC.box,"op"],["web","Web",IC.globe,"op"],
   ["clientes","Clientes",IC.users,"dir"],["proveedores","Proveedores",IC.supplier,"dir"],["comerciales","Comerciales",IC.users,"dir"],["transportistas","Transportistas",IC.wheel,"dir"],["gestorias","Gestorías",IC.stamp,"dir"],
   ["itv","ITV",IC.clock,"an"],["informes","Informes",IC.chart,"an"],
   ["usuarios","Usuarios",IC.users,"adm"],
 ];
-const SUB={panel:"Visión general de la operación",stock:"Existencias y ficha 360 de cada vehículo",compras:"Facturas y pagos a proveedor",taller:"Reacondicionamiento y costes de preparación",logistica:"Transporte, entrega y coches pendientes",marketing:"Leads e interesados por vehículo",agenda:"Gestiones diarias de leads y postventa",ventas:"Operaciones cerradas y facturas",tesoreria:"Facturas pendientes de cobro y de pago",bancos:"Extractos bancarios y conciliación de movimientos",gestoria:"Transferencias y exenciones de matriculación",garantias:"Garantías comerciales por vehículo",postventa:"Atenciones tras venta y agenda de reclamaciones",documentos:"Documentación aportada por vehículo",almacenes:"Ubicaciones, valoración del stock y traspasos",web:"Conciliación con minacar.es",clientes:"Directorio de clientes",proveedores:"Directorio de proveedores",comerciales:"Comerciales y cálculo de comisiones",transportistas:"Directorio de transportistas",gestorias:"Directorio de gestorías / asesorías",itv:"Control de ITV por vencimiento y revisiones concertadas",informes:"Rotación y margen por dimensión",usuarios:"Usuarios y permisos de acceso"};
+const SUB={panel:"Visión general de la operación",stock:"Existencias y ficha 360 de cada vehículo",compras:"Facturas y pagos a proveedor",taller:"Reacondicionamiento y costes de preparación",logistica:"Transporte, entrega y coches pendientes",marketing:"Leads e interesados por vehículo",agenda:"Gestiones diarias de leads y postventa",ventas:"Operaciones cerradas y facturas",tesoreria:"Facturas pendientes de cobro y de pago",facturas:"Facturas de proveedor: pendientes de recibir y de pagar",bancos:"Extractos bancarios y conciliación de movimientos",gestoria:"Transferencias y exenciones de matriculación",garantias:"Garantías comerciales por vehículo",postventa:"Atenciones tras venta y agenda de reclamaciones",documentos:"Documentación aportada por vehículo",almacenes:"Ubicaciones, valoración del stock y traspasos",web:"Conciliación con minacar.es",clientes:"Directorio de clientes",proveedores:"Directorio de proveedores",comerciales:"Comerciales y cálculo de comisiones",transportistas:"Directorio de transportistas",gestorias:"Directorio de gestorías / asesorías",itv:"Control de ITV por vencimiento y revisiones concertadas",informes:"Rotación y margen por dimensión",usuarios:"Usuarios y permisos de acceso"};
 const NEWMAP={stock:"vehiculos",compras:"compras",taller:"taller",ventas:"ventas",logistica:"logistica",marketing:"leads",gestoria:"gestoria",garantias:"garantias",postventa:"postventa",almacenes:"almacenes",clientes:"clientes",proveedores:"proveedores",comerciales:"comerciales",transportistas:"transportistas",gestorias:"gestorias",usuarios:"usuarios"};
 const AREA_LABEL=Object.fromEntries(NAV.map(n=>[n[0],n[1]]));
 const DOC_TIPOS=["Factura proforma","Factura de compra","Pago al proveedor","Hoja de transporte","Albarán de entrega","Ficha técnica","Permiso de circulación","Facturas de reparación/mantenimiento","Garantía comercial","Factura de venta","Justificante de cobro"];
@@ -493,6 +493,7 @@ function render(){
   else if(current==="agenda")views.innerHTML=viewAgenda();
   else if(current==="ventas")views.innerHTML=viewVentas();
   else if(current==="tesoreria")views.innerHTML=viewTesoreria();
+  else if(current==="facturas")views.innerHTML=viewFacturas();
   else if(current==="bancos")views.innerHTML=viewBancos();
   else if(current==="usuarios")views.innerHTML=viewUsuarios();
   else if(current==="gestoria")views.innerHTML=viewGestoria();
@@ -1023,6 +1024,66 @@ function subirExtracto(){
       toast("Extracto procesado ✔");bancoExtracto=res.id;await loadAll();render();};
     if(esExcel)rd.readAsDataURL(f); else rd.readAsText(f);};
   inp.click();
+}
+/* ---------- FACTURAS DE PROVEEDOR (control de recepción y pago) ---------- */
+const FACT_SRC=[
+  {t:"compras",lbl:"Compra",arr:()=>DATA.compras,con:c=>`${c.matricula||""} ${c.marca||""} ${c.modelo||""}`,prov:c=>c.proveedor,imp:c=>(Number(c.precio)||0)+(Number(c.gastos)||0),paid:c=>c.pagado==="Sí",pf:"pagado",pv:"Sí"},
+  {t:"taller",lbl:"Taller",arr:()=>DATA.taller,con:t=>`${t.matricula||""} · ${t.tipo||""} ${t.descripcion||""}`,prov:t=>t.proveedor,imp:t=>Number(t.coste)||0,paid:t=>t.pago==="Pagado",pf:"pago",pv:"Pagado"},
+  {t:"postventa",lbl:"Postventa",arr:()=>DATA.postventa,con:p=>`${p.matricula||""} · ${p.tipo||""} ${p.descripcion||""}`,prov:p=>p.proveedor,imp:p=>Number(p.coste)||0,paid:p=>p.pago==="Pagado",pf:"pago",pv:"Pagado"},
+  {t:"logistica",lbl:"Transporte",arr:()=>DATA.logistica,con:l=>`${l.matricula||""} ${l.marca||""} ${l.modelo||""}`,prov:l=>l.transportista_nombre,imp:l=>Number(l.coste)||0,paid:l=>l.pagado==="Sí",pf:"pagado",pv:"Sí"},
+  {t:"gestoria",lbl:"Gestoría",arr:()=>DATA.gestoria,con:g=>`${g.matricula||""} · ${g.tipo||""}`,prov:g=>g.gestoria,imp:g=>Number(g.coste)||0,paid:g=>g.pagado==="Sí",pf:"pagado",pv:"Sí"},
+];
+function factItems(){
+  const out=[];
+  FACT_SRC.forEach(s=>s.arr().forEach(r=>{
+    out.push({s,r,recibida:r.factura_recibida==="Sí",noRec:r.factura_recibida==="No",paid:s.paid(r),imp:s.imp(r),num:r.numero_factura,fest:r.fecha_pago_est});
+  }));
+  return out.filter(x=>matchQ({y:x.s.con(x.r)+" "+(x.s.prov(x.r)||"")+" "+(x.num||"")},["y"]));
+}
+function viewFacturas(){
+  const all=factItems();
+  const pdr=all.filter(x=>x.noRec);                 // factura pendiente de recibir
+  const rpp=all.filter(x=>x.recibida&&!x.paid);     // recibida, pendiente de pago
+  const totPdr=pdr.reduce((a,x)=>a+x.imp,0), totRpp=rpp.reduce((a,x)=>a+x.imp,0);
+  const kpi=(l,v,c)=>`<div class="kpi"><div class="k-lab">${l}</div><div class="k-val" style="color:${c||"var(--ink)"}">${v}</div></div>`;
+  const chip=t=>`<span class="minipill" style="background:var(--line-2);color:var(--muted)">${t}</span>`;
+  const rowsPdr=pdr.map(x=>`<tr data-veh="${x.r.vehiculo_id||''}">
+      <td>${chip(x.s.lbl)}</td><td>${esc(x.s.con(x.r))}</td><td>${esc(x.s.prov(x.r)||"")}</td>
+      <td class="r" style="font-weight:700">${eur2(x.imp)}</td>
+      <td class="r"><button class="btn accent sm" onclick="factRecibir('${x.s.t}',${x.r.id},'${x.s.pf}','${x.s.pv}')">📥 Marcar recibida</button></td>
+    </tr>`).join("");
+  const rowsRpp=rpp.map(x=>`<tr data-veh="${x.r.vehiculo_id||''}">
+      <td>${chip(x.s.lbl)}</td><td>${esc(x.s.con(x.r))}</td><td>${esc(x.s.prov(x.r)||"")}</td>
+      <td>${esc(x.num||"—")}</td><td class="r" style="font-weight:700;color:var(--danger)">${eur2(x.imp)}</td>
+      <td><input type="date" value="${esc(x.fest||"")}" onchange="setField('${x.s.t}',${x.r.id},'fecha_pago_est',this.value)" style="padding:5px 7px"></td>
+      <td class="r"><button class="btn accent sm" onclick="factPagar('${x.s.t}',${x.r.id},'${x.s.pf}','${x.s.pv}')">💳 Marcar pagada</button></td>
+    </tr>`).join("");
+  return `<p style="color:var(--muted);margin:0 0 14px;font-size:13px">Controla las <b>facturas de tus proveedores</b> (compras, taller, postventa, transporte y gestoría). Al dar de alta un trabajo, marca si la factura está recibida; aquí ves las que faltan por recibir y, una vez recibidas, las que quedan por pagar.</p>
+    <div class="kpis" style="grid-template-columns:repeat(2,1fr);margin-bottom:16px">${kpi("Pendientes de recibir",pdr.length+" · "+eur(totPdr),"var(--warn)")}${kpi("Recibidas sin pagar",rpp.length+" · "+eur(totRpp),"var(--danger)")}</div>
+    <div class="card" style="margin-bottom:16px"><div class="card-h"><h3>📥 Pendientes de recibir del proveedor (${pdr.length})</h3><span class="hint">marcadas como «factura no recibida»</span></div>
+      <div class="card-b" style="padding:0 18px 12px">${tableWrap([{t:"Origen"},{t:"Concepto"},{t:"Proveedor"},{t:"Importe",r:1},{t:"",r:1}],rowsPdr)}</div></div>
+    <div class="card"><div class="card-h"><h3>💳 Recibidas, pendientes de pago (${rpp.length})</h3><span class="hint">indica la fecha de pago prevista</span></div>
+      <div class="card-b" style="padding:0 18px 12px">${tableWrap([{t:"Origen"},{t:"Concepto"},{t:"Proveedor"},{t:"Nº factura"},{t:"Importe",r:1},{t:"Pago previsto"},{t:"",r:1}],rowsRpp)}</div></div>`;
+}
+async function factRecibir(tabla,id,pf,pv){
+  if(bloqueadoRO(tabla))return;
+  const num=(prompt("Nº de factura del proveedor:","")||"").trim();
+  const fecha=(prompt("Fecha de la factura (AAAA-MM-DD):",todayISO())||"").trim();
+  const data={factura_recibida:"Sí"};
+  if(num)data.numero_factura=num; if(fecha)data.fecha_factura=fecha;
+  const pagada=confirm("¿La factura ya está PAGADA?\n\nAceptar = sí (se marca pagada)\nCancelar = no (indicarás la fecha de pago prevista)");
+  if(pagada){data[pf]=pv;}
+  else{const fp=(prompt("Fecha de pago prevista (AAAA-MM-DD):","")||"").trim();if(fp)data.fecha_pago_est=fp;}
+  const res=await api(`/api/${tabla}/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+  if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo guardar"));return;}
+  toast("Factura marcada como recibida ✔");await reloadAll();
+}
+async function factPagar(tabla,id,pf,pv){
+  if(bloqueadoRO(tabla))return;
+  const data={};data[pf]=pv;
+  const res=await api(`/api/${tabla}/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+  if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo guardar"));return;}
+  toast("Factura marcada como pagada ✔");await reloadAll();
 }
 function viewBancos(){
   const puedeW=puedeEscribirTabla("extractos");
@@ -1723,6 +1784,7 @@ const SCHEMAS={
     {k:"precio",l:"Precio compra (€)",t:"number"},{k:"gastos",l:"Gastos (€)",t:"number"},
     {k:"iva_pct",l:"% IVA (0 si REBU)",t:"number"},
     {k:"forma_pago",l:"Forma de pago",t:"select",opts:["","Efectivo","Transferencia","Financiación","Tarjeta"]},
+    {k:"factura_recibida",l:"¿Factura recibida del proveedor?",t:"select",opts:["","No","Sí"]},
     {k:"pagado",l:"¿Pagada al proveedor?",t:"select",opts:["","Sí","No"]},
     {k:"fecha_pago_est",l:"Fecha estimada de pago",t:"date"},{k:"notas",l:"Notas",t:"textarea",full:1}]},
   ventas:{title:"venta",fields:[
@@ -1762,6 +1824,7 @@ const SCHEMAS={
     {k:"nif_proveedor",l:"NIF del proveedor",t:"text"},
     {k:"numero_factura",l:"Nº de factura",t:"text"},{k:"fecha",l:"Fecha",t:"date",def:1},
     {k:"coste",l:"Coste total con IVA (€)",t:"number"},{k:"iva_pct",l:"% IVA",t:"number"},
+    {k:"factura_recibida",l:"¿Factura recibida del proveedor?",t:"select",opts:["","No","Sí"]},
     {k:"pago",l:"Pago",t:"select",opts:["Pendiente","Pagado"]},
     {k:"fecha_pago_est",l:"Fecha estimada de pago",t:"date"},{k:"notas",l:"Notas",t:"textarea",full:1}]},
   leads:{title:"lead / contacto",nota:"Contacto (interesado): basta con el nombre y un email y/o teléfono.",fields:[
@@ -1781,6 +1844,10 @@ const SCHEMAS={
     {k:"gestoria_id",l:"Gestoría / Asesoría (elígela o añádela con ➕)",t:"ref-gestoria",full:1},
     {k:"fecha_solicitud",l:"Fecha de solicitud / envío",t:"date"},
     {k:"fecha_resolucion",l:"Fecha de resolución",t:"date"},
+    {k:"coste",l:"Coste / honorarios gestoría (€)",t:"number"},{k:"nif_gestoria",l:"NIF de la gestoría",t:"text"},
+    {k:"numero_factura",l:"Nº de factura",t:"text"},
+    {k:"factura_recibida",l:"¿Factura recibida de la gestoría?",t:"select",opts:["","No","Sí"]},
+    {k:"pagado",l:"¿Pagada?",t:"select",opts:["","No","Sí"]},{k:"fecha_pago_est",l:"Fecha estimada de pago",t:"date"},
     {k:"notas",l:"Notas",t:"textarea",full:1}]},
   almacenes:{title:"almacén",fields:[
     {k:"nombre",l:"Nombre del almacén",t:"text",req:1,full:1},
@@ -1807,6 +1874,7 @@ const SCHEMAS={
     {k:"numero_factura",l:"Nº de factura",t:"text"},{k:"fecha",l:"Fecha",t:"date",def:1},
     {k:"coste",l:"Coste total con IVA (€)",t:"number"},{k:"iva_pct",l:"% IVA",t:"number"},
     {k:"asume",l:"¿Quién asume el coste?",t:"select",opts:["","Empresa","Cliente","Garantía","Compartido"]},
+    {k:"factura_recibida",l:"¿Factura recibida del proveedor?",t:"select",opts:["","No","Sí"]},
     {k:"pago",l:"Pago",t:"select",opts:["Pendiente","Pagado"]},
     {k:"fecha_pago_est",l:"Fecha estimada de pago",t:"date"},{k:"notas",l:"Notas",t:"textarea",full:1}]},
   agenda:{title:"anotación de agenda",fields:[
@@ -2048,6 +2116,8 @@ function exportCurrentView(){
     rows=DATA.logistica.map(l=>[l.estado,l.matricula,l.marca,l.modelo,l.transportista_nombre,l.origen,l.destino,l.destinatario,l.coste,l.fecha_recogida,l.fecha_entrega]);}
   else if(v==="gestoria"){name="gestoria";cols=["Matrícula","Marca","Modelo","Trámite","Estado","Gestoría","Solicitud","Resolución"];
     rows=DATA.gestoria.map(g=>[g.matricula,g.marca,g.modelo,g.tipo,g.estado,g.gestoria,g.fecha_solicitud,g.fecha_resolucion]);}
+  else if(v==="facturas"){name="facturas_proveedor";cols=["Origen","Concepto","Proveedor","Nº factura","Importe","Factura recibida","Pagada","Pago previsto"];
+    rows=factItems().filter(x=>x.noRec||(x.recibida&&!x.paid)).map(x=>[x.s.lbl,x.s.con(x.r),x.s.prov(x.r),x.num,x.imp,x.recibida?"Sí":"No",x.paid?"Sí":"No",x.fest]);}
   else if(v==="almacenes"){name="almacenes_stock";cols=["Matrícula","Marca","Modelo","Almacén","Posición","Valor compra"];
     rows=DATA.vehiculos.filter(x=>x.estado==="disponible").map(x=>[x.matricula,x.marca,x.modelo,x.almacen_nombre||"Sin asignar",x.ubicacion,x._base]);}
   else if(v==="clientes"){name="clientes";cols=["Nombre","NIF","NIF válido","Teléfono","Email","Dirección"];
