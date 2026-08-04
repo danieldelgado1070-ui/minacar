@@ -381,6 +381,7 @@ def init_db():
     # Migracion no destructiva: anadir columnas nuevas a BD ya existentes
     migrate(conn)
     seed_listas(conn)
+    seed_modelos(conn)
     seed_admin(conn)
     conn.close()
 
@@ -680,6 +681,61 @@ def seed_listas(conn):
             [(m,) for m in MARCAS_SEED],
         )
         conn.commit()
+
+
+# Catalogo de modelos por marca (mercado español). Al elegir la marca se
+# despliegan estos modelos, para que todos usen la misma denominacion.
+MODELOS_SEED = {
+    "Abarth": ["500", "595", "695", "124 Spider"],
+    "Alfa Romeo": ["MiTo", "Giulietta", "Giulia", "Stelvio", "Tonale", "147", "156", "159", "Brera"],
+    "Audi": ["A1", "A3", "A4", "A5", "A6", "A7", "A8", "Q2", "Q3", "Q4 e-tron", "Q5", "Q7", "Q8", "TT", "e-tron", "S3", "RS3", "S4", "RS6"],
+    "BMW": ["Serie 1", "Serie 2", "Serie 2 Active Tourer", "Serie 3", "Serie 4", "Serie 5", "Serie 6", "Serie 7", "Serie 8", "X1", "X2", "X3", "X4", "X5", "X6", "X7", "Z4", "i3", "i4", "iX", "iX3", "M3", "M4"],
+    "Citroën": ["C1", "C3", "C3 Aircross", "C4", "C4 X", "C4 Cactus", "C5", "C5 Aircross", "C5 X", "Berlingo", "C-Elysée", "C4 Picasso", "Grand C4 Picasso", "C4 SpaceTourer", "Ami"],
+    "Cupra": ["Formentor", "León", "Ateca", "Born", "Tavascan"],
+    "Dacia": ["Sandero", "Sandero Stepway", "Duster", "Logan", "Lodgy", "Dokker", "Jogger", "Spring"],
+    "DS": ["DS 3", "DS 3 Crossback", "DS 4", "DS 5", "DS 7 Crossback", "DS 9"],
+    "Fiat": ["500", "500e", "500L", "500X", "Panda", "Punto", "Tipo", "Doblò", "Ducato", "Qubo"],
+    "Ford": ["Fiesta", "Focus", "Puma", "Kuga", "Mondeo", "EcoSport", "Ka+", "C-Max", "S-Max", "Galaxy", "Mustang", "Mustang Mach-E", "Transit", "Transit Custom", "Ranger", "Tourneo Connect", "Tourneo Courier"],
+    "Honda": ["Jazz", "Civic", "HR-V", "CR-V", "ZR-V", "Accord", "e"],
+    "Hyundai": ["i10", "i20", "i30", "i40", "Bayon", "Kona", "Tucson", "Santa Fe", "Ioniq", "Ioniq 5", "Ioniq 6", "ix20", "ix35"],
+    "Jaguar": ["XE", "XF", "XJ", "E-Pace", "F-Pace", "I-Pace", "F-Type"],
+    "Jeep": ["Renegade", "Compass", "Avenger", "Cherokee", "Grand Cherokee", "Wrangler"],
+    "Kia": ["Picanto", "Rio", "Ceed", "XCeed", "Stonic", "Niro", "Sportage", "Sorento", "EV6", "Soul", "Venga", "Stinger"],
+    "Land Rover": ["Defender", "Discovery", "Discovery Sport", "Range Rover", "Range Rover Sport", "Range Rover Evoque", "Range Rover Velar", "Freelander"],
+    "Lexus": ["CT", "IS", "ES", "LS", "UX", "NX", "RX", "RC", "RZ"],
+    "Mazda": ["Mazda2", "Mazda3", "Mazda6", "CX-3", "CX-30", "CX-5", "CX-60", "MX-5", "MX-30"],
+    "Mercedes-Benz": ["Clase A", "Clase B", "Clase C", "Clase E", "Clase S", "CLA", "CLS", "GLA", "GLB", "GLC", "GLE", "GLS", "Clase G", "Clase V", "Vito", "Sprinter", "Citan", "EQA", "EQB", "EQC", "SLK", "SL"],
+    "MG": ["MG3", "ZS", "HS", "MG4", "MG5", "Marvel R", "EHS"],
+    "Mini": ["Cooper", "One", "Countryman", "Clubman", "Cabrio", "Paceman"],
+    "Mitsubishi": ["Space Star", "ASX", "Eclipse Cross", "Outlander", "L200", "Montero"],
+    "Nissan": ["Micra", "Note", "Juke", "Qashqai", "X-Trail", "Leaf", "Ariya", "Pulsar", "Navara", "Townstar", "Primastar", "Townstar Combi"],
+    "Opel": ["Corsa", "Astra", "Insignia", "Crossland", "Grandland", "Mokka", "Zafira", "Combo", "Vivaro", "Adam", "Karl", "Meriva", "Antara"],
+    "Peugeot": ["108", "208", "308", "408", "508", "2008", "3008", "5008", "Partner", "Rifter", "Traveller", "Expert", "Boxer", "207", "407"],
+    "Porsche": ["911", "718 Cayman", "718 Boxster", "Panamera", "Macan", "Cayenne", "Taycan"],
+    "Renault": ["Twingo", "Clio", "Captur", "Mégane", "Mégane E-Tech", "Scénic", "Kadjar", "Arkana", "Austral", "Kangoo", "Trafic", "Master", "Zoe", "Talisman", "Espace", "Koleos", "Laguna"],
+    "Seat": ["Ibiza", "León", "Arona", "Ateca", "Tarraco", "Alhambra", "Toledo", "Mii", "Exeo", "Altea"],
+    "Skoda": ["Fabia", "Scala", "Octavia", "Superb", "Kamiq", "Karoq", "Kodiaq", "Enyaq", "Rapid", "Citigo", "Yeti", "Roomster"],
+    "Smart": ["ForTwo", "ForFour", "#1", "#3"],
+    "SsangYong": ["Tivoli", "Korando", "Rexton", "Musso", "XLV"],
+    "Subaru": ["Impreza", "XV", "Forester", "Outback", "Legacy", "BRZ"],
+    "Suzuki": ["Ignis", "Swift", "Baleno", "Vitara", "S-Cross", "Jimny", "Across", "Swace", "SX4"],
+    "Tesla": ["Model 3", "Model S", "Model X", "Model Y"],
+    "Toyota": ["Aygo", "Aygo X", "Yaris", "Yaris Cross", "Corolla", "C-HR", "RAV4", "Camry", "Prius", "Land Cruiser", "Hilux", "Proace", "Proace City", "Auris", "Avensis", "Supra", "bZ4X"],
+    "Volkswagen": ["up!", "Polo", "Golf", "T-Cross", "T-Roc", "Tiguan", "Tiguan Allspace", "Passat", "Arteon", "Touran", "Sharan", "Touareg", "ID.3", "ID.4", "ID.5", "Caddy", "Transporter", "California", "Scirocco", "Beetle"],
+    "Volvo": ["V40", "V60", "V90", "S60", "S90", "XC40", "XC60", "XC90", "C40", "EX30"],
+}
+
+
+def seed_modelos(conn):
+    """Siembra (una vez) el catalogo de modelos por marca. Idempotente:
+    INSERT OR IGNORE respeta los que el usuario haya añadido."""
+    row = conn.execute("SELECT valor FROM contadores WHERE clave='modelos_seed_v1'").fetchone()
+    if row and row["valor"]:
+        return
+    data = [("modelo", mod, marca) for marca, mods in MODELOS_SEED.items() for mod in mods]
+    conn.executemany("INSERT OR IGNORE INTO listas (tipo, valor, padre) VALUES (?,?,?)", data)
+    conn.execute("INSERT OR REPLACE INTO contadores (clave, valor) VALUES ('modelos_seed_v1', 1)")
+    conn.commit()
 
 
 # --------------------------------------------------------------------------
