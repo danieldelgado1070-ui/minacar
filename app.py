@@ -1127,9 +1127,11 @@ def insert_row(table, data):
         new_id = cur.lastrowid
 
         if table == "ventas" and data.get("vehiculo_id"):
-            # Proforma nueva → el coche queda RESERVADO (se vende al confirmar la factura)
-            conn.execute("UPDATE vehiculos SET estado='reservado' WHERE id=? AND estado!='vendido'",
-                         (data.get("vehiculo_id"),))
+            # Proforma nueva: solo reserva el coche si se pide expresamente (checkbox).
+            # Una proforma-presupuesto no retira el coche de la venta a otros.
+            if data.get("reservar"):
+                conn.execute("UPDATE vehiculos SET estado='reservado' WHERE id=? AND estado!='vendido'",
+                             (data.get("vehiculo_id"),))
         if table == "logistica":
             _aplicar_entrega(conn, data)
         conn.commit()

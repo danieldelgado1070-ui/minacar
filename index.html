@@ -129,12 +129,15 @@
   .vc-stat .s-v.pos{color:var(--ok)}.vc-stat .s-v.neg{color:var(--danger)}
 
   /* table */
-  .tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow)}
+  .tbl-wrap{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow)}
   table{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
-  thead th{text-align:left;font-size:11px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);font-weight:600;padding:11px 15px;border-bottom:1px solid var(--line);background:var(--line-2);white-space:nowrap}
+  thead th{text-align:left;font-size:11px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);font-weight:600;padding:11px 15px;border-bottom:1px solid var(--line);background:var(--line-2);white-space:nowrap;position:sticky;top:0;z-index:2}
+  thead th:hover{color:var(--accent);background:var(--line)}
+  thead th .sortind{color:var(--accent);font-size:10px}
   tbody td{padding:11px 15px;border-bottom:1px solid var(--line-2);white-space:nowrap;vertical-align:middle}
   tbody tr:last-child td{border-bottom:none}
-  tbody tr:hover{background:#f7f9fb}
+  tbody tr:nth-child(even){background:rgba(0,0,0,.022)}
+  tbody tr:hover{background:#eef3f7}
   td .plate{font-family:var(--mono);font-weight:700;letter-spacing:.5px}
   .r{text-align:right;font-family:var(--mono)}
   .pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px}
@@ -343,13 +346,13 @@ const svg=(p,cls="")=>`<svg class="${cls}" viewBox="0 0 24 24" fill="none" strok
 const NAV=[
   ["panel","Panel",IC.panel,"op"],["stock","Stock",IC.car,"op"],["compras","Compras",IC.cart,"op"],
   ["taller","Taller",IC.wrench,"op"],["logistica","Logística",IC.truck,"op"],["marketing","Marketing",IC.mega,"op"],["agenda","Agenda",IC.book,"op"],
-  ["ventas","Ventas",IC.tag,"op"],["tesoreria","Cobros y pagos",IC.euro,"op"],["facturas","Facturas prov.",IC.supplier,"op"],["flexicar","Flexicar",IC.book,"op"],["bancos","Bancos",IC.bank,"op"],["gestoria","Gestoría",IC.stamp,"op"],["garantias","Garantías",IC.shield,"op"],["postventa","Postventa",IC.support,"op"],["documentos","Documentos",IC.folder,"op"],["almacenes","Almacenes",IC.box,"op"],["web","Web",IC.globe,"op"],
+  ["ventas","Ventas",IC.tag,"op"],["proformas","Proformas",IC.stamp,"op"],["tesoreria","Cobros y pagos",IC.euro,"op"],["facturas","Facturas prov.",IC.supplier,"op"],["flexicar","Flexicar",IC.book,"op"],["bancos","Bancos",IC.bank,"op"],["gestoria","Gestoría",IC.stamp,"op"],["garantias","Garantías",IC.shield,"op"],["postventa","Postventa",IC.support,"op"],["documentos","Documentos",IC.folder,"op"],["almacenes","Almacenes",IC.box,"op"],["web","Web",IC.globe,"op"],
   ["clientes","Clientes",IC.users,"dir"],["proveedores","Proveedores",IC.supplier,"dir"],["comerciales","Comerciales",IC.users,"dir"],["transportistas","Transportistas",IC.wheel,"dir"],["gestorias","Gestorías",IC.stamp,"dir"],
   ["itv","ITV",IC.clock,"an"],["informes","Informes",IC.chart,"an"],
   ["usuarios","Usuarios",IC.users,"adm"],
 ];
-const SUB={panel:"Visión general de la operación",stock:"Existencias y ficha 360 de cada vehículo",compras:"Facturas y pagos a proveedor",taller:"Reacondicionamiento y costes de preparación",logistica:"Transporte, entrega y coches pendientes",marketing:"Leads e interesados por vehículo",agenda:"Gestiones diarias de leads y postventa",ventas:"Operaciones cerradas y facturas",tesoreria:"Facturas pendientes de cobro y de pago",facturas:"Facturas de proveedor: pendientes de recibir y de pagar",flexicar:"Cliente Flexicar: informe de deudas",bancos:"Extractos bancarios y conciliación de movimientos",gestoria:"Transferencias y exenciones de matriculación",garantias:"Garantías comerciales por vehículo",postventa:"Atenciones tras venta y agenda de reclamaciones",documentos:"Documentación aportada por vehículo",almacenes:"Ubicaciones, valoración del stock y traspasos",web:"Conciliación con minacar.es",clientes:"Directorio de clientes",proveedores:"Directorio de proveedores",comerciales:"Comerciales y cálculo de comisiones",transportistas:"Directorio de transportistas",gestorias:"Directorio de gestorías / asesorías",itv:"Control de ITV por vencimiento y revisiones concertadas",informes:"Rotación y margen por dimensión",usuarios:"Usuarios y permisos de acceso"};
-const NEWMAP={stock:"vehiculos",compras:"compras",taller:"taller",ventas:"ventas",logistica:"logistica",marketing:"leads",gestoria:"gestoria",garantias:"garantias",postventa:"postventa",almacenes:"almacenes",clientes:"clientes",proveedores:"proveedores",comerciales:"comerciales",transportistas:"transportistas",gestorias:"gestorias",usuarios:"usuarios"};
+const SUB={panel:"Visión general de la operación",stock:"Existencias y ficha 360 de cada vehículo",compras:"Facturas y pagos a proveedor",taller:"Reacondicionamiento y costes de preparación",logistica:"Transporte, entrega y coches pendientes",marketing:"Leads e interesados por vehículo",agenda:"Gestiones diarias de leads y postventa",ventas:"Operaciones cerradas y facturas",proformas:"Proformas / presupuestos (se confirman en factura)",tesoreria:"Facturas pendientes de cobro y de pago",facturas:"Facturas de proveedor: pendientes de recibir y de pagar",flexicar:"Cliente Flexicar: informe de deudas",bancos:"Extractos bancarios y conciliación de movimientos",gestoria:"Transferencias y exenciones de matriculación",garantias:"Garantías comerciales por vehículo",postventa:"Atenciones tras venta y agenda de reclamaciones",documentos:"Documentación aportada por vehículo",almacenes:"Ubicaciones, valoración del stock y traspasos",web:"Conciliación con minacar.es",clientes:"Directorio de clientes",proveedores:"Directorio de proveedores",comerciales:"Comerciales y cálculo de comisiones",transportistas:"Directorio de transportistas",gestorias:"Directorio de gestorías / asesorías",itv:"Control de ITV por vencimiento y revisiones concertadas",informes:"Rotación y margen por dimensión",usuarios:"Usuarios y permisos de acceso"};
+const NEWMAP={stock:"vehiculos",compras:"compras",taller:"taller",ventas:"ventas",logistica:"logistica",marketing:"leads",gestoria:"gestoria",garantias:"garantias",postventa:"postventa",almacenes:"almacenes",clientes:"clientes",proveedores:"proveedores",comerciales:"comerciales",transportistas:"transportistas",gestorias:"gestorias",proformas:"ventas",usuarios:"usuarios"};
 const AREA_LABEL=Object.fromEntries(NAV.map(n=>[n[0],n[1]]));
 const DOC_TIPOS=["Factura proforma","Factura de compra","Pago al proveedor","Hoja de transporte","Albarán de entrega","Ficha técnica","Permiso de circulación","Facturas de reparación/mantenimiento","Garantía comercial","Factura de venta","Justificante de cobro"];
 let current="panel", query="", stockFilter="Todos", panelAlmacen="";
@@ -503,6 +506,7 @@ function render(){
   else if(current==="marketing")views.innerHTML=viewMarketing();
   else if(current==="agenda")views.innerHTML=viewAgenda();
   else if(current==="ventas")views.innerHTML=viewVentas();
+  else if(current==="proformas")views.innerHTML=viewProformas();
   else if(current==="tesoreria")views.innerHTML=viewTesoreria();
   else if(current==="facturas")views.innerHTML=viewFacturas();
   else if(current==="flexicar")views.innerHTML=viewFlexicar();
@@ -531,8 +535,52 @@ function bindRows(){
     openDrawer(Number(el.dataset.veh));
   }));
   views.querySelectorAll("[data-chip]").forEach(el=>el.addEventListener("click",()=>{stockFilter=el.dataset.chip;render();}));
+  enhanceTables();
 }
 function tableWrap(cols,rows){return `<div class="tbl-wrap"><table><thead><tr>${cols.map(c=>`<th${c.r?' style="text-align:right"':''}>${typeof c==="string"?c:(c.t||"")}</th>`).join("")}</tr></thead><tbody>${rows||`<tr><td colspan="${cols.length}" class="empty">Sin registros.</td></tr>`}</tbody></table></div>`;}
+
+/* ---------- Ordenar tablas por columna (genérico, todas las pantallas) ---------- */
+const _MES3={ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12};
+function _cellKey(s){
+  s=(s||"").trim();
+  if(!s||s==="—")return {t:2,v:""};                       // vacío al final
+  const low=s.toLowerCase();
+  const md=low.match(/^(\d{1,2})\s+([a-záéíóú]{3})[a-záéíóú.]*\s+(\d{2,4})$/);   // "4 ago 26"
+  if(md&&_MES3[md[2]]){let y=+md[3];if(y<100)y+=2000;return {t:0,v:y*10000+_MES3[md[2]]*100+(+md[1])};}
+  const mi=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);            // ISO
+  if(mi)return {t:0,v:+(mi[1]+mi[2]+mi[3])};
+  let n=s.replace(/[€%\s]/g,"");
+  if(/^-?\d{1,3}(\.\d{3})*(,\d+)?$/.test(n))n=n.replace(/\./g,"").replace(",",".");   // 1.234,56
+  else if(/^-?\d+(,\d+)?$/.test(n))n=n.replace(",",".");
+  const f=parseFloat(n);
+  if(!isNaN(f)&&/^[\s€%.,\d-]+$/.test(s))return {t:1,v:f};  // número puro
+  return {t:2,v:low};
+}
+function enhanceTables(){
+  views.querySelectorAll("table").forEach(tb=>{
+    const thead=tb.tHead;if(!thead||!thead.rows.length)return;
+    [...thead.rows[0].cells].forEach((th,i)=>{
+      if(!th.textContent.trim())return;                    // columnas de acciones sin título
+      th.style.cursor="pointer";th.title="Ordenar por esta columna";
+      th.addEventListener("click",()=>_sortTable(tb,i,th));
+    });
+  });
+}
+function _sortTable(tb,col,th){
+  const tbody=tb.tBodies[0];if(!tbody)return;
+  const rows=[...tbody.rows].filter(r=>!r.querySelector("td.empty"));
+  if(rows.length<2)return;
+  const asc=th.getAttribute("data-dir")!=="asc";
+  [...tb.tHead.rows[0].cells].forEach(h=>{h.removeAttribute("data-dir");h.querySelectorAll(".sortind").forEach(e=>e.remove());});
+  th.setAttribute("data-dir",asc?"asc":"desc");
+  rows.map(r=>[r,_cellKey(r.cells[col]?r.cells[col].textContent:"")]).sort((a,b)=>{
+    const A=a[1],B=b[1];
+    if(A.t!==B.t)return A.t-B.t;                            // fechas/números antes que texto vacío
+    let c=(A.t===2)?String(A.v).localeCompare(String(B.v),"es"):(A.v-B.v);
+    return asc?c:-c;
+  }).forEach(pair=>tbody.appendChild(pair[0]));
+  th.insertAdjacentHTML("beforeend",` <span class="sortind">${asc?"▲":"▼"}</span>`);
+}
 
 /* ---------- PANEL ---------- */
 function viewPanel(){
@@ -657,7 +705,7 @@ function viewCompras(){
 
 /* ---------- VENTAS ---------- */
 function viewVentas(){
-  const rows=DATA.ventas.filter(s=>matchQ(s,[s.matricula,s.marca,s.modelo,s.cliente,s.numero_factura,s.numero_proforma,s.regimen])).map(s=>{
+  const rows=DATA.ventas.filter(s=>s.estado_factura==="factura").filter(s=>matchQ(s,[s.matricula,s.marca,s.modelo,s.cliente,s.numero_factura,s.numero_proforma,s.regimen])).map(s=>{
     const margen=(Number(s.precio)||0)-(Number(s.coste)||0);
     const prof=s.estado_factura!=="factura";
     const doc=prof?`<span class="minipill" style="background:var(--warn-s);color:var(--warn)">Proforma ${esc(s.numero_proforma||"")}</span>`:`<span class="minipill" style="background:var(--ok-s);color:var(--ok)">Factura ${esc(s.numero_factura||"")}</span>`;
@@ -679,6 +727,27 @@ async function confirmarFactura(id){
   const res=await api(`/api/ventas/${id}/confirmar`,{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
   if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo confirmar"));return;}
   toast("Factura emitida ✔ "+(res.numero_factura||""));await reloadAll();
+}
+function viewProformas(){
+  const arr=DATA.ventas.filter(s=>s.estado_factura!=="factura").filter(s=>matchQ(s,[s.matricula,s.marca,s.modelo,s.cliente,s.numero_proforma]));
+  const rows=arr.map(s=>{
+    const veh=DATA.vehiculos.find(x=>x.id===s.vehiculo_id);
+    const reservado=veh&&veh.estado==="reservado";
+    return `<tr data-veh="${s.vehiculo_id||''}">
+      <td>${esc(s.numero_proforma||"")}</td><td>${fdate(s.fecha_proforma||s.fecha)}</td>
+      <td><span class="plate">${esc(s.matricula||"")}</span> ${esc(s.marca||"")} ${esc(s.modelo||"")}</td>
+      <td>${esc(s.cliente||"—")}</td>
+      <td class="r">${eur2(s.precio)}</td>
+      <td>${reservado?'<span class="minipill" style="background:var(--res-s);color:var(--res)">Reservado</span>':'<span class="minipill" style="background:var(--line-2);color:var(--muted)">Sin reservar</span>'}</td>
+      <td class="r"><button class="btn ghost sm" onclick="event.stopPropagation();factura(${s.id})">🧾 Imprimir</button>
+        <button class="btn gold sm" onclick="event.stopPropagation();confirmarFactura(${s.id})">✓ Confirmar</button>
+        <button class="btn ghost sm" onclick="event.stopPropagation();openForm('ventas',${s.id})">✎</button>
+        <button class="btn danger sm" onclick="event.stopPropagation();delRow('ventas',${s.id})">🗑</button></td>
+    </tr>`;}).join("");
+  const puedeW=puedeEscribirTabla("ventas");
+  return `<div class="toolbar" style="margin-bottom:14px"><p style="margin:0;color:var(--muted);font-size:13px;flex:1">Presupuestos/proformas para clientes. Imprímelas y, cuando el cliente acepte, pulsa <b>Confirmar</b> para emitir la factura con número correlativo. Una proforma <b>no reserva ni vende</b> el coche salvo que marques «Reservar».</p>
+      ${puedeW?`<button class="btn gold" onclick="openForm('ventas')"><span>+ Nueva proforma</span></button>`:""}</div>`
+    +tableWrap([{t:"Nº proforma"},{t:"Fecha"},{t:"Vehículo"},{t:"Cliente"},{t:"Importe",r:1},{t:"Coche"},{t:"",r:1}],rows);
 }
 
 /* ---------- LOGÍSTICA ---------- */
@@ -1926,9 +1995,10 @@ const SCHEMAS={
     {k:"factura_recibida",l:"¿Factura recibida del proveedor?",t:"select",opts:["","No","Sí"]},
     {k:"pagado",l:"¿Pagada al proveedor?",t:"select",opts:["","Sí","No"]},
     {k:"fecha_pago_est",l:"Fecha estimada de pago",t:"date"},{k:"notas",l:"Notas",t:"textarea",full:1}]},
-  ventas:{title:"venta",fields:[
+  ventas:{title:"venta / proforma",nota:"Toda venta empieza como PROFORMA. Imprímela para el cliente; cuando la acepte, «Confirmar factura» le da número correlativo. Marca «Reservar» solo si quieres retirar el coche de la venta a otros.",fields:[
     {k:"vehiculo_id",l:"Vehículo (solo en stock)",t:"veh-stock",req:1,full:1},
-    {k:"numero_factura",l:"Nº factura (vacío = automático correlativo)",t:"text"},{k:"cliente_id",l:"Cliente comprador",t:"ref-cli"},
+    {k:"reservar",l:"¿Reservar el vehículo? (lo retira de la venta a otros hasta confirmar)",t:"check"},
+    {k:"cliente_id",l:"Cliente comprador",t:"ref-cli"},
     {k:"comercial_id",l:"Comercial",t:"ref-comercial"},
     {k:"regimen",l:"Régimen",t:"select",opts:["General","REBU"]},{k:"fecha",l:"Fecha",t:"date",def:1},
     {k:"precio",l:"Precio venta con IVA (€)",t:"number"},
@@ -2253,7 +2323,9 @@ function exportCurrentView(){
   else if(v==="compras"){name="compras";cols=["Fecha","Nº factura","Matrícula","Marca","Modelo","Proveedor","Régimen","Precio","Gastos","Total","Forma pago"];
     rows=DATA.compras.map(c=>[c.fecha,c.numero_factura,c.matricula,c.marca,c.modelo,c.proveedor,c.regimen,c.precio,c.gastos,(c.precio||0)+(c.gastos||0),c.forma_pago]);}
   else if(v==="ventas"){name="ventas";cols=["Fecha","Nº factura","Matrícula","Marca","Modelo","Cliente","NIF","Régimen","Precio","Coste","Margen","Financiación","Seguro","Garantía","Forma pago"];
-    rows=DATA.ventas.map(s=>[s.fecha,s.numero_factura,s.matricula,s.marca,s.modelo,s.cliente,s.cliente_nif,s.regimen,s.precio,s.coste,(Number(s.precio)||0)-(Number(s.coste)||0),s.cruz_fin,s.cruz_seg,s.cruz_gar,s.forma_pago]);}
+    rows=DATA.ventas.filter(s=>s.estado_factura==="factura").map(s=>[s.fecha,s.numero_factura,s.matricula,s.marca,s.modelo,s.cliente,s.cliente_nif,s.regimen,s.precio,s.coste,(Number(s.precio)||0)-(Number(s.coste)||0),s.cruz_fin,s.cruz_seg,s.cruz_gar,s.forma_pago]);}
+  else if(v==="proformas"){name="proformas";cols=["Nº proforma","Fecha","Matrícula","Marca","Modelo","Cliente","Precio"];
+    rows=DATA.ventas.filter(s=>s.estado_factura!=="factura").map(s=>[s.numero_proforma,s.fecha_proforma||s.fecha,s.matricula,s.marca,s.modelo,s.cliente,s.precio]);}
   else if(v==="taller"){name="taller";cols=["Matrícula","Marca","Modelo","Tipo","Intervención","Proveedor","Fecha","Coste","Pago"];
     rows=DATA.taller.map(t=>[t.matricula,t.marca,t.modelo,t.tipo,t.descripcion,t.proveedor,t.fecha,t.coste,t.pago]);}
   else if(v==="marketing"){name="leads";cols=["Matrícula","Marca","Modelo","Contacto","Comercial","Canal","Teléfono","Email","Fecha","Estado"];
