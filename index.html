@@ -1869,22 +1869,29 @@ function cobrosCard(v){
 }
 function openCobroForm(ventaId,vehId){
   currentForm={table:"__cobro",id:null,ventaId,vehId};
+  const venta=DATA.ventas.find(v=>v.id===ventaId);
+  const precio=venta?Number(venta.precio)||0:0;
+  const cobrado=venta?cobradoDe(venta.vehiculo_id):0;
+  const pend=Math.max(0,precio-cobrado);
   const trade=DATA.vehiculos.filter(x=>x.id!==vehId);
-  $("#modal-title").textContent="Registrar cobro";
-  $("#modal-body").innerHTML=`<div class="row">
+  $("#modal-title").textContent="Registrar cobro (forma de pago)";
+  $("#modal-body").innerHTML=`<div style="background:var(--info-s);color:var(--info);border-radius:8px;padding:8px 12px;font-size:12.5px;margin-bottom:10px">
+      Precio de venta <b>${eur2(precio)}</b> · ya cobrado <b>${eur2(cobrado)}</b> · <b>pendiente ${eur2(pend)}</b>. Puedes registrar varios cobros (tarjeta, transferencia, financiación, coche a cambio…) hasta cuadrar el total.</div>
+    <div class="row">
     <div class="field" style="flex:1 1 45%"><label>Medio de pago</label>
       <select id="cb-medio" onchange="onCobroMedio()"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option><option>Financiación</option><option>Coche a cambio</option></select></div>
-    <div class="field" style="flex:1 1 45%"><label>Importe (€)</label><input id="cb-importe" type="number"></div>
+    <div class="field" style="flex:1 1 45%"><label>Importe (€)</label><input id="cb-importe" type="number" value="${pend||""}"></div>
     <div class="field" style="flex:1 1 45%"><label>Fecha</label><input id="cb-fecha" type="date" value="${todayISO()}"></div>
-    <div class="field cond-field" id="cb-veh-field" style="flex:1 1 100%"><label>Coche entregado a cambio</label>
-      <select id="cb-veh"><option value="">— seleccionar —</option>${trade.map(x=>`<option value="${x.id}">${esc(x.matricula||"")} · ${esc(x.marca||"")} ${esc(x.modelo||"")}</option>`).join("")}</select>
-      <div style="font-size:11.5px;color:var(--muted);margin-top:4px">Debe estar registrado como compra. Se comprobará su documentación (factura de compra, permiso de circulación, ficha técnica) antes de compensarlo.</div></div>
+    <div class="field cond-field" id="cb-veh-field" style="flex:1 1 100%"><label>Coche entregado a cambio (su valor = precio de compra registrado)</label>
+      <select id="cb-veh" onchange="onCobroVeh()"><option value="">— seleccionar —</option>${trade.map(x=>{const val=Number(x._base)||0;return `<option value="${x.id}" data-val="${val}">${esc(x.matricula||"")} · ${esc(x.marca||"")} ${esc(x.modelo||"")}${val?` — compra ${eur(val)}`:" — SIN compra registrada"}</option>`;}).join("")}</select>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:4px">El coche a cambio debe estar registrado como <b>compra</b> (al proveedor/cliente que lo entrega). Al elegirlo, el importe toma su <b>valor de compra</b>. Se comprobará su documentación (factura de compra, permiso de circulación, ficha técnica) antes de compensarlo.</div></div>
     <div class="field" style="flex:1 1 100%"><label>Notas</label><input id="cb-notas"></div>
   </div>`;
   document.querySelector(".modal .actions button.accent").setAttribute("onclick","saveCobro()");
   $("#modal-bg").classList.add("open");
 }
-function onCobroMedio(){const f=$("#cb-veh-field");if($("#cb-medio").value==="Coche a cambio")f.classList.add("show");else f.classList.remove("show");}
+function onCobroMedio(){const f=$("#cb-veh-field");if($("#cb-medio").value==="Coche a cambio"){f.classList.add("show");onCobroVeh();}else f.classList.remove("show");}
+function onCobroVeh(){const s=$("#cb-veh");if(!s||!s.selectedOptions[0])return;const val=Number(s.selectedOptions[0].dataset.val||0);if(val>0)$("#cb-importe").value=val;}
 async function saveCobro(){
   const {ventaId,vehId}=currentForm, medio=$("#cb-medio").value;
   const data={venta_id:ventaId,medio,importe:Number($("#cb-importe").value)||0,fecha:$("#cb-fecha").value,notas:$("#cb-notas").value};
