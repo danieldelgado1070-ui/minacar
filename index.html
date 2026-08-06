@@ -1153,10 +1153,10 @@ function viewTesoreria(){
       <td><input type="date" value="${esc(s.fecha_cobro_est||"")}" onchange="setField('ventas',${s.id},'fecha_cobro_est',this.value)" style="padding:5px 7px"></td></tr>`).join("");
   // PAGOS pendientes (compras + taller + postventa)
   const pagos=[];
-  DATA.compras.filter(c=>c.pagado!=="Sí").forEach(c=>pagos.push({fuente:"Compra",tabla:"compras",id:c.id,pf:"pagado",pv:"Sí",concepto:`${esc(c.matricula||"")} ${esc(c.marca||"")} ${esc(c.modelo||"")} · Fra ${esc(c.numero_factura||"—")}`,prov:c.proveedor,imp:(Number(c.precio)||0)+(Number(c.gastos)||0),fest:c.fecha_pago_est}));
-  DATA.taller.filter(t=>t.pago!=="Pagado").forEach(t=>pagos.push({fuente:"Taller",tabla:"taller",id:t.id,pf:"pago",pv:"Pagado",concepto:`${esc(t.matricula||"")} · ${esc(t.tipo||"")} ${esc(t.descripcion||"")}`,prov:t.proveedor,imp:Number(t.coste)||0,fest:t.fecha_pago_est}));
-  DATA.postventa.filter(p=>p.pago!=="Pagado").forEach(p=>pagos.push({fuente:"Postventa",tabla:"postventa",id:p.id,pf:"pago",pv:"Pagado",concepto:`${esc(p.matricula||"")} · ${esc(p.tipo||"")} ${esc(p.descripcion||"")}`,prov:p.proveedor,imp:Number(p.coste)||0,fest:p.fecha_pago_est}));
-  DATA.logistica.filter(l=>l.factura_recibida==="Sí"&&l.pagado!=="Sí"&&(Number(l.coste)||0)>0).forEach(l=>pagos.push({fuente:"Transporte",tabla:"logistica",id:l.id,pf:"pagado",pv:"Sí",concepto:`${esc(l.matricula||"")} ${esc(l.marca||"")} ${esc(l.modelo||"")} · Fra ${esc(l.numero_factura||"—")}`,prov:l.transportista_nombre,imp:Number(l.coste)||0,fest:l.fecha_factura}));
+  DATA.compras.filter(c=>c.pagado!=="Sí").forEach(c=>pagos.push({fuente:"Compra",tabla:"compras",id:c.id,vid:c.vehiculo_id,pf:"pagado",pv:"Sí",concepto:`${esc(c.matricula||"")} ${esc(c.marca||"")} ${esc(c.modelo||"")} · Fra ${esc(c.numero_factura||"—")}`,prov:c.proveedor,imp:(Number(c.precio)||0)+(Number(c.gastos)||0),fest:c.fecha_pago_est}));
+  DATA.taller.filter(t=>t.pago!=="Pagado").forEach(t=>pagos.push({fuente:"Taller",tabla:"taller",id:t.id,vid:t.vehiculo_id,pf:"pago",pv:"Pagado",concepto:`${esc(t.matricula||"")} · ${esc(t.tipo||"")} ${esc(t.descripcion||"")}`,prov:t.proveedor,imp:Number(t.coste)||0,fest:t.fecha_pago_est}));
+  DATA.postventa.filter(p=>p.pago!=="Pagado").forEach(p=>pagos.push({fuente:"Postventa",tabla:"postventa",id:p.id,vid:p.vehiculo_id,pf:"pago",pv:"Pagado",concepto:`${esc(p.matricula||"")} · ${esc(p.tipo||"")} ${esc(p.descripcion||"")}`,prov:p.proveedor,imp:Number(p.coste)||0,fest:p.fecha_pago_est}));
+  DATA.logistica.filter(l=>l.factura_recibida==="Sí"&&l.pagado!=="Sí"&&(Number(l.coste)||0)>0).forEach(l=>pagos.push({fuente:"Transporte",tabla:"logistica",id:l.id,vid:l.vehiculo_id,pf:"pagado",pv:"Sí",concepto:`${esc(l.matricula||"")} ${esc(l.marca||"")} ${esc(l.modelo||"")} · Fra ${esc(l.numero_factura||"—")}`,prov:l.transportista_nombre,imp:Number(l.coste)||0,fest:l.fecha_factura}));
   const pagosF=pagos.filter(p=>matchQ({x:p.concepto+" "+(p.prov||"")},["x",p.concepto,p.prov]));
   const totPago=pagosF.reduce((a,p)=>a+p.imp,0);
   const pagRows=pagosF.map(p=>`
@@ -1164,7 +1164,7 @@ function viewTesoreria(){
       <td>${p.concepto}</td><td>${esc(p.prov||"")}</td>
       <td class="r" style="color:var(--danger);font-weight:700">${eur2(p.imp)}</td>
       <td><input type="date" value="${esc(p.fest||"")}" onchange="setField('${p.tabla}',${p.id},'fecha_pago_est',this.value)" style="padding:5px 7px"></td>
-      <td class="r"><button class="btn accent sm" onclick="setField('${p.tabla}',${p.id},'${p.pf}','${p.pv}')">💳 Registrar pago</button></td></tr>`).join("");
+      <td class="r"><button class="btn accent sm" onclick="registrarPagoProv('${p.tabla}',${p.id},'${p.pf}','${p.pv}',${p.vid||'null'})">💳 Registrar pago</button></td></tr>`).join("");
   const kpi=(l,v,c)=>`<div class="kpi"><div class="k-lab">${l}</div><div class="k-val" style="color:${c}">${v}</div></div>`;
   return calendarioTeso()+ivaCard+`<div class="kpis" style="grid-template-columns:repeat(2,1fr);margin-bottom:18px">${kpi("Pendiente de cobro",eur(totCobro),"var(--ok)")}${kpi("Pendiente de pago",eur(totPago),"var(--danger)")}</div>
     <div class="card" style="margin-bottom:18px"><div class="card-h"><h3>Facturas pendientes de cobro (${cobros.length})</h3><span class="hint">venta − justificantes de cobro</span></div>
@@ -1223,7 +1223,7 @@ function viewFacturas(){
       <td>${chip(x.s.lbl)}</td><td>${esc(x.s.con(x.r))}</td><td>${esc(x.s.prov(x.r)||"")}</td>
       <td>${esc(x.num||"—")}</td><td class="r" style="font-weight:700;color:var(--danger)">${eur2(x.imp)}</td>
       <td><input type="date" value="${esc(x.fest||"")}" onchange="setField('${x.s.t}',${x.r.id},'fecha_pago_est',this.value)" style="padding:5px 7px"></td>
-      <td class="r"><button class="btn accent sm" onclick="factPagar('${x.s.t}',${x.r.id},'${x.s.pf}','${x.s.pv}')">💳 Marcar pagada</button></td>
+      <td class="r"><button class="btn accent sm" onclick="registrarPagoProv('${x.s.t}',${x.r.id},'${x.s.pf}','${x.s.pv}',${x.r.vehiculo_id||'null'})">💳 Marcar pagada</button></td>
     </tr>`).join("");
   return `<p style="color:var(--muted);margin:0 0 14px;font-size:13px">Controla las <b>facturas de tus proveedores</b> (compras, taller, postventa, transporte y gestoría). Al dar de alta un trabajo, marca si la factura está recibida; aquí ves las que faltan por recibir y, una vez recibidas, las que quedan por pagar.</p>
     <div class="kpis" style="grid-template-columns:repeat(2,1fr);margin-bottom:16px">${kpi("Pendientes de recibir",pdr.length+" · "+eur(totPdr),"var(--warn)")}${kpi("Recibidas sin pagar",rpp.length+" · "+eur(totRpp),"var(--danger)")}</div>
@@ -1245,12 +1245,29 @@ async function factRecibir(tabla,id,pf,pv){
   if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo guardar"));return;}
   toast("Factura marcada como recibida ✔");await reloadAll();
 }
-async function factPagar(tabla,id,pf,pv){
+async function factPagar(tabla,id,pf,pv){return registrarPagoProv(tabla,id,pf,pv,null);}
+/* Registrar pago a proveedor + pedir el justificante escaneado para el expediente */
+async function registrarPagoProv(tabla,id,pf,pv,vid){
   if(bloqueadoRO(tabla))return;
   const data={};data[pf]=pv;
   const res=await api(`/api/${tabla}/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
   if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo guardar"));return;}
-  toast("Factura marcada como pagada ✔");await reloadAll();
+  toast("Pago registrado ✔");
+  await reloadAll();
+  if(vid&&confirm("¿Adjuntar el justificante de pago escaneado?\n\nSe guardará en la documentación del coche (expediente).")){
+    subirJustificantePago(vid);
+  }
+}
+function subirJustificantePago(vid){
+  const inp=document.createElement("input");inp.type="file";inp.accept="image/*,application/pdf";
+  inp.onchange=()=>{const file=inp.files[0];if(!file)return;
+    if(file.size>20*1024*1024){toast("El archivo supera los 20 MB");return;}
+    const rd=new FileReader();
+    rd.onload=async e=>{const r=await api("/api/documentos",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({vehiculo_id:vid,tipo:"Pago al proveedor",filename:file.name,data:e.target.result,fecha:todayISO()})});
+      if(r&&r.ok===false){toast("⚠ "+(r.error||"No se pudo subir"));return;}
+      toast("Justificante guardado en el expediente ✔");await reloadAll();};
+    rd.readAsDataURL(file);};
+  inp.click();
 }
 /* ---------- FLEXICAR (informe de deudas) ---------- */
 function esFlexicar(s){return s.cliente_flexicar==1||s.cliente_flexicar==="1"||s.cliente_flexicar==="Sí";}
