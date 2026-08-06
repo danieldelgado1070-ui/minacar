@@ -634,6 +634,9 @@ def migrate(conn):
         if has_table("leads"):
             add("leads", "proxima_fecha TEXT")       # próxima gestión (#5)
             add("leads", "email TEXT")               # contacto (#19)
+            add("leads", "nif TEXT")                 # datos completos del contacto (aún no cliente)
+            add("leads", "direccion TEXT")
+            add("leads", "poblacion TEXT")
         add("clientes", "datos_cobro TEXT")          # datos de cobro obligatorios en clientes (#19)
         add("clientes", "es_flexicar INTEGER DEFAULT 0")  # cliente del módulo Flexicar
         if has_table("usuarios"):
@@ -843,6 +846,7 @@ FIELDS = {
                "numero_factura", "nif_proveedor", "iva_pct",
                "factura_recibida", "fecha_factura", "notas"],
     "leads": ["vehiculo_id", "comercial_id", "nombre", "canal", "telefono", "email",
+              "nif", "direccion", "poblacion",
               "fecha", "estado", "proxima_fecha", "cerrado", "motivo_cierre", "notas"],
     "seguimientos": ["ambito", "ref_id", "fecha", "contacto", "detalle",
                      "proxima_fecha", "comercial_id"],

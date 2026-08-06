@@ -920,6 +920,14 @@ function leadsFiltrados(){
     return matchQ(l,[l.matricula,l.marca,l.modelo,l.nombre,l.canal,l.estado,l.telefono,l.email]);
   });
 }
+function contactoACliente(leadId){
+  const l=DATA.leads.find(x=>x.id===leadId);if(!l)return;
+  if(bloqueadoRO("clientes"))return;
+  const ya=DATA.clientes.find(c=>(l.nif&&c.nif&&c.nif.toLowerCase()===l.nif.toLowerCase())||(c.nombre||"").toLowerCase()===(l.nombre||"").toLowerCase());
+  if(ya&&!confirm(`Ya existe un cliente parecido («${ya.nombre}»). ¿Crear otro de todas formas?`))return;
+  toast("Completa los datos del cliente (dirección y datos de cobro son obligatorios)");
+  openForm("clientes",null,{nombre:l.nombre,nif:l.nif,telefono:l.telefono,email:l.email,direccion:[l.direccion,l.poblacion].filter(Boolean).join(", ")});
+}
 function viewMarketing(){
   const lc={Nuevo:"var(--muted)",Contactado:"var(--info)",Cita:"var(--res)","Negociación":"var(--warn)",Ganado:"var(--ok)",Perdido:"var(--danger)"};
   const arr=leadsFiltrados();
@@ -941,7 +949,7 @@ function viewMarketing(){
       <td><span class="plate">${esc(l.matricula||"")}</span> ${esc(l.marca||"")} ${esc(l.modelo||"")}</td>
       <td><b>${esc(l.nombre||"")}</b></td><td>${esc(l.comercial||"")}</td><td>${esc(l.canal||"")}</td><td>${esc(l.telefono||"")}${l.email?" · "+esc(l.email):""}</td><td>${fdate(l.fecha)}</td>
       <td>${estadoDot(lc[l.estado]||"var(--muted)",l.estado||"Nuevo")}</td>
-      <td class="r">${l.vehiculo_id?`<button class="btn ghost sm" onclick="event.stopPropagation();enviarFicha(${l.vehiculo_id})">📤 Ficha</button> `:""}<button class="btn accent sm" onclick="event.stopPropagation();openGestionForm('lead',${l.id})">📝 Gestión</button> <button class="btn ghost sm" onclick="event.stopPropagation();openForm('leads',${l.id})">✎</button> <button class="btn danger sm" onclick="event.stopPropagation();delRow('leads',${l.id})">🗑</button></td>
+      <td class="r">${l.vehiculo_id?`<button class="btn ghost sm" onclick="event.stopPropagation();enviarFicha(${l.vehiculo_id})">📤 Ficha</button> `:""}<button class="btn accent sm" onclick="event.stopPropagation();openGestionForm('lead',${l.id})">📝 Gestión</button> <button class="btn ghost sm" onclick="event.stopPropagation();contactoACliente(${l.id})" title="Convertir en cliente">👤+</button> <button class="btn ghost sm" onclick="event.stopPropagation();openForm('leads',${l.id})">✎</button> <button class="btn danger sm" onclick="event.stopPropagation();delRow('leads',${l.id})">🗑</button></td>
     </tr>`).join("");
   return `<div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">${kpi("Leads (filtro)",arr.length)}${kpi("Activos (en embudo)",activos)}${kpi("Ganados",ganados)}</div>`
     +toolbar
@@ -2044,12 +2052,16 @@ const SCHEMAS={
     {k:"factura_recibida",l:"¿Factura recibida del proveedor?",t:"select",opts:["","No","Sí"]},
     {k:"pago",l:"Pago",t:"select",opts:["Pendiente","Pagado"]},
     {k:"fecha_pago_est",l:"Fecha estimada de pago",t:"date"},{k:"notas",l:"Notas",t:"textarea",full:1}]},
-  leads:{title:"lead / contacto",nota:"Contacto (interesado): basta con el nombre y un email y/o teléfono.",fields:[
+  leads:{title:"lead / contacto",nota:"Contacto (interesado): obligatorio el nombre y un email y/o teléfono. Los demás datos son opcionales — puedes rellenar la ficha completa aunque todavía no sea cliente; luego, si compra, conviértelo en cliente con un clic.",fields:[
     {k:"vehiculo_id",l:"Vehículo de interés",t:"ref-veh",req:1,full:1},
     {k:"comercial_id",l:"Comercial que atiende",t:"ref-comercial"},
-    {k:"nombre",l:"Nombre del contacto",t:"text",req:1,full:1},
+    {k:"nombre",l:"Nombre y apellidos / Razón social",t:"text",req:1,full:1},
+    {k:"telefono",l:"Teléfono (email o teléfono obligatorio)",t:"text"},{k:"email",l:"Email (email o teléfono obligatorio)",t:"text"},
+    {k:"nif",l:"NIF / DNI (opcional)",t:"text"},
+    {k:"direccion",l:"Dirección (opcional)",t:"text",full:1},
+    {k:"poblacion",l:"Población (opcional)",t:"text"},
     {k:"canal",l:"Canal",t:"select",opts:["","Coches.net","Wallapop","Milanuncios","Web propia","Teléfono","B2B","Otro"]},
-    {k:"telefono",l:"Teléfono (email o teléfono obligatorio)",t:"text"},{k:"email",l:"Email (email o teléfono obligatorio)",t:"text"},{k:"fecha",l:"Fecha",t:"date",def:1},
+    {k:"fecha",l:"Fecha",t:"date",def:1},
     {k:"estado",l:"Estado",t:"select",opts:["Nuevo","Contactado","Cita","Negociación","Ganado","Perdido"]},
     {k:"gestion_hoy",l:"Gestión realizada hoy",t:"textarea",full:1},
     {k:"gestion_prox",l:"Gestión a realizar (aparecerá en la Agenda ese día)",t:"textarea",full:1},
@@ -2335,8 +2347,8 @@ function exportCurrentView(){
     rows=DATA.ventas.filter(s=>s.estado_factura!=="factura").map(s=>[s.numero_proforma,s.fecha_proforma||s.fecha,s.matricula,s.marca,s.modelo,s.cliente,s.precio]);}
   else if(v==="taller"){name="taller";cols=["Matrícula","Marca","Modelo","Tipo","Intervención","Proveedor","Fecha","Coste","Pago"];
     rows=DATA.taller.map(t=>[t.matricula,t.marca,t.modelo,t.tipo,t.descripcion,t.proveedor,t.fecha,t.coste,t.pago]);}
-  else if(v==="marketing"){name="leads";cols=["Matrícula","Marca","Modelo","Contacto","Comercial","Canal","Teléfono","Email","Fecha","Estado"];
-    rows=leadsFiltrados().map(l=>[l.matricula,l.marca,l.modelo,l.nombre,l.comercial,l.canal,l.telefono,l.email,l.fecha,l.estado]);}
+  else if(v==="marketing"){name="leads";cols=["Matrícula","Marca","Modelo","Contacto","Teléfono","Email","NIF","Dirección","Población","Comercial","Canal","Fecha","Estado"];
+    rows=leadsFiltrados().map(l=>[l.matricula,l.marca,l.modelo,l.nombre,l.telefono,l.email,l.nif,l.direccion,l.poblacion,l.comercial,l.canal,l.fecha,l.estado]);}
   else if(v==="logistica"){name="logistica";cols=["Estado","Matrícula","Marca","Modelo","Transportista","Origen","Destino","Destinatario","Coste","Recogida","Entrega"];
     rows=DATA.logistica.map(l=>[l.estado,l.matricula,l.marca,l.modelo,l.transportista_nombre,l.origen,l.destino,l.destinatario,l.coste,l.fecha_recogida,l.fecha_entrega]);}
   else if(v==="gestoria"){name="gestoria";cols=["Matrícula","Marca","Modelo","Trámite","Estado","Gestoría","Solicitud","Resolución"];
