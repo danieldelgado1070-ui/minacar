@@ -19,6 +19,7 @@ De la carpeta "GestionVehiculos" vas a subir SOLO estos archivos:
 
    [SI]  app.py
    [SI]  index.html
+   [SI]  icono.svg           (el icono de la app; cambialo por otro .svg si quieres)
    [SI]  requirements.txt
    [SI]  render.yaml
    [SI]  LEEME.txt

@@ -2708,6 +2708,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b"index.html no encontrado")
 
+    def serve_icono(self):
+        """Sirve el icono de la app desde el archivo icono.svg de la carpeta.
+        Para cambiarlo, basta con reemplazar ese archivo."""
+        fpath = os.path.join(BASE_DIR, "icono.svg")
+        try:
+            with open(fpath, "rb") as f:
+                body = f.read()
+            self.send_response(200)
+            self.send_header("Content-Type", "image/svg+xml")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except FileNotFoundError:
+            self.send_response(404)
+            self.end_headers()
+
     # -- rutas --
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -2716,6 +2733,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         if path == "/" or path == "/index.html":
             return self.send_file()
+
+        if path in ("/icono.svg", "/favicon.ico", "/favicon.svg"):
+            return self.serve_icono()
 
         if path == "/api/me":
             u = self.current_user()
