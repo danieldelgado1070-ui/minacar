@@ -2708,22 +2708,40 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b"index.html no encontrado")
 
-    def serve_icono(self):
-        """Sirve el icono de la app desde el archivo icono.svg de la carpeta.
-        Para cambiarlo, basta con reemplazar ese archivo."""
-        fpath = os.path.join(BASE_DIR, "icono.svg")
-        try:
-            with open(fpath, "rb") as f:
-                body = f.read()
-            self.send_response(200)
-            self.send_header("Content-Type", "image/svg+xml")
-            self.send_header("Cache-Control", "no-cache")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-        except FileNotFoundError:
-            self.send_response(404)
-            self.end_headers()
+    def serve_static(self, path):
+        """Sirve iconos y el manifest (para poder instalar la app en el móvil).
+        Los iconos son archivos de la carpeta; para cambiarlos, reemplázalos."""
+        name = path.strip("/")
+        if name == "manifest.webmanifest":
+            man = {"name": "MIÑACAR · Gestión 360", "short_name": "MIÑACAR",
+                   "start_url": "/", "scope": "/", "display": "standalone",
+                   "background_color": "#eceff2", "theme_color": "#d6e021",
+                   "icons": [{"src": "/icono-180.png", "sizes": "180x180", "type": "image/png"},
+                             {"src": "/icono.png", "sizes": "512x512", "type": "image/png"}]}
+            body = json.dumps(man, ensure_ascii=False).encode("utf-8")
+            ct = "application/manifest+json; charset=utf-8"
+        else:
+            mp = {"icono.svg": ("icono.svg", "image/svg+xml"),
+                  "favicon.svg": ("icono.svg", "image/svg+xml"),
+                  "favicon.ico": ("icono.ico", "image/x-icon"),
+                  "icono.png": ("icono.png", "image/png"),
+                  "icono-180.png": ("icono-180.png", "image/png"),
+                  "apple-touch-icon.png": ("icono-180.png", "image/png"),
+                  "apple-touch-icon-precomposed.png": ("icono-180.png", "image/png")}
+            if name not in mp:
+                self.send_response(404); self.end_headers(); return
+            fn, ct = mp[name]
+            try:
+                with open(os.path.join(BASE_DIR, fn), "rb") as f:
+                    body = f.read()
+            except FileNotFoundError:
+                self.send_response(404); self.end_headers(); return
+        self.send_response(200)
+        self.send_header("Content-Type", ct)
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     # -- rutas --
     def do_GET(self):
@@ -2734,8 +2752,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/" or path == "/index.html":
             return self.send_file()
 
-        if path in ("/icono.svg", "/favicon.ico", "/favicon.svg"):
-            return self.serve_icono()
+        if path in ("/icono.svg", "/favicon.svg", "/favicon.ico", "/icono.png",
+                    "/icono-180.png", "/apple-touch-icon.png",
+                    "/apple-touch-icon-precomposed.png", "/manifest.webmanifest"):
+            return self.serve_static(path)
 
         if path == "/api/me":
             u = self.current_user()
