@@ -347,14 +347,14 @@ const svg=(p,cls="")=>`<svg class="${cls}" viewBox="0 0 24 24" fill="none" strok
 
 /* ---------- navegación ---------- */
 const NAV=[
-  ["panel","Panel",IC.panel,"op"],["stock","Stock",IC.car,"op"],["compras","Compras",IC.cart,"op"],
+  ["panel","Panel",IC.panel,"op"],["stock","Stock",IC.car,"op"],["compras","Compras",IC.cart,"op"],["valoracion","Valoración",IC.chart,"op"],
   ["taller","Taller",IC.wrench,"op"],["logistica","Logística",IC.truck,"op"],["marketing","Marketing",IC.mega,"op"],["agenda","Agenda",IC.book,"op"],
   ["ventas","Ventas",IC.tag,"op"],["proformas","Proformas",IC.stamp,"op"],["tesoreria","Cobros y pagos",IC.euro,"op"],["facturas","Facturas prov.",IC.supplier,"op"],["flexicar","Flexicar",IC.book,"op"],["bancos","Bancos",IC.bank,"op"],["gestoria","Gestoría",IC.stamp,"op"],["garantias","Garantías",IC.shield,"op"],["postventa","Postventa",IC.support,"op"],["documentos","Documentos",IC.folder,"op"],["almacenes","Almacenes",IC.box,"op"],["web","Web",IC.globe,"op"],
   ["clientes","Clientes",IC.users,"dir"],["proveedores","Proveedores",IC.supplier,"dir"],["comerciales","Comerciales",IC.users,"dir"],["transportistas","Transportistas",IC.wheel,"dir"],["gestorias","Gestorías",IC.stamp,"dir"],
   ["itv","ITV",IC.clock,"an"],["informes","Informes",IC.chart,"an"],
   ["usuarios","Usuarios",IC.users,"adm"],
 ];
-const SUB={panel:"Visión general de la operación",stock:"Existencias y ficha 360 de cada vehículo",compras:"Facturas y pagos a proveedor",taller:"Reacondicionamiento y costes de preparación",logistica:"Transporte, entrega y coches pendientes",marketing:"Leads e interesados por vehículo",agenda:"Gestiones diarias de leads y postventa",ventas:"Operaciones cerradas y facturas",proformas:"Proformas / presupuestos (se confirman en factura)",tesoreria:"Facturas pendientes de cobro y de pago",facturas:"Facturas de proveedor: pendientes de recibir y de pagar",flexicar:"Cliente Flexicar: informe de deudas",bancos:"Extractos bancarios y conciliación de movimientos",gestoria:"Transferencias y exenciones de matriculación",garantias:"Garantías comerciales por vehículo",postventa:"Atenciones tras venta y agenda de reclamaciones",documentos:"Documentación aportada por vehículo",almacenes:"Ubicaciones, valoración del stock y traspasos",web:"Conciliación con minacar.es",clientes:"Directorio de clientes",proveedores:"Directorio de proveedores",comerciales:"Comerciales y cálculo de comisiones",transportistas:"Directorio de transportistas",gestorias:"Directorio de gestorías / asesorías",itv:"Control de ITV por vencimiento y revisiones concertadas",informes:"Rotación y margen por dimensión",usuarios:"Usuarios y permisos de acceso"};
+const SUB={panel:"Visión general de la operación",stock:"Existencias y ficha 360 de cada vehículo",compras:"Facturas y pagos a proveedor",valoracion:"Precio de compra recomendado según tu margen y el mercado",taller:"Reacondicionamiento y costes de preparación",logistica:"Transporte, entrega y coches pendientes",marketing:"Leads e interesados por vehículo",agenda:"Gestiones diarias de leads y postventa",ventas:"Operaciones cerradas y facturas",proformas:"Proformas / presupuestos (se confirman en factura)",tesoreria:"Facturas pendientes de cobro y de pago",facturas:"Facturas de proveedor: pendientes de recibir y de pagar",flexicar:"Cliente Flexicar: informe de deudas",bancos:"Extractos bancarios y conciliación de movimientos",gestoria:"Transferencias y exenciones de matriculación",garantias:"Garantías comerciales por vehículo",postventa:"Atenciones tras venta y agenda de reclamaciones",documentos:"Documentación aportada por vehículo",almacenes:"Ubicaciones, valoración del stock y traspasos",web:"Conciliación con minacar.es",clientes:"Directorio de clientes",proveedores:"Directorio de proveedores",comerciales:"Comerciales y cálculo de comisiones",transportistas:"Directorio de transportistas",gestorias:"Directorio de gestorías / asesorías",itv:"Control de ITV por vencimiento y revisiones concertadas",informes:"Rotación y margen por dimensión",usuarios:"Usuarios y permisos de acceso"};
 const NEWMAP={stock:"vehiculos",compras:"compras",taller:"taller",ventas:"ventas",logistica:"logistica",marketing:"leads",gestoria:"gestoria",garantias:"garantias",postventa:"postventa",almacenes:"almacenes",clientes:"clientes",proveedores:"proveedores",comerciales:"comerciales",transportistas:"transportistas",gestorias:"gestorias",proformas:"ventas",usuarios:"usuarios"};
 const AREA_LABEL=Object.fromEntries(NAV.map(n=>[n[0],n[1]]));
 const DOC_TIPOS=["Factura proforma","Factura de compra","Pago al proveedor","Hoja de transporte","Albarán de entrega","Ficha técnica","Permiso de circulación","Facturas de reparación/mantenimiento","Garantía comercial","Factura de venta","Justificante de cobro"];
@@ -505,6 +505,7 @@ function render(){
   if(current==="panel")views.innerHTML=viewPanel();
   else if(current==="stock")views.innerHTML=viewStock();
   else if(current==="compras")views.innerHTML=viewCompras();
+  else if(current==="valoracion")views.innerHTML=viewValoracion();
   else if(current==="taller")views.innerHTML=viewTaller();
   else if(current==="marketing")views.innerHTML=viewMarketing();
   else if(current==="agenda")views.innerHTML=viewAgenda();
@@ -1304,6 +1305,92 @@ function viewFlexicar(){
       <div class="card-b" style="padding:0 18px 12px">${tableWrap(cols,p1.map(row).join(""))}</div></div>
     <div class="card"><div class="card-h"><h3>2 · Pendientes de cobro y PENDIENTES de pago al proveedor (${p2.length})</h3></div>
       <div class="card-b" style="padding:0 18px 12px">${tableWrap(cols,p2.map(row).join(""))}</div></div>`;
+}
+/* ---------- VALORACIÓN DE COMPRA (calculadora de margen) ---------- */
+function valNum(s){s=String(s==null?"":s).replace(/[^\d,.-]/g,"");if(!s)return null;if(s.includes(",")&&s.includes("."))s=s.replace(/\./g,"").replace(",",".");else if(s.includes(","))s=s.replace(",",".");const n=parseFloat(s);return isNaN(n)?null:n;}
+function viewValoracion(){
+  const marcas=(listasCache.marca||[]).map(m=>m.valor);
+  return `<p style="color:var(--muted);margin:0 0 14px;font-size:13px">Calcula <b>cuánto puedes pagar</b> por un coche para conservar tu <b>margen objetivo</b> al venderlo. Usa tus coches similares del histórico y los precios de mercado que consultes (los botones abren las búsquedas ya rellenadas; copia los precios y pégalos).</p>
+  <div class="grid2" style="margin-bottom:16px">
+    <div class="card"><div class="card-h"><h3>1 · Coche que vas a comprar</h3></div><div class="card-b">
+      <div class="row">
+        <div class="field" style="flex:1 1 45%"><label>Marca</label><select id="val-marca" onchange="valMarca()"><option value="">— seleccionar —</option>${marcas.map(m=>`<option>${esc(m)}</option>`).join("")}</select></div>
+        <div class="field" style="flex:1 1 45%"><label>Modelo</label><select id="val-modelo" onchange="valSimilares()"><option value="">— elige la marca —</option></select></div>
+        <div class="field" style="flex:1 1 45%"><label>Año</label><input id="val-anio" type="number" oninput="valSimilares()"></div>
+        <div class="field" style="flex:1 1 45%"><label>Km</label><input id="val-km" type="number"></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px">
+        <span style="font-size:12px;color:var(--muted)">Ver anuncios similares:</span>
+        <button class="btn ghost sm" onclick="valBuscar('coches')">Coches.net</button>
+        <button class="btn ghost sm" onclick="valBuscar('milanuncios')">Milanuncios</button>
+        <button class="btn ghost sm" onclick="valBuscar('wallapop')">Wallapop</button>
+        <button class="btn ghost sm" onclick="valBuscar('autoscout')">AutoScout24</button></div>
+      <div style="font-size:11.5px;color:var(--muted-2);margin-top:6px">Se abren en el navegador con la marca/modelo puestos. Copia los precios que veas y pégalos en el paso 2.</div>
+    </div></div>
+    <div class="card"><div class="card-h"><h3>Coches similares en tu histórico</h3></div><div class="card-b" id="val-similares"><div style="color:var(--muted);font-size:12.5px">Elige marca (y modelo) para ver tus operaciones similares.</div></div></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><div class="card-h"><h3>2 · Precios de mercado (comparables)</h3></div><div class="card-b">
+      <label style="font-size:12px;color:var(--muted)">Pega los precios de anuncios parecidos, uno por línea (solo el número):</label>
+      <textarea id="val-comps" rows="6" placeholder="12500&#10;13990&#10;12200" oninput="recalcVal()" style="margin-top:4px"></textarea>
+      <div id="val-media" style="margin-top:8px;font-size:13px"></div>
+    </div></div>
+    <div class="card"><div class="card-h"><h3>3 · Calculadora de compra</h3></div><div class="card-b">
+      <div class="row">
+        <div class="field" style="flex:1 1 100%"><label>Precio de venta estimado (€, IVA incl.)</label><input id="val-venta" type="number" oninput="recalcVal()"></div>
+        <div class="field" style="flex:1 1 30%"><label>Gastos (€)</label><input id="val-gastos" type="number" value="0" oninput="recalcVal()"></div>
+        <div class="field" style="flex:1 1 30%"><label>Transporte (€)</label><input id="val-transp" type="number" value="0" oninput="recalcVal()"></div>
+        <div class="field" style="flex:1 1 30%"><label>Taller (€)</label><input id="val-taller" type="number" value="0" oninput="recalcVal()"></div>
+        <div class="field" style="flex:1 1 60%"><label>Margen objetivo</label><input id="val-margen" type="number" value="2000" oninput="recalcVal()"></div>
+        <div class="field" style="flex:1 1 30%"><label>Tipo</label><select id="val-mtipo" onchange="recalcVal()"><option value="eur">€</option><option value="pct">% s/ venta</option></select></div>
+      </div>
+      <div id="val-result" style="margin-top:10px"><div style="color:var(--muted);font-size:12.5px">Introduce el precio de venta estimado.</div></div>
+    </div></div>
+  </div>`;
+}
+async function valMarca(){
+  const m=$("#val-marca").value, sel=$("#val-modelo");
+  const mods=m?(await api("/api/listas?tipo=modelo&padre="+encodeURIComponent(m))||[]):[];
+  sel.innerHTML=`<option value="">— todos —</option>`+mods.map(x=>`<option>${esc(x.valor)}</option>`).join("");
+  valSimilares();
+}
+function valSimilares(){
+  const m=($("#val-marca").value||"").toLowerCase(), mo=($("#val-modelo").value||"").toLowerCase();
+  const el=$("#val-similares");if(!el)return;
+  if(!m){el.innerHTML='<div style="color:var(--muted);font-size:12.5px">Elige marca (y modelo) para ver tus operaciones similares.</div>';return;}
+  const sim=DATA.vehiculos.filter(v=>(v.marca||"").toLowerCase()===m&&(!mo||(v.modelo||"").toLowerCase()===mo));
+  const vend=sim.filter(v=>v._venta);
+  const mVenta=vend.length?Math.round(vend.reduce((a,v)=>a+(Number(v._venta.precio)||0),0)/vend.length):null;
+  const mMargen=vend.length?Math.round(vend.reduce((a,v)=>a+(v._margen||0),0)/vend.length):null;
+  const rows=sim.slice(0,25).map(v=>`<tr><td><span class="plate">${esc(v.matricula||"")}</span></td><td>${v.anio||""}</td><td class="r">${v.km!=null?num(v.km):""}</td><td class="r">${eur(v._base)}</td><td class="r">${v._venta?eur(v._venta.precio):"—"}</td><td class="r">${v._margen!=null?eur(v._margen):"—"}</td></tr>`).join("");
+  el.innerHTML=sim.length?`<div style="font-size:12.5px;margin-bottom:6px">${sim.length} similar(es)${mVenta?` · venta media <b>${eur(mVenta)}</b> · margen medio <b>${eur(mMargen)}</b>`:""}</div>${tableWrap([{t:"Matr."},{t:"Año"},{t:"Km",r:1},{t:"Compra",r:1},{t:"Venta",r:1},{t:"Margen",r:1}],rows)}${mVenta?`<button class="btn ghost sm" style="margin-top:8px" onclick="document.getElementById('val-venta').value=${mVenta};recalcVal()">Usar venta media (${eur(mVenta)}) como precio de venta</button>`:""}`:'<div style="color:var(--muted);font-size:12.5px">No hay coches similares en tu histórico.</div>';
+}
+function valBuscar(sitio){
+  const m=($("#val-marca").value||"").trim(),mo=($("#val-modelo").value||"").trim(),anio=($("#val-anio").value||"").trim();
+  if(!m){toast("Elige al menos la marca");return;}
+  const q=encodeURIComponent([m,mo,anio].filter(Boolean).join(" "));
+  const urls={coches:`https://www.google.com/search?q=site:coches.net+${q}+segunda+mano`,
+    milanuncios:`https://www.milanuncios.com/coches-de-segunda-mano/?s=${q}`,
+    wallapop:`https://es.wallapop.com/app/search?keywords=${q}&category_ids=100`,
+    autoscout:`https://www.google.com/search?q=site:autoscout24.es+${q}`};
+  window.open(urls[sitio]||urls.coches,"_blank","noopener");
+}
+function recalcVal(){
+  const comps=($("#val-comps").value||"").split(/[\n,;]+/).map(valNum).filter(n=>n!=null&&n>0);
+  const media=comps.length?comps.reduce((a,b)=>a+b,0)/comps.length:null;
+  const me=$("#val-media");
+  if(me)me.innerHTML=comps.length?`Media de ${comps.length} comparable(s): <b>${eur2(media)}</b> <button class="btn ghost sm" onclick="document.getElementById('val-venta').value=${Math.round(media)};recalcVal()">Usar como precio de venta</button>`:'<span style="color:var(--muted)">Aún sin comparables.</span>';
+  const venta=Number($("#val-venta").value)||0, gastos=Number($("#val-gastos").value)||0, transp=Number($("#val-transp").value)||0, taller=Number($("#val-taller").value)||0;
+  const margen=Number($("#val-margen").value)||0, mtipo=$("#val-mtipo").value;
+  const margenEur=mtipo==="pct"?venta*margen/100:margen, costes=gastos+transp+taller, maxCompra=venta-costes-margenEur;
+  const el=$("#val-result");if(!el)return;
+  if(venta<=0){el.innerHTML='<div style="color:var(--muted);font-size:12.5px">Introduce el precio de venta estimado (o tómalo de los comparables / tu histórico).</div>';return;}
+  const pct=venta?Math.round(margenEur/venta*100):0;
+  el.innerHTML=`<div class="tot" style="border-top:1px solid var(--line);padding-top:9px"><span>Precio de venta estimado</span><b>${eur2(venta)}</b></div>
+    <div class="tot" style="border:none;padding-top:2px"><span>− Costes (gastos+transporte+taller)</span><b>${eur2(costes)}</b></div>
+    <div class="tot" style="border:none;padding-top:2px"><span>− Margen objetivo (${pct}% s/ venta)</span><b>${eur2(margenEur)}</b></div>
+    <div class="tot" style="border-top:2px solid var(--ink);padding-top:8px;margin-top:6px"><span><b>Precio máximo de compra</b></span><b style="font-size:19px;color:${maxCompra>0?'var(--ok)':'var(--danger)'}">${eur2(maxCompra)}</b></div>
+    <div style="font-size:11.5px;color:var(--muted-2);margin-top:6px">Comprando por <b>${eur2(maxCompra)}</b> o menos conservas tu margen objetivo. Cálculo orientativo con importes IVA incluido (en REBU el IVA recae sobre el margen).</div>`;
 }
 function viewBancos(){
   const puedeW=puedeEscribirTabla("extractos");
