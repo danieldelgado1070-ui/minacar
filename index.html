@@ -1941,16 +1941,21 @@ function docsCard(v){
     <div style="display:flex;flex-direction:column;gap:6px">${rows}</div>${otrosHtml}${cobro}</div></div>`;
 }
 function adjuntarDoc(vid,tipo){
-  const inp=document.createElement("input");inp.type="file";inp.accept="image/*,application/pdf";
-  inp.onchange=()=>{const file=inp.files[0];if(!file)return;
-    if(file.size>20*1024*1024){toast("El archivo supera los 20 MB");return;}
+  const inp=document.createElement("input");inp.type="file";inp.accept="image/*,application/pdf";inp.multiple=true;
+  inp.onchange=async()=>{
+    const files=[...inp.files];if(!files.length)return;
     let importe=null;
-    if(tipo==="Justificante de cobro"){const x=prompt("Importe cobrado en este justificante (€):","");if(x===null)return;importe=Number(String(x).replace(",","."))||0;}
-    const rd=new FileReader();
-    rd.onload=async e=>{const res=await api("/api/documentos",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({vehiculo_id:vid,tipo,filename:file.name,data:e.target.result,importe,fecha:todayISO()})});
-      if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo subir"));return;}
-      toast("Documento aportado ✔");await loadAll();openDrawer(vid);};
-    rd.readAsDataURL(file);};
+    if(tipo==="Justificante de cobro"){const x=prompt("Importe cobrado (€) — se aplica a cada justificante subido:","");if(x===null)return;importe=Number(String(x).replace(",","."))||0;}
+    let ok=0;
+    for(const file of files){
+      if(file.size>20*1024*1024){toast("«"+file.name+"» supera los 20 MB, se omite");continue;}
+      const dataurl=await new Promise(r=>{const rd=new FileReader();rd.onload=e=>r(e.target.result);rd.readAsDataURL(file);});
+      const res=await api("/api/documentos",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({vehiculo_id:vid,tipo,filename:file.name,data:dataurl,importe,fecha:todayISO()})});
+      if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo subir «"+file.name+"»"));}else ok++;
+    }
+    if(ok)toast(ok+(ok===1?" documento aportado":" documentos aportados")+" ✔");
+    await loadAll();openDrawer(vid);
+  };
   inp.click();
 }
 async function quitarDoc(did,vid){if(!confirm("¿Quitar este documento?"))return;await api("/api/documentos/"+did,{method:"DELETE"});toast("Documento quitado");await loadAll();if(vid!=null&&drawer.classList.contains("show"))openDrawer(vid);else render();}
@@ -1975,8 +1980,8 @@ function adjuntarDocMod(vid,tipo){
   };
   inp.click();
 }
-/* Botón compacto 📎 para adjuntar a una fila de gestión (vacío si la fila no tiene coche) */
-function docBtn(vid,tipo){return vid?`<button class="btn ghost sm" title="Adjuntar documento al expediente del coche" onclick="event.stopPropagation();adjuntarDocMod(${vid},'${String(tipo).replace(/'/g,"\\'")}')">📎</button> `:"";}
+/* Botón para adjuntar documento(s) a una fila de gestión → expediente del coche (vacío si la fila no tiene coche) */
+function docBtn(vid,tipo){return vid?`<button class="btn gold sm" title="Adjuntar uno o varios documentos al expediente del coche" onclick="event.stopPropagation();adjuntarDocMod(${vid},'${String(tipo).replace(/'/g,"\\'")}')">📎 Adjuntar</button> `:"";}
 
 const _norm=s=>(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").trim();
 function refWebCard(v){
