@@ -68,6 +68,9 @@
   .btn.danger{background:var(--danger-s);color:var(--danger)}.btn.danger:hover{filter:brightness(.98)}
   .btn.sm{padding:6px 11px;font-size:12px;border-radius:8px}
   .icn{width:34px;height:34px;padding:0;justify-content:center;border-radius:9px}
+  #menuBtn{display:none;background:var(--line-2);color:var(--ink);border-radius:9px;padding:0;width:38px;height:38px;align-items:center;justify-content:center}
+  #menuBtn svg{width:22px;height:22px;stroke-width:2}
+  #navscrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:55}
 
   .view{padding:22px 26px 90px;max-width:1280px;width:100%}
   .view[hidden]{display:none}
@@ -237,15 +240,24 @@
   .perms input{width:auto;margin:0}
 
   @media(max-width:900px){
+    body{font-size:14.5px}
     .app{grid-template-columns:1fr}
-    .side{position:fixed;bottom:0;top:auto;left:0;right:0;height:auto;flex-direction:row;z-index:50;border-right:none;border-top:1px solid var(--side-line)}
-    .brand,.side-foot,.nav .lbl{display:none}
-    .nav{flex-direction:row;overflow-x:auto;padding:7px 8px;gap:4px;width:100%}
-    .nav button{flex-direction:column;gap:3px;font-size:9.5px;padding:6px 7px;min-width:56px;text-align:center;flex:1}
-    .nav button .n{display:none}.nav button span{font-size:9.5px}
-    .nav button.on{box-shadow:inset 0 2px 0 var(--accent)}
-    .view{padding:16px 14px 92px}.kpis{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}
-    .topbar{padding:11px 14px}.search input{width:120px}.topbar h1{font-size:16px}
+    /* Barra lateral como menú deslizante (se abre con ☰) */
+    .side{position:fixed;top:0;left:0;bottom:0;width:min(82vw,280px);height:100vh;transform:translateX(-100%);transition:transform .22s ease;z-index:60;box-shadow:6px 0 26px rgba(0,0,0,.4)}
+    body.nav-open .side{transform:none}
+    body.nav-open #navscrim{display:block}
+    #menuBtn{display:inline-flex}
+    .nav button{font-size:15.5px;padding:13px 14px;gap:13px}
+    .nav button svg{width:21px;height:21px}
+    .side-foot{padding:16px}
+    .topbar{padding:11px 13px;gap:10px;flex-wrap:wrap}
+    .topbar h1{font-size:17px}.topbar .sub{display:none}
+    .search{order:9;flex:1 1 100%;margin-left:0}.search input{width:100%}
+    .view,#views{padding:16px 13px}
+    .kpis{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}
+    .btn{padding:11px 15px;font-size:14px}.btn.sm{padding:8px 12px;font-size:13px}
+    input,select,textarea{font-size:16px!important}   /* evita el zoom automático de iOS */
+    table{min-width:520px}
   }
   @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head><body>
@@ -263,6 +275,7 @@
 
   <div class="main">
     <header class="topbar">
+      <button id="menuBtn" title="Menú" onclick="toggleNav()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round"/></svg></button>
       <div><h1 id="viewTitle">Panel</h1><div class="sub" id="viewSub">Visión general de la operación</div></div>
       <div class="search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7" stroke-width="1.8"/><path d="M21 21l-4-4" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -277,6 +290,7 @@
   </div>
 </div>
 
+<div id="navscrim" onclick="closeNav()"></div>
 <div class="scrim" id="scrim"></div>
 <div class="drawer" id="drawer" role="dialog" aria-modal="true"></div>
 
@@ -396,8 +410,11 @@ $("#impBtn").addEventListener("click",abrirImportar);
 function descargarInforme(){const a=document.createElement("a");a.href="/api/informe.xlsx";a.download="informe_minacar.xlsx";document.body.appendChild(a);a.click();a.remove();toast("Descargando informe Excel (varias hojas)…");}
 $("#q").addEventListener("input",e=>{query=e.target.value;render();});
 
+function toggleNav(){document.body.classList.toggle("nav-open");}
+function closeNav(){document.body.classList.remove("nav-open");}
 function go(v){
   if(CURRENTUSER){ if(v==="usuarios"){if(CURRENTUSER.rol!=="admin")return;} else if(!puede(v))return; }
+  closeNav();
   current=v;query="";$("#q").value="";
   document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
   $("#viewTitle").textContent=NAV.find(n=>n[0]===v)[1];
