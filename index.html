@@ -725,7 +725,7 @@ function viewCompras(){
       <td>${esc(c.proveedor||"")}</td>
       <td>${c.regimen?`<span class="minipill" style="background:${c.regimen==='REBU'?'var(--res-s)':'var(--accent-soft)'};color:${c.regimen==='REBU'?'var(--res)':'var(--accent)'}">${esc(c.regimen)}</span>`:""}</td>
       <td class="r">${eur2(c.precio)}</td><td class="r">${eur2(c.gastos)}</td><td class="r"><b>${eur2((c.precio||0)+(c.gastos||0))}</b></td>
-      <td class="r"><button class="btn ghost sm" onclick="openForm('compras',${c.id})">✎</button> <button class="btn danger sm" onclick="delRow('compras',${c.id})">🗑</button></td>
+      <td class="r">${docBtn(c.vehiculo_id,'Factura de compra')}<button class="btn ghost sm" onclick="openForm('compras',${c.id})">✎</button> <button class="btn danger sm" onclick="delRow('compras',${c.id})">🗑</button></td>
     </tr>`).join("");
   return tableWrap([{t:"Fecha"},{t:"Nº factura"},{t:"Vehículo"},{t:"Proveedor"},{t:"Régimen"},{t:"Precio",r:1},{t:"Gastos",r:1},{t:"Total",r:1},{t:"",r:1}],rows);
 }
@@ -744,7 +744,7 @@ function viewVentas(){
       <td class="r">${eur2(s.precio)}</td><td class="r">${s.coste!=null?eur2(s.coste):"—"}</td>
       <td class="r" style="color:${margen>=0?'var(--ok)':'var(--danger)'};font-weight:700">${eur2(margen)}</td>
       <td>${prof?`<button class="btn accent sm" onclick="event.stopPropagation();confirmarFactura(${s.id})">✓ Confirmar factura</button>`:`<button class="btn ghost sm" onclick="event.stopPropagation();factura(${s.id})">🧾</button>`}</td>
-      <td class="r"><button class="btn ghost sm" onclick="event.stopPropagation();factura(${s.id})" title="Ver documento">🧾</button> <button class="btn ghost sm" onclick="event.stopPropagation();openForm('ventas',${s.id})">✎</button> <button class="btn danger sm" onclick="event.stopPropagation();delRow('ventas',${s.id})">🗑</button></td>
+      <td class="r"><button class="btn ghost sm" onclick="event.stopPropagation();factura(${s.id})" title="Ver documento">🧾</button> ${docBtn(s.vehiculo_id,'Factura de venta')}<button class="btn ghost sm" onclick="event.stopPropagation();openForm('ventas',${s.id})">✎</button> <button class="btn danger sm" onclick="event.stopPropagation();delRow('ventas',${s.id})">🗑</button></td>
     </tr>`;}).join("");
   return tableWrap([{t:"Fecha"},{t:"Documento"},{t:"Vehículo"},{t:"Cliente"},{t:"Régimen"},{t:"Precio",r:1},{t:"Coste",r:1},{t:"Margen",r:1},{t:""},{t:"",r:1}],rows);
 }
@@ -768,7 +768,7 @@ function viewProformas(){
       <td>${reservado?'<span class="minipill" style="background:var(--res-s);color:var(--res)">Reservado</span>':'<span class="minipill" style="background:var(--line-2);color:var(--muted)">Sin reservar</span>'}</td>
       <td class="r"><button class="btn ghost sm" onclick="event.stopPropagation();factura(${s.id})">🧾 Imprimir</button>
         <button class="btn gold sm" onclick="event.stopPropagation();confirmarFactura(${s.id})">✓ Confirmar</button>
-        <button class="btn ghost sm" onclick="event.stopPropagation();openForm('ventas',${s.id})">✎</button>
+        ${docBtn(s.vehiculo_id,'Factura proforma')}<button class="btn ghost sm" onclick="event.stopPropagation();openForm('ventas',${s.id})">✎</button>
         <button class="btn danger sm" onclick="event.stopPropagation();delRow('ventas',${s.id})">🗑</button></td>
     </tr>`;}).join("");
   const puedeW=puedeEscribirTabla("ventas");
@@ -793,7 +793,7 @@ function viewLogistica(){
       <td>${esc(l.transportista_nombre||"")}</td><td>${esc(l.origen||"")}</td><td>${esc(l.destino||"")}</td>
       <td>${esc(l.destinatario||"")}</td><td>${fdate(l.fecha_recogida)}</td><td>${fdate(l.fecha_entrega)}</td>
       <td class="r">${diasTxt}</td>
-      <td class="r"><button class="btn ghost sm" onclick="openForm('logistica',${l.id})">✎</button> <button class="btn danger sm" onclick="delRow('logistica',${l.id})">🗑</button></td>
+      <td class="r"><button class="btn ghost sm" onclick="openForm('logistica',${l.id})">✎</button> ${docBtn(l.vehiculo_id,'Hoja de transporte')}<button class="btn danger sm" onclick="delRow('logistica',${l.id})">🗑</button></td>
     </tr>`;}).join("");
   // SIN TRANSPORTE ASIGNADO: comprados, sin recepcionar y sin ninguna fila de transporte
   const sinAsig=DATA.vehiculos.filter(v=>v._compra&&!v.recepcionado&&v.estado!=="vendido"
@@ -927,7 +927,7 @@ function viewTaller(){
       <td><span class="minipill" style="background:var(--line-2);color:${col}"><span class="dot" style="width:6px;height:6px;background:${col};display:inline-block;margin-right:5px"></span>${esc(t.tipo||"")}</span></td>
       <td>${esc(t.descripcion||"")}</td><td>${esc(t.proveedor||"")}</td><td>${esc(t.numero_factura||"")}</td><td>${fdate(t.fecha)}</td>
       <td class="r">${eur2(t.coste)}</td><td>${pagoTag(t.pago)}</td>
-      <td class="r"><button class="btn ghost sm" onclick="openForm('taller',${t.id})">✎</button> <button class="btn danger sm" onclick="delRow('taller',${t.id})">🗑</button></td>
+      <td class="r"><button class="btn ghost sm" onclick="openForm('taller',${t.id})">✎</button> ${docBtn(t.vehiculo_id,'Facturas de reparación/mantenimiento')}<button class="btn danger sm" onclick="delRow('taller',${t.id})">🗑</button></td>
     </tr>`;}).join("");
   return `<div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">${kpi("Intervenciones",arr.length)}${kpi("Coste total taller",eur(tot))}${kpi("Pendiente de pago",eur(pend))}</div>`
     +tableWrap([{t:"Vehículo"},{t:"Tipo"},{t:"Intervención"},{t:"Taller/Proveedor"},{t:"Nº factura"},{t:"Fecha"},{t:"Coste",r:1},{t:"Pago"},{t:"",r:1}],rows);
@@ -996,7 +996,7 @@ function viewGestoria(){
       <td><span class="plate">${esc(g.matricula||"")}</span> ${esc(g.marca||"")} ${esc(g.modelo||"")}</td>
       <td>${esc(g.tipo||"")}</td><td>${gestPill(g.estado)}</td><td>${esc(g.gestoria||"")}</td>
       <td>${fdate(g.fecha_solicitud)}</td><td>${fdate(g.fecha_resolucion)}</td>
-      <td class="r"><button class="btn ghost sm" onclick="openForm('gestoria',${g.id})">✎</button> <button class="btn danger sm" onclick="delRow('gestoria',${g.id})">🗑</button></td>
+      <td class="r"><button class="btn ghost sm" onclick="openForm('gestoria',${g.id})">✎</button> ${docBtn(g.vehiculo_id,'Documento de gestoría')}<button class="btn danger sm" onclick="delRow('gestoria',${g.id})">🗑</button></td>
     </tr>`).join("");
   // Listado: vehículos que están AHORA en la gestoría (documentación enviada, sin resolver)
   const enGest=arr.filter(g=>["Enviada a gestoría","En trámite","Presentada a AEAT"].includes(g.estado));
@@ -1177,7 +1177,8 @@ function viewTesoreria(){
       <td><span class="plate">${esc(s.matricula||"")}</span> ${esc(s.marca||"")} ${esc(s.modelo||"")}</td>
       <td>${esc(s.cliente||"")}</td><td class="r">${eur2(s.precio)}</td><td class="r">${eur2(cob)}</td>
       <td class="r" style="color:var(--danger);font-weight:700">${eur2(pend)}</td>
-      <td><input type="date" value="${esc(s.fecha_cobro_est||"")}" onchange="setField('ventas',${s.id},'fecha_cobro_est',this.value)" style="padding:5px 7px"></td></tr>`).join("");
+      <td><input type="date" value="${esc(s.fecha_cobro_est||"")}" onchange="setField('ventas',${s.id},'fecha_cobro_est',this.value)" style="padding:5px 7px"></td>
+      <td class="r">${docBtn(s.vehiculo_id,'Justificante de cobro')}</td></tr>`).join("");
   // PAGOS pendientes (compras + taller + postventa)
   const pagos=[];
   DATA.compras.filter(c=>c.pagado!=="Sí").forEach(c=>pagos.push({fuente:"Compra",tabla:"compras",id:c.id,vid:c.vehiculo_id,pf:"pagado",pv:"Sí",concepto:`${esc(c.matricula||"")} ${esc(c.marca||"")} ${esc(c.modelo||"")} · Fra ${esc(c.numero_factura||"—")}`,prov:c.proveedor,imp:(Number(c.precio)||0)+(Number(c.gastos)||0),fest:c.fecha_pago_est}));
@@ -1191,11 +1192,11 @@ function viewTesoreria(){
       <td>${p.concepto}</td><td>${esc(p.prov||"")}</td>
       <td class="r" style="color:var(--danger);font-weight:700">${eur2(p.imp)}</td>
       <td><input type="date" value="${esc(p.fest||"")}" onchange="setField('${p.tabla}',${p.id},'fecha_pago_est',this.value)" style="padding:5px 7px"></td>
-      <td class="r"><button class="btn accent sm" onclick="registrarPagoProv('${p.tabla}',${p.id},'${p.pf}','${p.pv}',${p.vid||'null'})">💳 Registrar pago</button></td></tr>`).join("");
+      <td class="r">${docBtn(p.vid,'Pago al proveedor')}<button class="btn accent sm" onclick="registrarPagoProv('${p.tabla}',${p.id},'${p.pf}','${p.pv}',${p.vid||'null'})">💳 Registrar pago</button></td></tr>`).join("");
   const kpi=(l,v,c)=>`<div class="kpi"><div class="k-lab">${l}</div><div class="k-val" style="color:${c}">${v}</div></div>`;
   return calendarioTeso()+ivaCard+`<div class="kpis" style="grid-template-columns:repeat(2,1fr);margin-bottom:18px">${kpi("Pendiente de cobro",eur(totCobro),"var(--ok)")}${kpi("Pendiente de pago",eur(totPago),"var(--danger)")}</div>
     <div class="card" style="margin-bottom:18px"><div class="card-h"><h3>Facturas pendientes de cobro (${cobros.length})</h3><span class="hint">venta − justificantes de cobro</span></div>
-      <div class="card-b" style="padding:0 18px 12px">${tableWrap([{t:"Fecha"},{t:"Nº factura"},{t:"Vehículo"},{t:"Cliente"},{t:"Total",r:1},{t:"Cobrado",r:1},{t:"Pendiente",r:1},{t:"Fecha est. cobro"}],cobRows)}</div></div>
+      <div class="card-b" style="padding:0 18px 12px">${tableWrap([{t:"Fecha"},{t:"Nº factura"},{t:"Vehículo"},{t:"Cliente"},{t:"Total",r:1},{t:"Cobrado",r:1},{t:"Pendiente",r:1},{t:"Fecha est. cobro"},{t:"",r:1}],cobRows)}</div></div>
     <div class="card"><div class="card-h"><h3>Facturas pendientes de pago (${pagosF.length})</h3><span class="hint">compras, taller y postventa sin pagar</span></div>
       <div class="card-b" style="padding:0 18px 12px">${tableWrap([{t:"Origen"},{t:"Concepto"},{t:"Proveedor"},{t:"Importe",r:1},{t:"Fecha est. pago"},{t:"",r:1}],pagRows)}</div></div>`;
 }
@@ -1244,13 +1245,13 @@ function viewFacturas(){
   const rowsPdr=pdr.map(x=>`<tr data-veh="${x.r.vehiculo_id||''}">
       <td>${chip(x.s.lbl)}</td><td>${esc(x.s.con(x.r))}</td><td>${esc(x.s.prov(x.r)||"")}</td>
       <td class="r" style="font-weight:700">${eur2(x.imp)}</td>
-      <td class="r"><button class="btn accent sm" onclick="factRecibir('${x.s.t}',${x.r.id},'${x.s.pf}','${x.s.pv}')">📥 Marcar recibida</button></td>
+      <td class="r">${docBtn(x.r.vehiculo_id,'Factura de proveedor')}<button class="btn accent sm" onclick="factRecibir('${x.s.t}',${x.r.id},'${x.s.pf}','${x.s.pv}')">📥 Marcar recibida</button></td>
     </tr>`).join("");
   const rowsRpp=rpp.map(x=>`<tr data-veh="${x.r.vehiculo_id||''}">
       <td>${chip(x.s.lbl)}</td><td>${esc(x.s.con(x.r))}</td><td>${esc(x.s.prov(x.r)||"")}</td>
       <td>${esc(x.num||"—")}</td><td class="r" style="font-weight:700;color:var(--danger)">${eur2(x.imp)}</td>
       <td><input type="date" value="${esc(x.fest||"")}" onchange="setField('${x.s.t}',${x.r.id},'fecha_pago_est',this.value)" style="padding:5px 7px"></td>
-      <td class="r"><button class="btn accent sm" onclick="registrarPagoProv('${x.s.t}',${x.r.id},'${x.s.pf}','${x.s.pv}',${x.r.vehiculo_id||'null'})">💳 Marcar pagada</button></td>
+      <td class="r">${docBtn(x.r.vehiculo_id,'Factura de proveedor')}<button class="btn accent sm" onclick="registrarPagoProv('${x.s.t}',${x.r.id},'${x.s.pf}','${x.s.pv}',${x.r.vehiculo_id||'null'})">💳 Marcar pagada</button></td>
     </tr>`).join("");
   return `<p style="color:var(--muted);margin:0 0 14px;font-size:13px">Controla las <b>facturas de tus proveedores</b> (compras, taller, postventa, transporte y gestoría). Al dar de alta un trabajo, marca si la factura está recibida; aquí ves las que faltan por recibir y, una vez recibidas, las que quedan por pagar.</p>
     <div class="kpis" style="grid-template-columns:repeat(2,1fr);margin-bottom:16px">${kpi("Pendientes de recibir",pdr.length+" · "+eur(totPdr),"var(--warn)")}${kpi("Recibidas sin pagar",rpp.length+" · "+eur(totRpp),"var(--danger)")}</div>
@@ -1528,7 +1529,7 @@ function viewGarantias(){
       <td>${esc(g.cliente||"")}</td><td>${esc(g.tipo||"")}</td>
       <td>${fdate(g.fecha_inicio)}</td><td>${g.meses?esc(g.meses)+" m":""}</td><td>${fdate(g.fecha_fin)}</td>
       <td>${estadoDot(vg.c,vg.txt)}</td>
-      <td class="r"><button class="btn ghost sm" onclick="openForm('garantias',${g.id})">✎</button> <button class="btn danger sm" onclick="delRow('garantias',${g.id})">🗑</button></td>
+      <td class="r"><button class="btn ghost sm" onclick="openForm('garantias',${g.id})">✎</button> ${docBtn(g.vehiculo_id,'Garantía comercial')}<button class="btn danger sm" onclick="delRow('garantias',${g.id})">🗑</button></td>
     </tr>`;}).join("");
   return `<div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">${kpi("Garantías",arr.length)}${kpi("Vigentes",vig)}${kpi("Caducadas",cad)}</div>`
     +tableWrap([{t:"Vehículo"},{t:"Cliente"},{t:"Tipo"},{t:"Inicio"},{t:"Duración"},{t:"Fin"},{t:"Vigencia"},{t:"",r:1}],rows);
@@ -1547,7 +1548,7 @@ function viewPostventa(){
       <td>${esc(p.tipo||"")}</td><td>${esc(p.descripcion||"")}</td><td>${esc(p.proveedor||"")}</td><td>${esc(p.numero_factura||"")}</td><td>${fdate(p.fecha)}</td>
       <td class="r">${eur2(p.coste)}</td><td>${esc(p.asume||"")}</td>
       <td>${p.pago==="Pagado"?estadoDot("var(--ok)","Pagado"):estadoDot("var(--warn)","Pendiente")}</td>
-      <td class="r"><button class="btn ghost sm" onclick="openForm('postventa',${p.id})">✎</button> <button class="btn danger sm" onclick="delRow('postventa',${p.id})">🗑</button></td>
+      <td class="r"><button class="btn ghost sm" onclick="openForm('postventa',${p.id})">✎</button> ${docBtn(p.vehiculo_id,'Documento de postventa')}<button class="btn danger sm" onclick="delRow('postventa',${p.id})">🗑</button></td>
     </tr>`).join("");
   const ageItems=age.map(a=>{
     const docs=DATA.documentos.filter(d=>d.agenda_id===a.id);
@@ -1927,9 +1928,17 @@ function docsCard(v){
   }).join("");
   let cobro="";
   const pct=Math.round(v._docN/DOC_TIPOS.length*100);
+  // Otros documentos aportados desde las gestiones (tipos que no están en la lista fija)
+  const otros=v._docs.filter(d=>!DOC_TIPOS.includes(d.tipo));
+  let otrosHtml="";
+  if(otros.length){
+    const oRows=otros.map(d=>`<div class="tl-row" style="align-items:center"><span>📄 ${esc(d.tipo||"Documento")}${d.nombre_original?' · <span style="color:var(--muted-2)">'+esc(d.nombre_original)+"</span>":""}</span>
+      <span style="display:flex;align-items:center;gap:2px"><a href="/doc/${d.id}" target="_blank" class="minipill" style="background:var(--ok-s);color:var(--ok);text-decoration:none">👁 ver</a><button class="btn danger sm" style="padding:2px 6px;margin-left:4px" onclick="quitarDoc(${d.id},${v.id})">✕</button></span></div>`).join("");
+    otrosHtml=`<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">Otros documentos aportados desde las gestiones (${otros.length})</div><div style="display:flex;flex-direction:column;gap:6px">${oRows}</div></div>`;
+  }
   return `<div class="card"><div class="card-h"><h3>Documentación (${v._docN}/${DOC_TIPOS.length})</h3><span class="hint">${pct}% aportado</span></div>
     <div class="card-b"><div class="track" style="margin-bottom:12px"><i style="width:${pct}%;background:${pct>=100?"var(--ok)":"var(--accent)"}"></i></div>
-    <div style="display:flex;flex-direction:column;gap:6px">${rows}</div>${cobro}</div></div>`;
+    <div style="display:flex;flex-direction:column;gap:6px">${rows}</div>${otrosHtml}${cobro}</div></div>`;
 }
 function adjuntarDoc(vid,tipo){
   const inp=document.createElement("input");inp.type="file";inp.accept="image/*,application/pdf";
@@ -1945,6 +1954,29 @@ function adjuntarDoc(vid,tipo){
   inp.click();
 }
 async function quitarDoc(did,vid){if(!confirm("¿Quitar este documento?"))return;await api("/api/documentos/"+did,{method:"DELETE"});toast("Documento quitado");await loadAll();if(vid!=null&&drawer.classList.contains("show"))openDrawer(vid);else render();}
+/* Adjuntar uno o varios ficheros a una gestión → van al expediente del coche. No abre la ficha, solo refresca la vista. */
+function adjuntarDocMod(vid,tipo){
+  if(!vid){toast("Esta gestión no tiene coche asociado; no se puede adjuntar al expediente");return;}
+  if(bloqueadoRO("documentos"))return;
+  const inp=document.createElement("input");inp.type="file";inp.accept="image/*,application/pdf";inp.multiple=true;
+  inp.onchange=async()=>{
+    const files=[...inp.files];if(!files.length)return;
+    let importe=null;
+    if(tipo==="Justificante de cobro"){const x=prompt("Importe cobrado en este justificante (€):","");if(x===null)return;importe=Number(String(x).replace(",","."))||0;}
+    let ok=0;
+    for(const file of files){
+      if(file.size>20*1024*1024){toast("«"+file.name+"» supera los 20 MB, se omite");continue;}
+      const dataurl=await new Promise(r=>{const rd=new FileReader();rd.onload=e=>r(e.target.result);rd.readAsDataURL(file);});
+      const res=await api("/api/documentos",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({vehiculo_id:vid,tipo,filename:file.name,data:dataurl,importe,fecha:todayISO()})});
+      if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo subir «"+file.name+"»"));}else ok++;
+    }
+    if(ok)toast(ok+(ok===1?" documento guardado":" documentos guardados")+" en el expediente ✔");
+    await loadAll();render();
+  };
+  inp.click();
+}
+/* Botón compacto 📎 para adjuntar a una fila de gestión (vacío si la fila no tiene coche) */
+function docBtn(vid,tipo){return vid?`<button class="btn ghost sm" title="Adjuntar documento al expediente del coche" onclick="event.stopPropagation();adjuntarDocMod(${vid},'${String(tipo).replace(/'/g,"\\'")}')">📎</button> `:"";}
 
 const _norm=s=>(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").trim();
 function refWebCard(v){
