@@ -1253,12 +1253,25 @@ function viewFacturas(){
       <td><input type="date" value="${esc(x.fest||"")}" onchange="setField('${x.s.t}',${x.r.id},'fecha_pago_est',this.value)" style="padding:5px 7px"></td>
       <td class="r">${docBtn(x.r.vehiculo_id,'Factura de proveedor')}<button class="btn accent sm" onclick="registrarPagoProv('${x.s.t}',${x.r.id},'${x.s.pf}','${x.s.pv}',${x.r.vehiculo_id||'null'})">💳 Marcar pagada</button></td>
     </tr>`).join("");
-  return `<p style="color:var(--muted);margin:0 0 14px;font-size:13px">Controla las <b>facturas de tus proveedores</b> (compras, taller, postventa, transporte y gestoría). Al dar de alta un trabajo, marca si la factura está recibida; aquí ves las que faltan por recibir y, una vez recibidas, las que quedan por pagar.</p>
+  // CERRADAS: ya pagadas (documentación se puede adjuntar igualmente)
+  const cerr=all.filter(x=>x.paid&&x.imp>0);
+  const nDocsFact=vid=>DATA.documentos.filter(d=>d.vehiculo_id===vid&&!d.agenda_id&&d.tipo==="Factura de proveedor").length;
+  const rowsCerr=cerr.map(x=>{const nd=nDocsFact(x.r.vehiculo_id);return `<tr data-veh="${x.r.vehiculo_id||''}">
+      <td>${chip(x.s.lbl)}</td><td>${esc(x.s.con(x.r))}</td><td>${esc(x.s.prov(x.r)||"")}</td>
+      <td>${esc(x.num||"—")}</td><td class="r" style="font-weight:700">${eur2(x.imp)}</td>
+      <td>${nd?`<span class="minipill" style="background:var(--ok-s);color:var(--ok)">📎 ${nd}</span>`:'<span style="color:var(--muted-2);font-size:11px">sin adjuntar</span>'}</td>
+      <td class="r">${docBtn(x.r.vehiculo_id,'Factura de proveedor')}</td>
+    </tr>`;}).join("");
+  const totCerr=cerr.reduce((a,x)=>a+x.imp,0);
+  const cerrCard=cerr.length?`<div class="card" style="margin-top:16px"><div class="card-h"><h3>✅ Facturas pagadas / cerradas (${cerr.length})</h3><span class="hint">ya gestionadas · aquí puedes adjuntar el escaneo al expediente</span></div>
+      <div class="card-b" style="padding:0 18px 12px">${tableWrap([{t:"Origen"},{t:"Concepto"},{t:"Proveedor"},{t:"Nº factura"},{t:"Importe",r:1},{t:"Docs"},{t:"",r:1}],rowsCerr)}</div></div>`:"";
+  return `<p style="color:var(--muted);margin:0 0 14px;font-size:13px">Controla las <b>facturas de tus proveedores</b> (compras, taller, postventa, transporte y gestoría). Al dar de alta un trabajo, marca si la factura está recibida; aquí ves las que faltan por recibir, las que quedan por pagar y las ya cerradas. En cualquiera puedes <b>adjuntar el escaneo</b> al expediente del coche.</p>
     <div class="kpis" style="grid-template-columns:repeat(2,1fr);margin-bottom:16px">${kpi("Pendientes de recibir",pdr.length+" · "+eur(totPdr),"var(--warn)")}${kpi("Recibidas sin pagar",rpp.length+" · "+eur(totRpp),"var(--danger)")}</div>
     <div class="card" style="margin-bottom:16px"><div class="card-h"><h3>📥 Pendientes de recibir del proveedor (${pdr.length})</h3><span class="hint">marcadas como «factura no recibida»</span></div>
       <div class="card-b" style="padding:0 18px 12px">${tableWrap([{t:"Origen"},{t:"Concepto"},{t:"Proveedor"},{t:"Importe",r:1},{t:"",r:1}],rowsPdr)}</div></div>
     <div class="card"><div class="card-h"><h3>💳 Recibidas, pendientes de pago (${rpp.length})</h3><span class="hint">indica la fecha de pago prevista</span></div>
-      <div class="card-b" style="padding:0 18px 12px">${tableWrap([{t:"Origen"},{t:"Concepto"},{t:"Proveedor"},{t:"Nº factura"},{t:"Importe",r:1},{t:"Pago previsto"},{t:"",r:1}],rowsRpp)}</div></div>`;
+      <div class="card-b" style="padding:0 18px 12px">${tableWrap([{t:"Origen"},{t:"Concepto"},{t:"Proveedor"},{t:"Nº factura"},{t:"Importe",r:1},{t:"Pago previsto"},{t:"",r:1}],rowsRpp)}</div></div>`
+    +cerrCard;
 }
 async function factRecibir(tabla,id,pf,pv){
   if(bloqueadoRO(tabla))return;
