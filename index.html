@@ -258,7 +258,7 @@
     </div>
     <nav class="nav" id="nav"></nav>
     <div class="side-foot"><div class="avatar" id="uAvatar">·</div><div style="flex:1"><div style="color:#cfd8df;font-weight:600" id="uName">—</div><span id="uRol">—</span></div>
-      <button class="btn ghost sm" title="Cerrar sesión" onclick="logout()" style="padding:6px 9px">⎋</button></div>
+      <button class="btn ghost sm" title="Cerrar sesión" onclick="logout()" style="padding:6px 10px">⎋ Salir</button></div>
   </aside>
 
   <div class="main">
@@ -271,6 +271,7 @@
       <button class="btn ghost" id="impBtn" title="Importar desde Excel" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20V9M7 12l5-4 5 4M5 4h14" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Importar</span></button>
       <button class="btn ghost" id="expBtn" title="Exportar a Excel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 4v11M7 12l5 4 5-4M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Excel</span></button>
       <button class="btn gold" id="newBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg><span id="newLbl">Nuevo</span></button>
+      <button class="btn ghost" id="logoutBtn" title="Cerrar sesión" onclick="logout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Salir</span></button>
     </header>
     <main id="views"></main>
   </div>
@@ -2608,7 +2609,7 @@ async function login(){
   CURRENTUSER=d.user; $("#login").classList.remove("show"); $("#lg-pass").value="";
   await iniciarApp();
 }
-async function logout(){ try{await fetch("/api/logout",{method:"POST"});}catch(e){} location.reload(); }
+async function logout(){ if(!confirm("¿Cerrar sesión?"))return; try{await fetch("/api/logout",{method:"POST"});}catch(e){} location.reload(); }
 async function iniciarApp(){
   buildNav();
   $("#uName").textContent=CURRENTUSER.nombre||CURRENTUSER.username;
