@@ -2450,17 +2450,36 @@ async function delRow(table,id,fromDrawer){
   if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo eliminar"));return;}
   toast("Eliminado ✔");if(fromDrawer)closeDrawer();await reloadAll();
 }
+async function descargarCopiaBlob(nombre){
+  const r=await fetch("/api/backup.zip",{credentials:"same-origin"});
+  if(!r.ok)throw new Error("HTTP "+r.status);
+  const blob=await r.blob();
+  if(!blob.size)throw new Error("copia vacía");
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");a.href=url;a.download=nombre||"copia_minacar.zip";document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);
+  return blob.size;
+}
 async function vaciarStock(){
   if(!(CURRENTUSER&&CURRENTUSER.rol==="admin")){toast("Solo un administrador puede vaciar el stock");return;}
   const n=DATA.vehiculos.length;
   if(!n){toast("No hay vehículos en el stock");return;}
-  if(!confirm(`⚠ VAS A BORRAR TODO EL STOCK (${n} vehículo(s)).\n\nSe eliminarán TODOS los coches y TODO lo asociado (compras, ventas, taller, transporte, gestoría, garantías, postventa y documentos escaneados).\n\nEsta acción NO se puede deshacer. Si no estás seguro, haz antes una copia de seguridad (Ajustes → Copia de seguridad).`))return;
+  if(!confirm(`⚠ VAS A BORRAR TODO EL STOCK (${n} vehículo(s)).\n\nSe eliminarán TODOS los coches y TODO lo asociado (compras, ventas, taller, transporte, gestoría, garantías, postventa y documentos escaneados).\n\nAntes de borrar se descargará automáticamente una COPIA DE SEGURIDAD. Aun así, esta acción NO se puede deshacer sobre los datos actuales.`))return;
   const txt=prompt('Para confirmar el borrado total, escribe BORRAR (en mayúsculas):');
   if(txt!=="BORRAR"){toast("Cancelado — no se escribió BORRAR");return;}
+  // 1) Copia de seguridad OBLIGATORIA antes de borrar
+  try{
+    toast("Descargando copia de seguridad antes de borrar…");
+    await descargarCopiaBlob(`copia_minacar_antes_de_vaciar_${todayISO()}.zip`);
+    toast("Copia de seguridad descargada ✔ · continuando con el borrado");
+  }catch(e){
+    if(!confirm("⚠ No se ha podido descargar la copia de seguridad automática.\n\n¿Borrar el stock DE TODAS FORMAS, SIN copia de seguridad?"))return;
+  }
+  // 2) Borrado masivo
   const res=await api("/api/vehiculos/vaciar",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
   if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo vaciar el stock"));return;}
   if(drawer.classList.contains("show"))closeDrawer();
-  toast(`Stock vaciado ✔ · ${res.borrados!=null?res.borrados:n} vehículo(s) eliminados`);
+  toast(`Stock vaciado ✔ · ${res.borrados!=null?res.borrados:n} vehículo(s) eliminados · revisa la copia descargada`);
   await reloadAll();
 }
 
