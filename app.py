@@ -226,6 +226,12 @@ def init_db():
             creado    TEXT DEFAULT (datetime('now','localtime'))
         );
 
+        CREATE TABLE IF NOT EXISTS sesiones (
+            token      TEXT PRIMARY KEY,
+            usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
+            creado     TEXT DEFAULT (datetime('now','localtime'))
+        );
+
         CREATE TABLE IF NOT EXISTS comerciales (
             id                  INTEGER PRIMARY KEY AUTOINCREMENT,
             nombre              TEXT NOT NULL,
@@ -444,14 +450,57 @@ def seed_admin(conn):
         conn.commit()
 
 
-def crear_sesion(row):
-    tok = secrets.token_hex(32)
+def _sesion_dict(row):
     keys = row.keys()
-    SESSIONS[tok] = {
+    return {
         "id": row["id"], "username": row["username"], "nombre": row["nombre"],
         "rol": row["rol"], "permisos": json.loads(row["permisos"] or "[]"),
         "comercial_id": (row["comercial_id"] if "comercial_id" in keys else None)}
+
+
+def crear_sesion(row):
+    tok = secrets.token_hex(32)
+    SESSIONS[tok] = _sesion_dict(row)
+    # Persistir en BD para que la sesión sobreviva a reinicios del servidor (p.ej. cada redespliegue en la nube)
+    try:
+        conn = get_db()
+        conn.execute("INSERT OR REPLACE INTO sesiones (token, usuario_id) VALUES (?,?)", (tok, row["id"]))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
     return tok
+
+
+def cargar_sesion_db(tok):
+    """Recupera de la BD una sesión no presente en memoria (tras un reinicio) y la recachea."""
+    if not tok:
+        return None
+    try:
+        conn = get_db()
+        row = conn.execute(
+            """SELECT u.* FROM sesiones s JOIN usuarios u ON u.id = s.usuario_id
+               WHERE s.token = ? AND u.activo = 1""", (tok,)).fetchone()
+        conn.close()
+    except Exception:
+        return None
+    if not row:
+        return None
+    d = _sesion_dict(row)
+    SESSIONS[tok] = d
+    return d
+
+
+def borrar_sesion_db(tok):
+    if not tok:
+        return
+    try:
+        conn = get_db()
+        conn.execute("DELETE FROM sesiones WHERE token=?", (tok,))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
 
 
 def autenticar(username, password):
@@ -2722,7 +2771,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return None
 
     def current_user(self):
-        return SESSIONS.get(self.get_cookie("sid") or "")
+        tok = self.get_cookie("sid") or ""
+        return SESSIONS.get(tok) or cargar_sesion_db(tok)
 
     def send_file(self):
         try:
@@ -2956,7 +3006,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         if path == "/api/logout":
-            SESSIONS.pop(self.get_cookie("sid") or "", None)
+            _sid = self.get_cookie("sid") or ""
+            SESSIONS.pop(_sid, None)
+            borrar_sesion_db(_sid)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Set-Cookie", "sid=; Path=/; Max-Age=0")

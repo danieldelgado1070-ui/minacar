@@ -315,7 +315,16 @@
 "use strict";
 /* ---------- utilidades ---------- */
 const $=s=>document.querySelector(s);
-const api=async(url,opts)=>{const r=await fetch(url,opts);return r.status===204?null:r.json();};
+const api=async(url,opts)=>{const r=await fetch(url,opts);if(r.status===401){sesionCaducada();return {ok:false,error:"Tu sesión ha caducado. Vuelve a entrar."};}return r.status===204?null:r.json();};
+function sesionCaducada(){
+  const lg=document.getElementById("login");
+  if(lg&&!lg.classList.contains("show")){
+    lg.classList.add("show");
+    const err=document.getElementById("lg-err");if(err)err.textContent="Tu sesión ha caducado. Vuelve a entrar.";
+    const u=document.getElementById("lg-user");if(u)setTimeout(()=>u.focus(),100);
+    toast("Sesión caducada — vuelve a entrar");
+  }
+}
 const eur=n=>(n==null||isNaN(n))?"—":Number(n).toLocaleString("es-ES",{style:"currency",currency:"EUR",maximumFractionDigits:0});
 const eur2=n=>(n==null||isNaN(n))?"—":Number(n).toLocaleString("es-ES",{style:"currency",currency:"EUR"});
 const num=n=>(Number(n)||0).toLocaleString("es-ES");
