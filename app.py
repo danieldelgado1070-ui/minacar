@@ -1214,6 +1214,36 @@ def delete_row(table, row_id):
     conn.close()
 
 
+def _borrar_ficheros_docs(conn, where_sql, params):
+    """Borra del disco los archivos escaneados de los documentos seleccionados."""
+    for r in conn.execute(f"SELECT archivo FROM documentos WHERE {where_sql}", params).fetchall():
+        if r["archivo"]:
+            try:
+                os.remove(os.path.join(DOCS_DIR, r["archivo"]))
+            except OSError:
+                pass
+
+
+def borrar_vehiculo(vid):
+    """Elimina un vehículo y, por CASCADE, todo lo asociado. Limpia también los ficheros del expediente."""
+    conn = get_db()
+    _borrar_ficheros_docs(conn, "vehiculo_id=?", (vid,))
+    conn.execute("DELETE FROM vehiculos WHERE id=?", (vid,))
+    conn.commit()
+    conn.close()
+
+
+def vaciar_stock():
+    """Elimina TODOS los vehículos (y por CASCADE compras, ventas, taller, etc.). Devuelve cuántos había."""
+    conn = get_db()
+    n = conn.execute("SELECT COUNT(*) AS n FROM vehiculos").fetchone()["n"]
+    _borrar_ficheros_docs(conn, "vehiculo_id IS NOT NULL", ())
+    conn.execute("DELETE FROM vehiculos")
+    conn.commit()
+    conn.close()
+    return n
+
+
 # --------------------------------------------------------------------------
 # Consultas de listados (con JOINs y busqueda)
 # --------------------------------------------------------------------------
@@ -2986,6 +3016,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.send_json({"ok": False, "error": f"Error al confirmar: {e}"}, status=400)
             return self.send_json({"ok": True, "numero_factura": num})
 
+        # Vaciar TODO el stock (borrado masivo) — solo administrador
+        if path == "/api/vehiculos/vaciar":
+            if user["rol"] != "admin":
+                return self.send_json({"ok": False, "error": "Solo un administrador puede vaciar todo el stock."}, status=403)
+            try:
+                n = vaciar_stock()
+            except Exception as e:
+                return self.send_json({"ok": False, "error": f"Error al vaciar el stock: {e}"}, status=400)
+            return self.send_json({"ok": True, "borrados": n})
+
         if path == "/api/usuarios":
             if user["rol"] != "admin":
                 return self.send_json({"ok": False, "error": "no autorizado"}, status=403)
@@ -3093,6 +3133,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_json({"ok": False, "error": "No tienes permiso de edición en este módulo (acceso de solo lectura)."}, status=403)
         if table == "documentos":
             borrar_documento(row_id)
+        elif table == "vehiculos":
+            borrar_vehiculo(row_id)
         else:
             delete_row(table, row_id)
         self.send_json({"ok": True})

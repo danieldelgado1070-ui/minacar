@@ -684,7 +684,8 @@ function viewStock(){
   list.sort((a,b)=>{let x=a[stockSort.campo],y=b[stockSort.campo];
     if(typeof x==="string"||typeof y==="string"){x=(x||"").toString().toLowerCase();y=(y||"").toString().toLowerCase();return x<y?-stockSort.dir:x>y?stockSort.dir:0;}
     return ((Number(x)||0)-(Number(y)||0))*stockSort.dir;});
-  const toggle=`<div style="margin-left:auto;display:flex;gap:4px"><button class="chip${stockVista==='cards'?' on':''}" onclick="stockVista='cards';render()">▦ Tarjetas</button><button class="chip${stockVista==='lista'?' on':''}" onclick="stockVista='lista';render()">☰ Lista</button></div>`;
+  const vaciarBtn=(CURRENTUSER&&CURRENTUSER.rol==="admin"&&V.length)?`<button class="btn danger sm" onclick="vaciarStock()" title="Eliminar TODOS los vehículos del stock (solo administrador)">🗑 Vaciar stock</button>`:"";
+  const toggle=`<div style="margin-left:auto;display:flex;gap:6px;align-items:center">${vaciarBtn}<button class="chip${stockVista==='cards'?' on':''}" onclick="stockVista='cards';render()">▦ Tarjetas</button><button class="chip${stockVista==='lista'?' on':''}" onclick="stockVista='lista';render()">☰ Lista</button></div>`;
   const toolbar=`<div class="toolbar">${chips}${toggle}</div>`;
   if(!list.length)return toolbar+`<div class="empty">Sin vehículos${stockFilter!=="Todos"?` en “${stockFilter}”`:""}.</div>`;
   if(stockVista==="lista"){
@@ -694,8 +695,9 @@ function viewStock(){
       <td class="r">${v.anio||""}</td><td class="r">${v.km!=null?num(v.km):""}</td><td>${esc(v.combustible||"")}</td>
       <td>${estadoPill(v.estado)}</td><td>${esc(v.almacen_nombre||"")}</td>
       <td class="r"><b>${v._dias!=null?v._dias:""}</b></td><td>${itvCell(v)}</td>
-      <td class="r">${eur(v._coste)}</td><td class="r">${eur(v._venta?v._venta.precio:v._base)}</td></tr>`).join("");
-    return toolbar+`<div class="tbl-wrap"><table><thead><tr>${th("Matrícula","matricula")}${th("Marca","marca")}${th("Modelo","modelo")}${th("Año","anio",1)}${th("Km","km",1)}${th("Comb.","combustible")}${th("Estado","estado")}${th("Almacén","almacen_nombre")}${th("Días stock","_dias",1)}<th>ITV</th>${th("Coste","_coste",1)}${th("Precio","precio_venta",1)}</tr></thead><tbody>${rows}</tbody></table></div>`;
+      <td class="r">${eur(v._coste)}</td><td class="r">${eur(v._venta?v._venta.precio:v._base)}</td>
+      <td class="r"><button class="btn danger sm" title="Eliminar este vehículo" onclick="event.stopPropagation();delRow('vehiculos',${v.id})">🗑</button></td></tr>`).join("");
+    return toolbar+`<div class="tbl-wrap"><table><thead><tr>${th("Matrícula","matricula")}${th("Marca","marca")}${th("Modelo","modelo")}${th("Año","anio",1)}${th("Km","km",1)}${th("Comb.","combustible")}${th("Estado","estado")}${th("Almacén","almacen_nombre")}${th("Días stock","_dias",1)}<th>ITV</th>${th("Coste","_coste",1)}${th("Precio","precio_venta",1)}<th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
   const cards=list.map(v=>{
     const pos=(v._margen||0)>=0;
@@ -2437,8 +2439,29 @@ async function saveForm(){
 }
 async function delRow(table,id,fromDrawer){
   if(bloqueadoRO(table))return;
-  if(!confirm("¿Eliminar este registro? Esta acción no se puede deshacer."))return;
-  await api(`/api/${table}/${id}`,{method:"DELETE"});toast("Eliminado");if(fromDrawer)closeDrawer();await reloadAll();
+  let msg="¿Eliminar este registro? Esta acción no se puede deshacer.";
+  if(table==="vehiculos"){
+    const v=DATA.vehiculos.find(x=>x.id===id);
+    const n=v?`${v.matricula||""} ${v.marca||""} ${v.modelo||""}`.trim():("#"+id);
+    msg=`¿Eliminar el vehículo ${n}?\n\nSe borrará también TODO lo asociado a este coche: compras, ventas, taller, transporte, gestoría, garantías, postventa y sus documentos escaneados.\n\nEsta acción NO se puede deshacer.`;
+  }
+  if(!confirm(msg))return;
+  const res=await api(`/api/${table}/${id}`,{method:"DELETE"});
+  if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo eliminar"));return;}
+  toast("Eliminado ✔");if(fromDrawer)closeDrawer();await reloadAll();
+}
+async function vaciarStock(){
+  if(!(CURRENTUSER&&CURRENTUSER.rol==="admin")){toast("Solo un administrador puede vaciar el stock");return;}
+  const n=DATA.vehiculos.length;
+  if(!n){toast("No hay vehículos en el stock");return;}
+  if(!confirm(`⚠ VAS A BORRAR TODO EL STOCK (${n} vehículo(s)).\n\nSe eliminarán TODOS los coches y TODO lo asociado (compras, ventas, taller, transporte, gestoría, garantías, postventa y documentos escaneados).\n\nEsta acción NO se puede deshacer. Si no estás seguro, haz antes una copia de seguridad (Ajustes → Copia de seguridad).`))return;
+  const txt=prompt('Para confirmar el borrado total, escribe BORRAR (en mayúsculas):');
+  if(txt!=="BORRAR"){toast("Cancelado — no se escribió BORRAR");return;}
+  const res=await api("/api/vehiculos/vaciar",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+  if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo vaciar el stock"));return;}
+  if(drawer.classList.contains("show"))closeDrawer();
+  toast(`Stock vaciado ✔ · ${res.borrados!=null?res.borrados:n} vehículo(s) eliminados`);
+  await reloadAll();
 }
 
 /* ---------- fotos ---------- */
