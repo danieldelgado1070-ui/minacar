@@ -2428,6 +2428,12 @@ async function saveForm(){
   const miss=sc.fields.filter(f=>f.req&&(data[f.k]==null||data[f.k]===""));
   if(miss.length){toast("Falta: "+miss.map(f=>f.l).join(", "));return;}
   if(table==="leads"&&!(String(data.telefono||"").trim())&&!(String(data.email||"").trim())){toast("Indica al menos un email o un teléfono del contacto");return;}
+  // Aviso de factura de compra duplicada (no bloquea; el usuario decide)
+  if(table==="compras"&&String(data.numero_factura||"").trim()){
+    const num=String(data.numero_factura).trim().toLowerCase();
+    const dup=DATA.compras.find(c=>c.id!==id&&String(c.numero_factura||"").trim().toLowerCase()===num&&(data.prov_id?c.prov_id===data.prov_id:true));
+    if(dup&&!confirm(`⚠ Ya existe una factura de compra con el nº "${data.numero_factura}"${dup.proveedor?` (proveedor: ${dup.proveedor})`:""}.\nCoche: ${(dup.matricula||"")+" "+(dup.marca||"")+" "+(dup.modelo||"")}.\n\n¿Guardarla de todas formas?`))return;
+  }
   const url=id?`/api/${table}/${id}`:`/api/${table}`;
   let res=await api(url,{method:id?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
   if(res&&res.ok===false&&res.puede_forzar){

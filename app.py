@@ -955,15 +955,33 @@ class ReglaNegocio(Exception):
         self.puede_forzar = puede_forzar
 
 
-def siguiente_factura(conn):
-    """Devuelve el siguiente numero de factura correlativo del año en curso,
-    con formato AAAA/NNNN. El contador solo sube (no reutiliza numeros)."""
+# Series de facturación emitida: clave interna -> (prefijo, etiqueta)
+SERIES_FACTURA = {
+    "general":       ("G",   "Venta · régimen general"),
+    "rebu":          ("R",   "Venta · REBU (bienes usados)"),
+    "rectificativa": ("REC", "Factura rectificativa"),
+    "gestoria":      ("GES", "Gestoría"),
+    "garantia":      ("GAR", "Garantía"),
+    "alquiler":      ("ALQ", "Arrendamiento de inmuebles"),
+}
+
+
+def siguiente_numero_serie(conn, serie):
+    """Siguiente número correlativo de una SERIE de facturación concreta,
+    formato PREFIJO-AAAA/NNNN. Cada serie tiene su propio contador anual."""
+    pref = SERIES_FACTURA.get(serie, (serie.upper(),))[0]
     year = date.today().year
-    clave = f"factura:{year}"
+    clave = f"factura:{serie}:{year}"
     conn.execute("INSERT OR IGNORE INTO contadores (clave, valor) VALUES (?, 0)", (clave,))
     conn.execute("UPDATE contadores SET valor = valor + 1 WHERE clave=?", (clave,))
     val = conn.execute("SELECT valor FROM contadores WHERE clave=?", (clave,)).fetchone()["valor"]
-    return f"{year}/{val:04d}"
+    return f"{pref}-{year}/{val:04d}"
+
+
+def siguiente_factura(conn, regimen=None):
+    """Factura de VENTA: elige serie general (G) o REBU (R) según el régimen."""
+    serie = "rebu" if (regimen or "").upper() == "REBU" else "general"
+    return siguiente_numero_serie(conn, serie)
 
 
 def siguiente_proforma(conn):
@@ -986,7 +1004,7 @@ def confirmar_venta(venta_id):
             raise ReglaNegocio("Venta no encontrada.")
         if v["estado_factura"] == "factura":
             raise ReglaNegocio("Esta venta ya está confirmada como factura.")
-        num = v["numero_factura"] if (v["numero_factura"] or "").strip() else siguiente_factura(conn)
+        num = v["numero_factura"] if (v["numero_factura"] or "").strip() else siguiente_factura(conn, v["regimen"])
         conn.execute(
             "UPDATE ventas SET estado_factura='factura', numero_factura=?, fecha=? WHERE id=?",
             (num, date.today().isoformat(), venta_id))
