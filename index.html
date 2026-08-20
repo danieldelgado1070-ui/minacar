@@ -389,7 +389,7 @@ const AREA_LABEL=Object.fromEntries(NAV.map(n=>[n[0],n[1]]));
 const DOC_TIPOS=["Factura proforma","Factura de compra","Pago al proveedor","Hoja de transporte","Albarán de entrega","Ficha técnica","Permiso de circulación","Facturas de reparación/mantenimiento","Garantía comercial","Factura de venta","Justificante de cobro"];
 const BANCOS=["","CaixaBank","Banco Santander","BBVA","Banco Sabadell","Bankinter","Unicaja Banco","Kutxabank","Abanca","Ibercaja","Cajamar","ING","Openbank","EVO Banco","Deutsche Bank","Santander Consumer","Cetelem","Cofidis","Sofinco","Otro"];
 let current="panel", query="", stockFilter="Todos", panelAlmacen="";
-let stockVista="cards", stockSort={campo:"_dias",dir:-1};
+let stockVista="cards", stockSort={campo:"_dias",dir:-1}, stockModo="todos";
 function ordenarStock(campo){if(stockSort.campo===campo)stockSort.dir*=-1;else stockSort={campo,dir:1};render();}
 
 let CURRENTUSER=null;
@@ -490,6 +490,12 @@ function enrich(){
     v._transporte=v._logs.reduce((s,l)=>s+(Number(l.coste)||0),0);
     v._base=base; v._gastos=gastos;
     v._coste=base+gastos+v._reacond+v._transporte;
+    // Stock contable vs físico
+    const vendido=v.estado==="vendido";
+    v._facturaCompra=!!(v._compra&&v._compra.factura_recibida==="Sí");   // factura de compra recibida
+    v._enStockContable=v._facturaCompra&&!vendido;   // norma contable: factura recibida = existencias
+    v._enStockFisico=!!v.recepcionado&&!vendido;      // físico: recepcionado en instalaciones
+    v._valorCompra=base+gastos;                        // valor de adquisición (existencias a coste de compra)
     v._cruz=v._venta?((Number(v._venta.cruz_fin)||0)+(Number(v._venta.cruz_seg)||0)+(Number(v._venta.cruz_gar)||0)):0;
     v._margen=v._venta?(Number(v._venta.precio)||0)-v._coste:null;
     v._resultado=v._venta?v._margen+v._cruz:null;
@@ -687,17 +693,32 @@ function viewPanel(){
 /* ---------- STOCK (cards) ---------- */
 function viewStock(){
   const V=DATA.vehiculos;
+  const ocST=ocultaCostes();
+  // Cifras de stock: físico (recepcionados) vs contable (factura de compra recibida), ambos sin vender
+  const fisicos=V.filter(v=>v._enStockFisico), contables=V.filter(v=>v._enStockContable);
+  const valFisico=fisicos.reduce((s,v)=>s+(v._valorCompra||0),0);
+  const valContable=contables.reduce((s,v)=>s+(v._valorCompra||0),0);
+  const resumen=`<div class="kpis" style="grid-template-columns:repeat(${ocST?1:2},1fr);margin-bottom:14px">
+    <div class="kpi" style="cursor:pointer" onclick="stockModo='fisico';render()"><div class="k-lab">🚗 Stock físico (recepcionados, sin vender)</div><div class="k-val">${fisicos.length}${ocST?"":` <small style="font-size:13px;color:var(--muted)">· ${eur(valFisico)}</small>`}</div></div>
+    ${ocST?"":`<div class="kpi" style="cursor:pointer" onclick="stockModo='contable';render()"><div class="k-lab">📒 Stock contable (factura recibida, sin vender)</div><div class="k-val">${contables.length} <small style="font-size:13px;color:var(--muted)">· ${eur(valContable)}</small></div></div>`}
+  </div>`;
   const counts={Todos:V.length};V.forEach(v=>{const l=estInfo(v.estado).lab;counts[l]=(counts[l]||0)+1;});
   const chipsList=["Todos","Pendiente","En stock","Reservado","Vendido"];
   const chips=chipsList.map(e=>`<button class="chip${stockFilter===e?' on':''}" data-chip="${e}">${e}${counts[e]?`<span class="c-n">${counts[e]}</span>`:""}</button>`).join("");
+  const modoSel=`<select onchange="stockModo=this.value;render()" title="Filtrar por tipo de stock" style="padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:12.5px">
+      <option value="todos"${stockModo==="todos"?" selected":""}>Stock: todos</option>
+      <option value="fisico"${stockModo==="fisico"?" selected":""}>Solo stock físico</option>
+      ${ocST?"":`<option value="contable"${stockModo==="contable"?" selected":""}>Solo stock contable</option>`}
+    </select>`;
   let list=V.filter(v=>stockFilter==="Todos"||estInfo(v.estado).lab===stockFilter)
+            .filter(v=>stockModo==="fisico"?v._enStockFisico:(stockModo==="contable"?v._enStockContable:true))
             .filter(v=>matchQ(v,[v.matricula,v.marca,v.modelo,v.version,v.bastidor,v.anio,v.km,v.color,v.combustible,v.almacen_nombre,v.ubicacion,v.ref_web]));
   list.sort((a,b)=>{let x=a[stockSort.campo],y=b[stockSort.campo];
     if(typeof x==="string"||typeof y==="string"){x=(x||"").toString().toLowerCase();y=(y||"").toString().toLowerCase();return x<y?-stockSort.dir:x>y?stockSort.dir:0;}
     return ((Number(x)||0)-(Number(y)||0))*stockSort.dir;});
   const vaciarBtn=(CURRENTUSER&&CURRENTUSER.rol==="admin"&&V.length)?`<button class="btn danger sm" onclick="vaciarStock()" title="Eliminar TODOS los vehículos del stock (solo administrador)">🗑 Vaciar stock</button>`:"";
   const toggle=`<div style="margin-left:auto;display:flex;gap:6px;align-items:center">${vaciarBtn}<button class="chip${stockVista==='cards'?' on':''}" onclick="stockVista='cards';render()">▦ Tarjetas</button><button class="chip${stockVista==='lista'?' on':''}" onclick="stockVista='lista';render()">☰ Lista</button></div>`;
-  const toolbar=`<div class="toolbar">${chips}${toggle}</div>`;
+  const toolbar=resumen+`<div class="toolbar">${chips}${modoSel}${toggle}</div>`;
   if(!list.length)return toolbar+`<div class="empty">Sin vehículos${stockFilter!=="Todos"?` en “${stockFilter}”`:""}.</div>`;
   const oc=ocultaCostes();
   if(stockVista==="lista"){
