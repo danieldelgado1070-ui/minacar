@@ -699,16 +699,18 @@ function viewStock(){
   const toggle=`<div style="margin-left:auto;display:flex;gap:6px;align-items:center">${vaciarBtn}<button class="chip${stockVista==='cards'?' on':''}" onclick="stockVista='cards';render()">▦ Tarjetas</button><button class="chip${stockVista==='lista'?' on':''}" onclick="stockVista='lista';render()">☰ Lista</button></div>`;
   const toolbar=`<div class="toolbar">${chips}${toggle}</div>`;
   if(!list.length)return toolbar+`<div class="empty">Sin vehículos${stockFilter!=="Todos"?` en “${stockFilter}”`:""}.</div>`;
+  const oc=ocultaCostes();
   if(stockVista==="lista"){
     const th=(lbl,campo,r)=>`<th style="cursor:pointer${r?';text-align:right':''}" onclick="ordenarStock('${campo}')">${lbl}${stockSort.campo===campo?(stockSort.dir>0?' ▲':' ▼'):''}</th>`;
+    const precioCel=v=>oc?(v._venta?eur(v._venta.precio):(v.precio_venta?eur(v.precio_venta):"—")):eur(v._venta?v._venta.precio:v._base);
     const rows=list.map(v=>`<tr data-veh="${v.id}" style="cursor:pointer">
       <td><span class="plate">${esc(v.matricula||"")}</span></td><td>${esc(v.marca||"")}</td><td>${esc(v.modelo||"")}</td>
       <td class="r">${v.anio||""}</td><td class="r">${v.km!=null?num(v.km):""}</td><td>${esc(v.combustible||"")}</td>
       <td>${estadoPill(v.estado)}</td><td>${esc(v.almacen_nombre||"")}</td>
       <td class="r"><b>${v._dias!=null?v._dias:""}</b></td><td>${itvCell(v)}</td>
-      <td class="r">${eur(v._coste)}</td><td class="r">${eur(v._venta?v._venta.precio:v._base)}</td>
+      ${oc?"":`<td class="r">${eur(v._coste)}</td>`}<td class="r">${precioCel(v)}</td>
       <td class="r"><button class="btn danger sm" title="Eliminar este vehículo" onclick="event.stopPropagation();delRow('vehiculos',${v.id})">🗑</button></td></tr>`).join("");
-    return toolbar+`<div class="tbl-wrap"><table><thead><tr>${th("Matrícula","matricula")}${th("Marca","marca")}${th("Modelo","modelo")}${th("Año","anio",1)}${th("Km","km",1)}${th("Comb.","combustible")}${th("Estado","estado")}${th("Almacén","almacen_nombre")}${th("Días stock","_dias",1)}<th>ITV</th>${th("Coste","_coste",1)}${th("Precio","precio_venta",1)}<th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return toolbar+`<div class="tbl-wrap"><table><thead><tr>${th("Matrícula","matricula")}${th("Marca","marca")}${th("Modelo","modelo")}${th("Año","anio",1)}${th("Km","km",1)}${th("Comb.","combustible")}${th("Estado","estado")}${th("Almacén","almacen_nombre")}${th("Días stock","_dias",1)}<th>ITV</th>${oc?"":th("Coste","_coste",1)}${th("Precio","precio_venta",1)}<th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
   const cards=list.map(v=>{
     const pos=(v._margen||0)>=0;
@@ -721,9 +723,9 @@ function viewStock(){
           <span>${svg(IC.road)}${v.km!=null?num(v.km)+" km":"—"}</span>
           <span>${svg(IC.pin)}${esc(v.almacen_nombre||v.ubicacion||"—")}</span></div>
         <div class="vc-stats">
-          <div class="vc-stat"><div class="s-l">Coste</div><div class="s-v">${eur(v._coste)}</div></div>
-          <div class="vc-stat"><div class="s-l">${v._venta?"Precio venta":"Precio compra"}</div><div class="s-v">${eur(v._venta?v._venta.precio:v._base)}</div></div>
-          <div class="vc-stat"><div class="s-l">${v._venta?"Margen":"ITV"}</div>${v._venta?`<div class="s-v ${pos?'pos':'neg'}">${eur(v._margen)}</div>`:`<div class="s-v" style="font-size:12px">${itvCell(v)}</div>`}</div>
+          ${oc?"":`<div class="vc-stat"><div class="s-l">Coste</div><div class="s-v">${eur(v._coste)}</div></div>`}
+          <div class="vc-stat"><div class="s-l">${v._venta?"Precio venta":(oc?"Precio":"Precio compra")}</div><div class="s-v">${oc?(v._venta?eur(v._venta.precio):(v.precio_venta?eur(v.precio_venta):"—")):eur(v._venta?v._venta.precio:v._base)}</div></div>
+          ${oc?`<div class="vc-stat"><div class="s-l">ITV</div><div class="s-v" style="font-size:12px">${itvCell(v)}</div></div>`:`<div class="vc-stat"><div class="s-l">${v._venta?"Margen":"ITV"}</div>${v._venta?`<div class="s-v ${pos?'pos':'neg'}">${eur(v._margen)}</div>`:`<div class="s-v" style="font-size:12px">${itvCell(v)}</div>`}</div>`}
           <div class="vc-stat"><div class="s-l">Días stock</div><div class="s-v">${v._dias!=null?v._dias+" d":"—"}</div></div>
         </div></div></button>`;}).join("");
   return toolbar+`<div class="cards">${cards}</div>`;
@@ -745,6 +747,7 @@ function viewCompras(){
 
 /* ---------- VENTAS ---------- */
 function viewVentas(){
+  const oc=ocultaCostes();
   const rows=DATA.ventas.filter(s=>s.estado_factura==="factura").filter(s=>matchQ(s,[s.matricula,s.marca,s.modelo,s.cliente,s.numero_factura,s.numero_proforma,s.regimen])).map(s=>{
     const margen=(Number(s.precio)||0)-(Number(s.coste)||0);
     const prof=s.estado_factura!=="factura";
@@ -754,12 +757,12 @@ function viewVentas(){
       <td><span class="plate">${esc(s.matricula||"")}</span> ${esc(s.marca||"")} ${esc(s.modelo||"")}</td>
       <td>${esc(s.cliente||"")}</td>
       <td>${s.regimen?`<span class="minipill" style="background:${s.regimen==='REBU'?'var(--res-s)':'var(--accent-soft)'};color:${s.regimen==='REBU'?'var(--res)':'var(--accent)'}">${esc(s.regimen)}</span>`:""}</td>
-      <td class="r">${eur2(s.precio)}</td><td class="r">${s.coste!=null?eur2(s.coste):"—"}</td>
-      <td class="r" style="color:${margen>=0?'var(--ok)':'var(--danger)'};font-weight:700">${eur2(margen)}</td>
+      <td class="r">${eur2(s.precio)}</td>${oc?"":`<td class="r">${s.coste!=null?eur2(s.coste):"—"}</td>
+      <td class="r" style="color:${margen>=0?'var(--ok)':'var(--danger)'};font-weight:700">${eur2(margen)}</td>`}
       <td>${prof?`<button class="btn accent sm" onclick="event.stopPropagation();confirmarFactura(${s.id})">✓ Confirmar factura</button>`:`<button class="btn ghost sm" onclick="event.stopPropagation();factura(${s.id})">🧾</button>`}</td>
       <td class="r"><button class="btn ghost sm" onclick="event.stopPropagation();factura(${s.id})" title="Ver documento">🧾</button> ${docBtn(s.vehiculo_id,'Factura de venta')}<button class="btn ghost sm" onclick="event.stopPropagation();openForm('ventas',${s.id})">✎</button> <button class="btn danger sm" onclick="event.stopPropagation();delRow('ventas',${s.id})">🗑</button></td>
     </tr>`;}).join("");
-  return tableWrap([{t:"Fecha"},{t:"Documento"},{t:"Vehículo"},{t:"Cliente"},{t:"Régimen"},{t:"Precio",r:1},{t:"Coste",r:1},{t:"Margen",r:1},{t:""},{t:"",r:1}],rows);
+  return tableWrap([{t:"Fecha"},{t:"Documento"},{t:"Vehículo"},{t:"Cliente"},{t:"Régimen"},{t:"Precio",r:1}].concat(oc?[]:[{t:"Coste",r:1},{t:"Margen",r:1}]).concat([{t:""},{t:"",r:1}]),rows);
 }
 async function confirmarFactura(id){
   if(bloqueadoRO("ventas"))return;
@@ -959,6 +962,8 @@ function viewTaller(){
 /* ---------- MARKETING / LEADS ---------- */
 let mktF={comercial:"",canal:"",estado:"",veh:""};
 function miComercial(){return (CURRENTUSER&&CURRENTUSER.rol!=="admin"&&CURRENTUSER.comercial_id)?String(CURRENTUSER.comercial_id):"";}
+/* Usuario comercial: se le oculta la trazabilidad económica (coste, compra, proveedor, margen) */
+function ocultaCostes(){return !!(CURRENTUSER&&CURRENTUSER.rol!=="admin"&&CURRENTUSER.comercial_id);}
 function leadsFiltrados(){
   const mc=miComercial();
   return DATA.leads.filter(l=>{
@@ -1817,19 +1822,20 @@ function openDrawer(id){
   const bar=parts.map(p=>`<div style="flex:${p[1]};background:${p[2]}" title="${p[0]} ${eur(p[1])}">${total&&p[1]/total>0.14?eur(p[1]):""}</div>`).join("")||'<div style="flex:1;background:var(--line-2);color:var(--muted)">Sin coste registrado</div>';
   const leg=parts.map(p=>`<div><span class="dot" style="background:${p[2]}"></span>${p[0]}<b>${eur(p[1])}</b></div>`).join("");
   const sold=!!v._venta, pos=(v._margen||0)>=0;
+  const oc=ocultaCostes();
 
   // Orden lógico del ciclo: Compra → Logística → Marketing → Taller → Venta → Postventa
   let tl=[];
   if(v._compra)tl.push(tlItem(IC.cart,"var(--sold)","Compra · "+esc(v._compra.proveedor||"proveedor"),fdate(v._compra.fecha),
     `Factura ${esc(v._compra.numero_factura||"—")} · ${esc(v._compra.regimen||"—")} · precio ${eur(v._compra.precio)}${v._gastos?` · gastos ${eur(v._gastos)}`:""}`,null));
   v._logs.forEach(l=>tl.push(tlItem(IC.truck,l.estado==="Entregado"?"var(--ok)":"var(--info)","Logística · "+esc(l.estado||""),fdate(l.fecha_entrega||l.fecha_recogida),
-    `${esc(l.transportista_nombre||"—")}${l.origen||l.destino?` · ${esc(l.origen||"?")} → ${esc(l.destino||"?")}`:""}${l.coste?` · transporte ${eur(l.coste)}`:""}${l.estado==="Entregado"&&l.ubicacion?` · ubicación <b>${esc(l.ubicacion)}</b>`:""}`,null)));
+    `${esc(l.transportista_nombre||"—")}${l.origen||l.destino?` · ${esc(l.origen||"?")} → ${esc(l.destino||"?")}`:""}${(!oc&&l.coste)?` · transporte ${eur(l.coste)}`:""}${l.estado==="Entregado"&&l.ubicacion?` · ubicación <b>${esc(l.ubicacion)}</b>`:""}`,null)));
   if(v._leads.length)tl.push(tlItem(IC.mega,"var(--accent)","Marketing · "+v._leads.length+" lead(s)","",
     `Interesados captados por canal`,
     v._leads.map(l=>[`${esc(l.nombre||"—")} · ${esc(l.canal||"")}`,fdate(l.fecha),"var(--line-2)","var(--muted)",esc(l.estado||"Nuevo")])));
   if(v._taller.length)tl.push(tlItem(IC.wrench,"var(--res)","Taller · "+v._taller.length+" intervencion(es)","",
-    `Preparación para la venta · total ${eur(v._reacond)}`,
-    v._taller.map(t=>[`${esc(t.tipo||"")} · ${esc(t.descripcion||"")}`,fdate(t.fecha),t.pago==="Pagado"?"var(--ok-s)":"var(--warn-s)",t.pago==="Pagado"?"var(--ok)":"var(--warn)",eur2(t.coste)])));
+    `Preparación para la venta${oc?"":` · total ${eur(v._reacond)}`}`,
+    v._taller.map(t=>[`${esc(t.tipo||"")} · ${esc(t.descripcion||"")}`,fdate(t.fecha),t.pago==="Pagado"?"var(--ok-s)":"var(--warn-s)",t.pago==="Pagado"?"var(--ok)":"var(--warn)",oc?"":eur2(t.coste)])));
   if(sold){const cz=[["Financiación",v._venta.cruz_fin],["Seguro",v._venta.cruz_seg],["Garantía",v._venta.cruz_gar]].filter(x=>Number(x[1])>0);
     tl.push(tlItem(IC.tag,"var(--ok)","Venta",fdate(v._venta.fecha),
     `Cliente <b>${esc(v._venta.cliente||"—")}</b> · ${esc(v._venta.regimen||"General")} · precio ${eur(v._venta.precio)}`,
@@ -1839,8 +1845,8 @@ function openDrawer(id){
     `Movimientos entre ubicaciones`,
     v._traspasos.map(t=>[`${esc(t.origen_nombre||"—")} → ${esc(t.destino_nombre||"—")}`,fdate(t.fecha),"var(--line-2)","var(--muted)",""])));
   if(v._postventa.length)tl.push(tlItem(IC.support,"var(--info)","Postventa · "+v._postventa.length+" actuación(es)","",
-    `Atenciones tras la venta · total ${eur(v._postCoste)}`,
-    v._postventa.map(p=>[`${esc(p.tipo||"")} · ${esc(p.descripcion||"")}`,fdate(p.fecha),p.pago==="Pagado"?"var(--ok-s)":"var(--warn-s)",p.pago==="Pagado"?"var(--ok)":"var(--warn)",eur2(p.coste)])));
+    `Atenciones tras la venta${oc?"":` · total ${eur(v._postCoste)}`}`,
+    v._postventa.map(p=>[`${esc(p.tipo||"")} · ${esc(p.descripcion||"")}`,fdate(p.fecha),p.pago==="Pagado"?"var(--ok-s)":"var(--warn-s)",p.pago==="Pagado"?"var(--ok)":"var(--warn)",oc?"":eur2(p.coste)])));
   if(!tl.length)tl.push(tlItem(IC.car,"var(--muted-2)","Alta del vehículo",fdate(v.creado),"Sin operaciones registradas todavía.",null));
 
   drawer.innerHTML=`
@@ -1867,7 +1873,7 @@ function openDrawer(id){
     </div>
     <div class="dr-body">
       ${datosCard(v)}
-      <div class="card"><div class="card-h"><h3>Coste → ${sold?"margen":"precio compra"}</h3>
+      ${ocultaCostes()?"":`<div class="card"><div class="card-h"><h3>Coste → ${sold?"margen":"precio compra"}</h3>
         ${sold?`<span class="pill" style="background:${pos?'var(--ok-s)':'var(--danger-s)'};color:${pos?'var(--ok)':'var(--danger)'}">${pos?'▲':'▼'} ${eur(v._margen)}</span>`:""}</div>
         <div class="card-b"><div class="costbar">${bar}</div>
           <div class="costlegend">${leg}
@@ -1876,10 +1882,10 @@ function openDrawer(id){
               <div class="tot" style="border:none;padding-top:2px"><span>Margen del vehículo</span><b style="color:${pos?'var(--ok)':'var(--danger)'}">${eur(v._margen)}</b></div>
               ${v._cruz?`<div class="tot" style="border:none;padding-top:2px"><span>+ Venta cruzada</span><b style="color:var(--accent)">${eur(v._cruz)}</b></div>
               <div class="tot"><span>Resultado total</span><b style="color:${v._resultado>=0?'var(--ok)':'var(--danger)'}">${eur(v._resultado)}</b></div>`:""}`:""}
-          </div></div></div>
+          </div></div></div>`}
       <div class="card"><div class="card-h"><h3>Trazabilidad 360</h3><span class="hint">${v._dias!=null?v._dias+" días de ciclo":""}</span></div>
         <div class="card-b"><div class="tl">${tl.join("")}</div></div></div>
-      ${cobrosCard(v)}
+      ${ocultaCostes()?"":cobrosCard(v)}
       ${recepcionCard(v)}
       ${gestoriaCard(v)}
       ${postGarCard(v)}

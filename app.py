@@ -453,6 +453,20 @@ def puede_escribir(user, table):
     return False
 
 
+def es_comercial(user):
+    """Usuario comercial: no admin y vinculado a un comercial. No ve datos de
+    coste/compra/proveedor/margen (trazabilidad económica)."""
+    return bool(user and user.get("rol") != "admin" and user.get("comercial_id"))
+
+
+def _strip_keys(rows, keys):
+    for r in rows:
+        for k in keys:
+            if k in r:
+                r[k] = None
+    return rows
+
+
 def hash_password(password, salt=None):
     if salt is None:
         salt = secrets.token_hex(16)
@@ -2968,11 +2982,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             vid = params.get("extracto_id", [None])[0]
             return self.send_json(list_movimientos(int(vid) if vid else None))
         if path == "/api/vehiculos":
-            return self.send_json(list_vehiculos(params.get("q", [None])[0]))
+            rows = list_vehiculos(params.get("q", [None])[0])
+            if es_comercial(user):
+                _strip_keys(rows, ["precio_compra"])
+            return self.send_json(rows)
         if path == "/api/compras":
+            if es_comercial(user):
+                return self.send_json([])   # los comerciales no ven compras (coste/proveedor)
             return self.send_json(list_compras(params.get("q", [None])[0]))
         if path == "/api/ventas":
-            return self.send_json(list_ventas(params.get("q", [None])[0]))
+            rows = list_ventas(params.get("q", [None])[0])
+            if es_comercial(user):
+                _strip_keys(rows, ["coste"])
+            return self.send_json(rows)
         if path == "/api/logistica":
             return self.send_json(list_logistica(params.get("q", [None])[0]))
         if path == "/api/taller":
