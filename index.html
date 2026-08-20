@@ -378,7 +378,7 @@ const svg=(p,cls="")=>`<svg class="${cls}" viewBox="0 0 24 24" fill="none" strok
 const NAV=[
   ["panel","Panel",IC.panel,"op"],["stock","Stock",IC.car,"op"],["compras","Compras",IC.cart,"op"],["valoracion","Valoración",IC.chart,"op"],
   ["taller","Taller",IC.wrench,"op"],["logistica","Logística",IC.truck,"op"],["marketing","Marketing",IC.mega,"op"],["agenda","Agenda",IC.book,"op"],
-  ["ventas","Ventas",IC.tag,"op"],["proformas","Proformas",IC.stamp,"op"],["tesoreria","Cobros y pagos",IC.euro,"op"],["facturas","Facturas prov.",IC.supplier,"op"],["flexicar","Flexicar",IC.book,"op"],["bancos","Bancos",IC.bank,"op"],["gestoria","Gestoría",IC.stamp,"op"],["garantias","Garantías",IC.shield,"op"],["postventa","Postventa",IC.support,"op"],["documentos","Documentos",IC.folder,"op"],["almacenes","Almacenes",IC.box,"op"],["web","Web",IC.globe,"op"],
+  ["ventas","Ventas",IC.tag,"op"],["proformas","Proformas",IC.stamp,"op"],["facturas_emitidas","Facturas emitidas",IC.stamp,"op"],["tesoreria","Cobros y pagos",IC.euro,"op"],["facturas","Facturas prov.",IC.supplier,"op"],["flexicar","Flexicar",IC.book,"op"],["bancos","Bancos",IC.bank,"op"],["gestoria","Gestoría",IC.stamp,"op"],["garantias","Garantías",IC.shield,"op"],["postventa","Postventa",IC.support,"op"],["documentos","Documentos",IC.folder,"op"],["almacenes","Almacenes",IC.box,"op"],["web","Web",IC.globe,"op"],
   ["clientes","Clientes",IC.users,"dir"],["proveedores","Proveedores",IC.supplier,"dir"],["comerciales","Comerciales",IC.users,"dir"],["transportistas","Transportistas",IC.wheel,"dir"],["gestorias","Gestorías",IC.stamp,"dir"],
   ["itv","ITV",IC.clock,"an"],["informes","Informes",IC.chart,"an"],
   ["usuarios","Usuarios",IC.users,"adm"],
@@ -438,16 +438,16 @@ function go(v){
 const IMPORT_VIEWS={clientes:"clientes",proveedores:"proveedores",transportistas:"transportistas",gestorias:"gestorias",comerciales:"comerciales",stock:"vehiculos"};
 
 /* ---------- datos ---------- */
-let DATA={vehiculos:[],clientes:[],transportistas:[],proveedores:[],comerciales:[],compras:[],ventas:[],logistica:[],taller:[],leads:[],gestoria:[],documentos:[],almacenes:[],traspasos:[],garantias:[],postventa:[],agenda:[],cobros:[],seguimientos:[],extractos:[],movimientos:[],recepciones:[],gestorias:[]};
+let DATA={vehiculos:[],clientes:[],transportistas:[],proveedores:[],comerciales:[],compras:[],ventas:[],logistica:[],taller:[],leads:[],gestoria:[],documentos:[],almacenes:[],traspasos:[],garantias:[],postventa:[],agenda:[],cobros:[],seguimientos:[],extractos:[],movimientos:[],recepciones:[],gestorias:[],facturas_emitidas:[]};
 let listasCache={marca:[],ciudad:[],ubicacion:[]}, modelosActuales=[];
 async function loadAll(){
-  const [veh,cli,tra,prv,com,ven,log,tal,led,ges,doc,alm,tsp,gar,pos,age,cob,cme,seg,ext,mov,rec,gst]=await Promise.all([
+  const [veh,cli,tra,prv,com,ven,log,tal,led,ges,doc,alm,tsp,gar,pos,age,cob,cme,seg,ext,mov,rec,gst,fem]=await Promise.all([
     api("/api/vehiculos"),api("/api/clientes"),api("/api/transportistas"),api("/api/proveedores"),
     api("/api/compras"),api("/api/ventas"),api("/api/logistica"),
     api("/api/taller"),api("/api/leads"),api("/api/gestoria"),api("/api/documentos"),
     api("/api/almacenes"),api("/api/traspasos"),
-    api("/api/garantias"),api("/api/postventa"),api("/api/agenda"),api("/api/cobros"),api("/api/comerciales"),api("/api/seguimientos"),api("/api/extractos"),api("/api/movimientos"),api("/api/recepciones"),api("/api/gestorias")]);
-  DATA={vehiculos:veh,clientes:cli,transportistas:tra,proveedores:prv,compras:com,ventas:ven,logistica:log,taller:tal,leads:led,gestoria:ges,documentos:doc,almacenes:alm,traspasos:tsp,garantias:gar,postventa:pos,agenda:age,cobros:cob,comerciales:cme,seguimientos:seg,extractos:ext,movimientos:mov,recepciones:rec,gestorias:gst||[],usuarios:[]};
+    api("/api/garantias"),api("/api/postventa"),api("/api/agenda"),api("/api/cobros"),api("/api/comerciales"),api("/api/seguimientos"),api("/api/extractos"),api("/api/movimientos"),api("/api/recepciones"),api("/api/gestorias"),api("/api/facturas_emitidas")]);
+  DATA={vehiculos:veh,clientes:cli,transportistas:tra,proveedores:prv,compras:com,ventas:ven,logistica:log,taller:tal,leads:led,gestoria:ges,documentos:doc,almacenes:alm,traspasos:tsp,garantias:gar,postventa:pos,agenda:age,cobros:cob,comerciales:cme,seguimientos:seg,extractos:ext,movimientos:mov,recepciones:rec,gestorias:gst||[],facturas_emitidas:fem||[],usuarios:[]};
   if(CURRENTUSER&&CURRENTUSER.rol==="admin"){try{DATA.usuarios=await api("/api/usuarios")||[];}catch(e){}}
   await cargarListas();
   enrich();
@@ -544,6 +544,7 @@ function render(){
   else if(current==="agenda")views.innerHTML=viewAgenda();
   else if(current==="ventas")views.innerHTML=viewVentas();
   else if(current==="proformas")views.innerHTML=viewProformas();
+  else if(current==="facturas_emitidas")views.innerHTML=viewFacturasEmitidas();
   else if(current==="tesoreria")views.innerHTML=viewTesoreria();
   else if(current==="facturas")views.innerHTML=viewFacturas();
   else if(current==="flexicar")views.innerHTML=viewFlexicar();
@@ -2219,6 +2220,17 @@ const SCHEMAS={
     {k:"etiqueta",l:"Etiqueta medioambiental (DGT)",t:"select",opts:["","0 Emisiones","ECO","C","B","Sin etiqueta"]},
     {k:"fecha_liberacion",l:"Fecha de liberación (Flexicar, opcional)",t:"date"},
     {k:"foto",l:"Fotografía",t:"foto",full:1},{k:"notas",l:"Notas",t:"textarea",full:1}]},
+  facturas_emitidas:{title:"factura emitida",nota:"Factura emitida por MIÑACAR/LYRWIRS. Cada tipo usa su propia serie: Gestoría→GES, Garantía→GAR, Arrendamiento→ALQ, Rectificativa→REC. El número se asigna solo al guardar. El arrendamiento aplica automáticamente el 19% de IRPF.",fields:[
+    {k:"tipo",l:"Tipo de factura",t:"select",opts:["Gestoría","Garantía","Arrendamiento de inmueble","Rectificativa"]},
+    {k:"cliente_id",l:"Cliente",t:"ref-cli"},
+    {k:"vehiculo_id",l:"Vehículo (opcional, para gestoría/garantía)",t:"ref-veh"},
+    {k:"fecha",l:"Fecha",t:"date",def:1},
+    {k:"concepto",l:"Concepto",t:"text",full:1,ph:"Ej.: Tramitación de transferencia · o Garantía comercial 12 meses"},
+    {k:"base",l:"Base imponible (€)",t:"number"},
+    {k:"iva_pct",l:"% IVA",t:"number",dval:21},
+    {k:"irpf_pct",l:"% IRPF (retención; 19 en arrendamientos)",t:"number",dval:0},
+    {k:"rectifica_numero",l:"Rectifica a la factura nº (solo rectificativas)",t:"text"},
+    {k:"notas",l:"Notas",t:"textarea",full:1}]},
   compras:{title:"compra",fields:[
     {k:"vehiculo_id",l:"Vehículo existente (o rellena los datos abajo)",t:"ref-veh",full:1},
     {k:"matricula",l:"Matrícula",t:"text"},{k:"bastidor",l:"Bastidor (VIN)",t:"text"},
@@ -2388,7 +2400,7 @@ async function openForm(table,id=null,prefill=null){
   modelosActuales=record.marca?await api("/api/listas?tipo=modelo&padre="+encodeURIComponent(record.marca)):[];
   $("#modal-title").textContent=(id?"Editar ":"Nuevo/a ")+sc.title;
   $("#modal-body").innerHTML='<div class="row">'+sc.fields.map(f=>{
-    let val=record[f.k];if(val==null&&f.def)val=todayISO();val=val==null?"":String(val);let inner="";
+    let val=record[f.k];if(val==null&&f.def)val=todayISO();if((val==null||val==="")&&f.dval!=null&&!id)val=f.dval;val=val==null?"":String(val);let inner="";
     if(f.t==="foto")inner=`<input type="file" accept="image/*" onchange="onFoto(this)"><input type="hidden" id="f-${f.k}" value="${esc(val)}"><img id="foto-prev" class="foto-prev" src="${esc(val)}" style="display:${val?"block":"none"}">${val?'<button type="button" class="btn ghost sm" style="margin-top:6px" onclick="quitarFoto()">Quitar foto</button>':""}`;
     else if(f.t==="textarea")inner=`<textarea id="f-${f.k}">${esc(val)}</textarea>`;
     else if(f.t==="select")inner=`<select id="f-${f.k}">`+f.opts.map(o=>`<option value="${esc(o)}" ${o===val?"selected":""}>${esc(o||"—")}</option>`).join("")+`</select>`;
@@ -2600,6 +2612,59 @@ async function factura(id){
   <table class="tot">${rebu?`<tr><td>Total (IVA incluido, REBU)</td><td class="n">${eur2(total)}</td></tr><tr class="grand"><td>TOTAL FACTURA</td><td class="n">${eur2(total)}</td></tr>`:`<tr><td>Base imponible</td><td class="n">${eur2(base)}</td></tr><tr><td>IVA (21%)</td><td class="n">${eur2(iva)}</td></tr><tr class="grand"><td>TOTAL FACTURA</td><td class="n">${eur2(total)}</td></tr>`}</table>
   ${cobrosHtml}
   ${rebu?`<div class="legal"><b>Régimen especial de bienes usados (REBU).</b> Operación acogida al régimen especial de bienes usados (arts. 135-139 Ley 37/1992 del IVA). IVA incluido en el precio, sin desglose y sin derecho a deducción por parte del adquirente.</div>`:""}
+  <div class="foot">${EMPRESA.comercial} · ${EMPRESA.razon} · CIF ${EMPRESA.cif} — Factura generada por la aplicación de gestión.</div></body></html>`;
+  const w=window.open("","_blank");if(!w){toast("Permite las ventanas emergentes para ver la factura");return;}
+  w.document.write(html);w.document.close();
+}
+/* ---------- FACTURAS EMITIDAS (gestoría, garantía, arrendamiento, rectificativas) ---------- */
+function feCalc(f){const base=Number(f.base)||0,iva=base*(Number(f.iva_pct)||0)/100,irpf=base*(Number(f.irpf_pct)||0)/100;return {base,iva,irpf,total:base+iva,liquido:base+iva-irpf};}
+function viewFacturasEmitidas(){
+  const arr=DATA.facturas_emitidas.filter(f=>matchQ(f,[f.numero,f.tipo,f.cliente,f.concepto,f.matricula,f.marca,f.modelo,f.rectifica_numero]));
+  const puedeW=puedeEscribirTabla("facturas_emitidas");
+  const col={"Gestoría":"var(--info)","Garantía":"var(--res)","Arrendamiento de inmueble":"var(--accent)","Rectificativa":"var(--danger)"};
+  const rows=arr.map(f=>{const c=feCalc(f);return `<tr>
+      <td><b>${esc(f.numero||"")}</b></td><td>${fdate(f.fecha)}</td>
+      <td><span class="minipill" style="background:var(--line-2);color:${col[f.tipo]||'var(--muted)'}">${esc(f.tipo||"")}</span></td>
+      <td>${esc(f.cliente||"—")}</td>
+      <td>${esc(f.concepto||"")}${f.matricula?` · <span class="plate">${esc(f.matricula)}</span>`:""}${f.rectifica_numero?` <span style="color:var(--muted-2)">(rect. ${esc(f.rectifica_numero)})</span>`:""}</td>
+      <td class="r">${eur2(c.base)}</td><td class="r">${eur2(c.iva)}</td><td class="r">${c.irpf?"−"+eur2(c.irpf):"—"}</td>
+      <td class="r"><b>${eur2(c.total)}</b></td><td class="r">${eur2(c.liquido)}</td>
+      <td class="r"><button class="btn gold sm" onclick="facturaEmitida(${f.id})" title="Imprimir">🧾</button> <button class="btn ghost sm" onclick="openForm('facturas_emitidas',${f.id})">✎</button> <button class="btn danger sm" onclick="delRow('facturas_emitidas',${f.id})">🗑</button></td>
+    </tr>`;}).join("");
+  return `<div class="toolbar" style="margin-bottom:14px"><p style="margin:0;color:var(--muted);font-size:13px;flex:1">Facturas emitidas de <b>gestoría (GES)</b>, <b>garantía (GAR)</b>, <b>arrendamiento de inmuebles (ALQ)</b> y <b>rectificativas (REC)</b>, cada una con su serie. El nº se asigna al guardar. Las de venta de coches se emiten desde Ventas (series G/R).</p>
+      ${puedeW?`<button class="btn gold" onclick="openForm('facturas_emitidas')"><span>+ Nueva factura</span></button>`:""}</div>`
+    +tableWrap([{t:"Nº"},{t:"Fecha"},{t:"Tipo"},{t:"Cliente"},{t:"Concepto"},{t:"Base",r:1},{t:"IVA",r:1},{t:"IRPF",r:1},{t:"Total",r:1},{t:"Líquido",r:1},{t:"",r:1}],rows);
+}
+function facturaEmitida(id){
+  const f=DATA.facturas_emitidas.find(x=>x.id===id);if(!f){toast("No se encontró la factura");return;}
+  const c=feCalc(f),rect=f.tipo==="Rectificativa";
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Factura ${esc(f.numero||"")}</title>
+  <style>*{box-sizing:border-box}body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;margin:0;padding:32px;font-size:13px}
+  .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #d6e021;padding-bottom:16px;margin-bottom:22px}
+  .logo{display:flex;align-items:center;gap:12px}.logo .sq{width:46px;height:46px;background:#d6e021;border-radius:3px;display:flex;align-items:center;justify-content:center}
+  .brand{font-size:26px;font-weight:800;letter-spacing:3px}.brand .c{color:#b9c400}
+  .emisor{font-size:11.5px;color:#333;text-align:right;line-height:1.5}h1{font-size:20px;margin:0 0 4px;letter-spacing:1px}
+  .meta{display:flex;justify-content:space-between;gap:24px;margin-bottom:22px}.box{border:1px solid #ddd;border-radius:8px;padding:12px 14px;flex:1}
+  .box h4{margin:0 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#888}
+  table{width:100%;border-collapse:collapse;margin-bottom:18px}th,td{padding:9px 10px;border-bottom:1px solid #eee;text-align:left}
+  th{background:#fafafa;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#666}td.n,th.n{text-align:right}
+  .tot{width:340px;margin-left:auto}.tot td{border:none;padding:5px 10px}.tot .grand{font-size:16px;font-weight:800;border-top:2px solid #1a1a1a}
+  .foot{margin-top:26px;font-size:10.5px;color:#999;text-align:center}@media print{.noprint{display:none}}
+  .btn{background:#d6e021;border:none;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer}</style></head><body>
+  <div class="noprint" style="margin-bottom:18px"><button class="btn" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button></div>
+  <div class="top"><div class="logo"><div class="sq"><svg width="30" height="30" viewBox="0 0 44 44"><g fill="none" stroke="#1c1c1c" stroke-width="2.2" stroke-linejoin="round"><path d="M7 37 L16 18 L25 37"/><path d="M14 37 L23 12 L32 37"/><path d="M22 37 L30 22 L38 37"/></g></svg></div><div class="brand">MIÑA<span class="c">CAR</span></div></div>
+    <div class="emisor"><b>${EMPRESA.razon}</b><br>${EMPRESA.dir}<br>${EMPRESA.cp} ${EMPRESA.ciudad} (${EMPRESA.prov})<br>CIF: ${EMPRESA.cif}<br><span style="font-size:10px">${EMPRESA.registro}</span></div></div>
+  <h1>${rect?"FACTURA RECTIFICATIVA":"FACTURA"}</h1>
+  ${rect&&f.rectifica_numero?`<div style="margin-bottom:10px;font-size:12px;color:#b00">Rectifica a la factura nº <b>${esc(f.rectifica_numero)}</b></div>`:""}
+  <div class="meta"><div class="box"><h4>Datos de la factura</h4><b>Nº:</b> ${esc(f.numero||"")}<br><b>Fecha:</b> ${esc(fdate(f.fecha))}<br><b>Tipo:</b> ${esc(f.tipo||"")}</div>
+    <div class="box"><h4>Cliente</h4><b>${esc(f.cliente||"—")}</b><br>${f.cliente_nif?("NIF/CIF: "+esc(f.cliente_nif)+"<br>"):""}${f.cliente_direccion?(esc(f.cliente_direccion)+"<br>"):""}${f.cliente_telefono?("Tel: "+esc(f.cliente_telefono)):""}</div></div>
+  <table><thead><tr><th>Concepto</th><th class="n">Base</th><th class="n">IVA</th><th class="n">Importe</th></tr></thead>
+    <tbody><tr><td>${esc(f.concepto||f.tipo||"")}${f.matricula?` · ${esc(f.matricula)} ${esc(f.marca||"")} ${esc(f.modelo||"")}`:""}</td><td class="n">${eur2(c.base)}</td><td class="n">${esc(String(f.iva_pct||0))}%</td><td class="n">${eur2(c.base+c.iva)}</td></tr></tbody></table>
+  <table class="tot"><tr><td>Base imponible</td><td class="n">${eur2(c.base)}</td></tr>
+    <tr><td>IVA (${esc(String(f.iva_pct||0))}%)</td><td class="n">${eur2(c.iva)}</td></tr>
+    ${c.irpf?`<tr><td>Retención IRPF (${esc(String(f.irpf_pct||0))}%)</td><td class="n">−${eur2(c.irpf)}</td></tr>`:""}
+    <tr class="grand"><td>${c.irpf?"LÍQUIDO A PERCIBIR":"TOTAL FACTURA"}</td><td class="n">${eur2(c.liquido)}</td></tr>
+    ${c.irpf?`<tr><td style="color:#888;font-size:11px">Total factura (IVA incl.)</td><td class="n" style="color:#888;font-size:11px">${eur2(c.total)}</td></tr>`:""}</table>
   <div class="foot">${EMPRESA.comercial} · ${EMPRESA.razon} · CIF ${EMPRESA.cif} — Factura generada por la aplicación de gestión.</div></body></html>`;
   const w=window.open("","_blank");if(!w){toast("Permite las ventanas emergentes para ver la factura");return;}
   w.document.write(html);w.document.close();

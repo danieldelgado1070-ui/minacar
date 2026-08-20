@@ -136,6 +136,24 @@ def init_db():
             creado       TEXT DEFAULT (datetime('now','localtime'))
         );
 
+        CREATE TABLE IF NOT EXISTS facturas_emitidas (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            serie       TEXT,
+            tipo        TEXT,
+            numero      TEXT,
+            fecha       TEXT,
+            cliente_id  INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+            vehiculo_id INTEGER REFERENCES vehiculos(id) ON DELETE SET NULL,
+            venta_id    INTEGER REFERENCES ventas(id) ON DELETE SET NULL,
+            concepto    TEXT,
+            base        REAL DEFAULT 0,
+            iva_pct     REAL DEFAULT 21,
+            irpf_pct    REAL DEFAULT 0,
+            rectifica_numero TEXT,
+            notas       TEXT,
+            creado      TEXT DEFAULT (datetime('now','localtime'))
+        );
+
         CREATE TABLE IF NOT EXISTS compras (
             id             INTEGER PRIMARY KEY AUTOINCREMENT,
             vehiculo_id    INTEGER REFERENCES vehiculos(id) ON DELETE CASCADE,
@@ -414,6 +432,7 @@ TABLE_AREA = {
     "comerciales": "comerciales", "transportistas": "transportistas",
     "extractos": "bancos", "movimientos": "bancos",
     "recepciones": "logistica", "gestorias": "gestoria",
+    "facturas_emitidas": "ventas",
 }
 
 
@@ -901,6 +920,9 @@ FIELDS = {
     "agenda": ["vehiculo_id", "fecha", "tipo", "asunto", "detalle",
                "cerrado", "motivo_cierre", "notas"],
     "cobros": ["venta_id", "fecha", "medio", "importe", "banco", "cuenta", "veh_cambio_id", "notas"],
+    "facturas_emitidas": ["serie", "tipo", "numero", "fecha", "cliente_id", "vehiculo_id",
+                          "venta_id", "concepto", "base", "iva_pct", "irpf_pct",
+                          "rectifica_numero", "notas"],
     "taller": ["vehiculo_id", "tipo", "descripcion", "proveedor", "prov_id", "fecha",
                "coste", "pago", "fecha_pago_est",
                "numero_factura", "nif_proveedor", "iva_pct",
@@ -1115,11 +1137,26 @@ def list_recepciones(q=None):
     return rows_to_list(rows)
 
 
+TIPO_A_SERIE = {
+    "Gestoría": "gestoria", "Garantía": "garantia",
+    "Arrendamiento de inmueble": "alquiler", "Rectificativa": "rectificativa",
+}
+
+
 def insert_row(table, data):
     conn = get_db()
     try:
         if table == "compras":
             _ensure_vehiculo(conn, data)
+
+        # Factura emitida (gestoría/garantía/alquiler/rectificativa): serie, nº correlativo e IRPF
+        if table == "facturas_emitidas":
+            serie = data.get("serie") or TIPO_A_SERIE.get(data.get("tipo") or "", "gestoria")
+            data["serie"] = serie
+            if serie == "alquiler":
+                data["irpf_pct"] = 19   # arrendamiento de inmueble urbano: retención IRPF 19%
+            if not str(data.get("numero") or "").strip():
+                data["numero"] = siguiente_numero_serie(conn, serie)
 
         # Trazabilidad: no registrar cargos/gestiones sobre un coche NO recepcionado
         if table in ("taller", "postventa") and data.get("vehiculo_id"):
@@ -1469,6 +1506,20 @@ def list_cobros(q=None):
            FROM cobros c
            LEFT JOIN vehiculos vc ON vc.id = c.veh_cambio_id
            ORDER BY c.fecha, c.id""").fetchall()
+    conn.close()
+    return rows_to_list(rows)
+
+
+def list_facturas_emitidas(q=None):
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT f.*, cl.nombre AS cliente, cl.nif AS cliente_nif,
+                  cl.direccion AS cliente_direccion, cl.telefono AS cliente_telefono,
+                  v.matricula, v.marca, v.modelo
+           FROM facturas_emitidas f
+           LEFT JOIN clientes cl ON cl.id = f.cliente_id
+           LEFT JOIN vehiculos v ON v.id = f.vehiculo_id
+           ORDER BY f.fecha DESC, f.id DESC""").fetchall()
     conn.close()
     return rows_to_list(rows)
 
@@ -2907,6 +2958,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_json(list_agenda(params.get("q", [None])[0]))
         if path == "/api/cobros":
             return self.send_json(list_cobros(params.get("q", [None])[0]))
+        if path == "/api/facturas_emitidas":
+            return self.send_json(list_facturas_emitidas(params.get("q", [None])[0]))
         if path == "/api/seguimientos":
             return self.send_json(list_seguimientos(params.get("q", [None])[0]))
         if path == "/api/extractos":
@@ -3236,7 +3289,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "leads", "gestoria", "documentos", "almacenes", "traspasos",
                     "garantias", "postventa", "agenda", "cobros",
                     "seguimientos", "extractos", "movimientos", "listas",
-                    "recepciones", "gestorias"}
+                    "recepciones", "gestorias", "facturas_emitidas"}
 
     def _table_from_path(self):
         parts = urlparse(self.path).path.strip("/").split("/")
