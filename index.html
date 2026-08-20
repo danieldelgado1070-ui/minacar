@@ -1612,14 +1612,24 @@ function viewPostventa(){
       <td>${p.pago==="Pagado"?estadoDot("var(--ok)","Pagado"):estadoDot("var(--warn)","Pendiente")}</td>
       <td class="r"><button class="btn ghost sm" onclick="openForm('postventa',${p.id})">✎</button> ${docBtn(p.vehiculo_id,'Documento de postventa')}<button class="btn danger sm" onclick="delRow('postventa',${p.id})">🗑</button></td>
     </tr>`).join("");
+  const hoy=todayISO();
   const ageItems=age.map(a=>{
     const docs=DATA.documentos.filter(d=>d.agenda_id===a.id);
     const col=AG_COL[a.tipo]||"var(--muted)";
+    const segs=segsDe("agenda",a.id), u=segs[segs.length-1]||null;
+    const resp=a.responsable||(u&&u.comercial_id?((DATA.comerciales.find(c=>c.id===u.comercial_id)||{}).nombre||""):"");
+    const prox=u?u.proxima_fecha:null;
+    let proxTxt="";
+    if(prox){const c=prox<hoy?"var(--danger)":(prox===hoy?"var(--warn)":"var(--muted)");proxTxt=`<span class="minipill" style="background:var(--line-2);color:${c}">📅 próxima ${prox<hoy?fdate(prox)+" ⚠":(prox===hoy?"HOY":fdate(prox))}</span>`;}
     const docHtml=docs.map(d=>`<a href="/doc/${d.id}" target="_blank" class="minipill" style="background:var(--ok-s);color:var(--ok);text-decoration:none">📎 ${esc(d.tipo||"doc")}</a><button class="btn danger sm" style="padding:1px 5px;margin-left:2px" onclick="quitarDoc(${d.id})">✕</button>`).join(" ");
     return `<div class="tl-item"><div class="tl-ic" style="background:${col}">${svg(IC.book)}</div>
       <div class="tl-c"><div class="t-t"><b>${esc(a.tipo||"Anotación")}${a.asunto?" · "+esc(a.asunto):""} <span class="plate" style="font-weight:600;color:var(--muted)">${esc(a.matricula||"")}</span></b><span class="t-date">${fdate(a.fecha)}</span></div>
         <div class="t-d">${esc(a.detalle||"")}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:4px 0">${resp?`<span class="minipill" style="background:var(--accent-soft);color:var(--accent)">👤 ${esc(resp)}</span>`:""}${proxTxt}${segs.length?`<span style="font-size:11.5px;color:var(--muted-2)">${segs.length} gestión(es)</span>`:""}</div>
         <div class="t-rows" style="flex-direction:row;flex-wrap:wrap;gap:6px;align-items:center">${docHtml}
+          <button class="btn accent sm" onclick="openGestionForm('agenda',${a.id})">📝 Gestión</button>
+          <button class="btn ghost sm" onclick="verHistorial('agenda',${a.id})" title="Historial de gestiones">📋</button>
+          <button class="btn ghost sm" onclick="traspasarGestion('agenda',${a.id})" title="Traspasar responsable">🔄</button>
           <button class="btn ghost sm" onclick="adjuntarAgendaDoc(${a.vehiculo_id},${a.id})">📎 Adjuntar prueba</button>
           <button class="btn ghost sm" onclick="openForm('agenda',${a.id})">✎</button>
           <button class="btn danger sm" onclick="delRow('agenda',${a.id})">🗑</button></div>
@@ -1662,7 +1672,9 @@ function itemsAgenda(){
   DATA.leads.filter(l=>!l.cerrado).forEach(l=>{const segs=segsDe("lead",l.id),u=segs[segs.length-1]||null;
     items.push({ambito:"lead",id:l.id,tipoLbl:"Lead",veh:`${esc(l.matricula||"")} ${esc(l.marca||"")} ${esc(l.modelo||"")}`,quien:l.nombre,extra:l.canal,estado:l.estado,comercial_id:l.comercial_id||(u&&u.comercial_id),comercial:l.comercial,segs,ultima:u,proxima:u?u.proxima_fecha:null});});
   DATA.agenda.filter(a=>!a.cerrado).forEach(a=>{const segs=segsDe("agenda",a.id),u=segs[segs.length-1]||null;
-    items.push({ambito:"agenda",id:a.id,tipoLbl:"Postventa",veh:`${esc(a.matricula||"")} ${esc(a.marca||"")} ${esc(a.modelo||"")}`,quien:a.asunto||a.tipo,extra:a.tipo,estado:"",comercial_id:u&&u.comercial_id,comercial:u&&u.comercial,segs,ultima:u,proxima:u?u.proxima_fecha:null});});
+    const rid=a.responsable_id||(u&&u.comercial_id)||null;
+    const rnombre=a.responsable||(rid?((DATA.comerciales.find(c=>c.id===rid)||{}).nombre||""):"");
+    items.push({ambito:"agenda",id:a.id,tipoLbl:"Postventa",veh:`${esc(a.matricula||"")} ${esc(a.marca||"")} ${esc(a.modelo||"")}`,quien:a.asunto||a.tipo,extra:a.tipo,estado:"",comercial_id:rid,comercial:rnombre,segs,ultima:u,proxima:u?u.proxima_fecha:null});});
   return items;
 }
 function viewAgenda(){
@@ -1683,7 +1695,8 @@ function viewAgenda(){
       <td style="max-width:220px;white-space:normal;color:var(--muted);font-size:12px">${i.ultima?esc((i.ultima.detalle||"").slice(0,90)):"—"}</td>
       <td style="color:${pcol};font-weight:700">${ptxt}</td>
       <td class="r"><button class="btn accent sm" onclick="openGestionForm('${i.ambito}',${i.id})">📝 Gestión</button>
-        <button class="btn ghost sm" onclick="verHistorial('${i.ambito}',${i.id})">📋</button>
+        <button class="btn ghost sm" onclick="verHistorial('${i.ambito}',${i.id})" title="Historial de gestiones">📋</button>
+        <button class="btn ghost sm" onclick="traspasarGestion('${i.ambito}',${i.id})" title="Traspasar a otro responsable">🔄</button>
         <button class="btn danger sm" onclick="cerrarGestion('${i.ambito}',${i.id})">✖ Cerrar</button></td>
     </tr>`;}).join("");
   const mc=miComercial();
@@ -1694,7 +1707,7 @@ function viewAgenda(){
   return `<div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">${kpi("Gestiones abiertas",items.length)}${kpi("Vencidas",vencidas,vencidas?"var(--danger)":"var(--ink)")}${kpi("Para hoy",hoyN,hoyN?"var(--warn)":"var(--ink)")}</div>
     ${toolbar}
     <p style="color:var(--muted);margin:0 0 12px;font-size:12.5px">Cada gestión se anota con lo hablado y la <b>próxima fecha</b>, hasta que se cierra (con motivo). Ordenadas por próxima gestión: <span style="color:var(--danger)">vencidas</span> y <span style="color:var(--warn)">de hoy</span> primero.</p>`
-    +tableWrap([{t:"Tipo"},{t:"Vehículo"},{t:"Contacto / asunto"},{t:"Comercial"},{t:"Última gestión"},{t:"Próxima"},{t:"",r:1}],rows);
+    +tableWrap([{t:"Tipo"},{t:"Vehículo"},{t:"Contacto / asunto"},{t:"Responsable"},{t:"Última gestión"},{t:"Próxima"},{t:"",r:1}],rows);
 }
 function openGestionForm(ambito,id){
   const it=itemsAgenda().find(x=>x.ambito===ambito&&x.id===id)||{};
@@ -1702,7 +1715,7 @@ function openGestionForm(ambito,id){
   $("#modal-title").textContent="Registrar gestión";
   $("#modal-body").innerHTML=`<div class="row">
     <div class="field" style="flex:1 1 45%"><label>Fecha</label><input type="date" id="g-fecha" value="${todayISO()}"></div>
-    <div class="field" style="flex:1 1 45%"><label>Comercial</label><select id="g-com"><option value="">—</option>${DATA.comerciales.map(c=>`<option value="${c.id}" ${String(it.comercial_id||"")===String(c.id)?"selected":""}>${esc(c.nombre)}</option>`).join("")}</select></div>
+    <div class="field" style="flex:1 1 45%"><label>Responsable</label><select id="g-com"><option value="">—</option>${DATA.comerciales.map(c=>`<option value="${c.id}" ${String(it.comercial_id||"")===String(c.id)?"selected":""}>${esc(c.nombre)}</option>`).join("")}</select></div>
     <div class="field" style="flex:1 1 100%"><label>¿Con quién se ha hablado?</label><input id="g-contacto" value="${esc(it.quien||"")}"></div>
     <div class="field" style="flex:1 1 100%"><label>Qué se ha hecho / en qué se ha quedado</label><textarea id="g-detalle"></textarea></div>
     <div class="field" style="flex:1 1 100%"><label>Fecha de la próxima gestión</label><input type="date" id="g-proxima"></div>
@@ -1733,6 +1746,33 @@ async function cerrarGestion(ambito,id){
   const res=await api(`/api/${tabla}/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({cerrado:1,motivo_cierre:m})});
   if(res&&res.ok===false){toast("⚠ "+res.error);return;}
   toast("Gestión cerrada ✔");await reloadAll();
+}
+/* Traspaso de responsable: reasigna la gestión a otro comercial y lo deja en el histórico */
+function traspasarGestion(ambito,id){
+  const it=itemsAgenda().find(x=>x.ambito===ambito&&x.id===id)||{};
+  currentForm={table:"__traspaso",id,ambito,actual:it.comercial||"—"};
+  $("#modal-title").textContent="Traspasar responsable de la gestión";
+  $("#modal-body").innerHTML=`<div class="row">
+    <div class="field" style="flex:1 1 100%"><label>Responsable actual</label><input value="${esc(it.comercial||"—")}" disabled></div>
+    <div class="field" style="flex:1 1 100%"><label>Nuevo responsable</label><select id="tr-com"><option value="">— seleccionar —</option>${DATA.comerciales.map(c=>`<option value="${c.id}" ${String(it.comercial_id||"")===String(c.id)?"disabled":""}>${esc(c.nombre)}</option>`).join("")}</select></div>
+    <div class="field" style="flex:1 1 100%"><label>Motivo del traspaso</label><input id="tr-motivo" placeholder="Ej.: reparto de cartera, ausencia, especialización…"></div>
+  </div>`;
+  document.querySelector(".modal .actions button.accent").setAttribute("onclick","saveTraspaso()");
+  $("#modal-bg").classList.add("open");
+}
+async function saveTraspaso(){
+  const {ambito,id,actual}=currentForm;
+  const nuevo=$("#tr-com").value, motivo=($("#tr-motivo").value||"").trim();
+  if(!nuevo){toast("Elige el nuevo responsable");return;}
+  if(!motivo){toast("Indica el motivo del traspaso");return;}
+  const nombreNuevo=(DATA.comerciales.find(c=>c.id===Number(nuevo))||{}).nombre||"";
+  let res;
+  if(ambito==="lead") res=await api(`/api/leads/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({comercial_id:Number(nuevo),motivo_cambio:motivo})});
+  else res=await api(`/api/agenda/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({responsable_id:Number(nuevo)})});
+  if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo traspasar"));return;}
+  await api("/api/seguimientos",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ambito,ref_id:id,fecha:todayISO(),contacto:"Traspaso de responsable",detalle:`Traspaso de «${actual}» a «${nombreNuevo}». Motivo: ${motivo}`,comercial_id:Number(nuevo)})});
+  document.querySelector(".modal .actions button.accent").setAttribute("onclick","saveForm()");
+  closeModal();toast("Gestión traspasada a "+nombreNuevo+" ✔");await reloadAll();
 }
 
 /* ---------- CLIENTES / TRANSPORTISTAS ---------- */
@@ -2371,6 +2411,7 @@ const SCHEMAS={
     {k:"vehiculo_id",l:"Vehículo",t:"ref-veh",req:1,full:1},
     {k:"fecha",l:"Fecha",t:"date",def:1},
     {k:"tipo",l:"Tipo",t:"select",opts:["Reclamación","Comunicación","Llamada","Email","Burofax","Visita","Peritaje","Otro"]},
+    {k:"responsable_id",l:"Responsable",t:"ref-comercial"},
     {k:"asunto",l:"Asunto",t:"text",full:1},
     {k:"detalle",l:"Detalle de lo ocurrido / comunicado",t:"textarea",full:1},
     {k:"notas",l:"Notas internas",t:"textarea",full:1}]},

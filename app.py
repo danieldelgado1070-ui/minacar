@@ -312,6 +312,7 @@ def init_db():
             tipo        TEXT,
             asunto      TEXT,
             detalle     TEXT,
+            responsable_id INTEGER,
             notas       TEXT,
             creado      TEXT DEFAULT (datetime('now','localtime'))
         );
@@ -743,6 +744,8 @@ def migrate(conn):
         if has_table("cobros"):
             add("cobros", "banco TEXT")
             add("cobros", "cuenta TEXT")
+        if has_table("agenda"):
+            add("agenda", "responsable_id INTEGER")   # responsable de la gestión (comercial)
         conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS gestorias (
@@ -932,7 +935,7 @@ FIELDS = {
                   "numero_factura", "nif_proveedor", "iva_pct",
                   "factura_recibida", "fecha_factura", "notas"],
     "agenda": ["vehiculo_id", "fecha", "tipo", "asunto", "detalle",
-               "cerrado", "motivo_cierre", "notas"],
+               "responsable_id", "cerrado", "motivo_cierre", "notas"],
     "cobros": ["venta_id", "fecha", "medio", "importe", "banco", "cuenta", "veh_cambio_id", "notas"],
     "facturas_emitidas": ["serie", "tipo", "numero", "fecha", "cliente_id", "vehiculo_id",
                           "venta_id", "concepto", "base", "iva_pct", "irpf_pct",
@@ -1496,8 +1499,9 @@ def list_seguimientos(q=None):
 def list_agenda(q=None):
     conn = get_db()
     base = """
-        SELECT a.*, v.matricula, v.marca, v.modelo
+        SELECT a.*, v.matricula, v.marca, v.modelo, co.nombre AS responsable
         FROM agenda a LEFT JOIN vehiculos v ON v.id = a.vehiculo_id
+        LEFT JOIN comerciales co ON co.id = a.responsable_id
     """
     if q:
         like = f"%{q}%"
