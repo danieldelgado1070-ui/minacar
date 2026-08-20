@@ -689,7 +689,7 @@ function viewStock(){
   const chipsList=["Todos","Pendiente","En stock","Reservado","Vendido"];
   const chips=chipsList.map(e=>`<button class="chip${stockFilter===e?' on':''}" data-chip="${e}">${e}${counts[e]?`<span class="c-n">${counts[e]}</span>`:""}</button>`).join("");
   let list=V.filter(v=>stockFilter==="Todos"||estInfo(v.estado).lab===stockFilter)
-            .filter(v=>matchQ(v,[v.matricula,v.marca,v.modelo,v.color,v.combustible,v.ref_web]));
+            .filter(v=>matchQ(v,[v.matricula,v.marca,v.modelo,v.version,v.bastidor,v.anio,v.km,v.color,v.combustible,v.almacen_nombre,v.ubicacion,v.ref_web]));
   list.sort((a,b)=>{let x=a[stockSort.campo],y=b[stockSort.campo];
     if(typeof x==="string"||typeof y==="string"){x=(x||"").toString().toLowerCase();y=(y||"").toString().toLowerCase();return x<y?-stockSort.dir:x>y?stockSort.dir:0;}
     return ((Number(x)||0)-(Number(y)||0))*stockSort.dir;});
@@ -868,6 +868,13 @@ function abrirRecepcion(vid){
         <select id="rc-alm" onchange="onRecAlm(this)"><option value="">— sin asignar —</option>${almOpts}<option value="__new__">➕ Nuevo almacén…</option></select></div>
       <div class="field" style="flex:1 1 100%"><label>Localización / departamento (posición en el almacén, taller, exposición…)</label><input id="rc-ubi" placeholder="Ej.: Nave 1 · plaza 12, o Taller"></div>
     </div>
+    <div class="field" style="margin-top:4px;background:var(--line-2);border-radius:10px;padding:9px 12px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="rc-luz-chk" onchange="onRecLuz()"> He <b>verificado la luz testigo de fallo de motor</b> (check engine) en el cuadro</label>
+      <div id="rc-luz-box" style="display:none;margin-top:8px">
+        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;margin-right:16px"><input type="radio" name="rc-luz" value="apagada" checked> 🟢 Apagada (correcto)</label>
+        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="rc-luz" value="encendida"> 🔴 Encendida (posible avería)</label>
+      </div>
+    </div>
     <div class="field" style="margin-top:4px"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="rc-desp" onchange="onRecDesp()"> El coche <b>tiene desperfectos</b></label></div>
     <div id="rc-desp-box" style="display:none">
       <div style="font-size:12.5px;color:var(--muted);margin:4px 0 8px">Haz clic sobre el dibujo para marcar con una <b>✕</b> dónde están los daños (vista desde arriba). Pulsa una marca para quitarla.</div>
@@ -880,6 +887,7 @@ function abrirRecepcion(vid){
   $("#modal-bg").classList.add("open");
 }
 function onRecDesp(){$("#rc-desp-box").style.display=$("#rc-desp").checked?"block":"none";}
+function onRecLuz(){$("#rc-luz-box").style.display=$("#rc-luz-chk").checked?"block":"none";}
 function recDiagClick(ev){
   if(ev.target.classList&&ev.target.classList.contains("rc-mark"))return;
   const box=$("#rc-diagram"),r=box.getBoundingClientRect();
@@ -907,10 +915,12 @@ async function onRecAlm(sel){
 }
 async function guardarRecepcion(){
   const vid=currentForm.id,tiene=$("#rc-desp").checked,alm=$("#rc-alm").value;
+  const luzChk=$("#rc-luz-chk").checked;
+  const luz=luzChk?((document.querySelector('input[name="rc-luz"]:checked')||{}).value||"apagada"):"";
   const payload={vehiculo_id:vid,fecha:$("#rc-fecha").value||todayISO(),responsable:$("#rc-resp").value.trim(),
     almacen_id:alm&&alm!=="__new__"?Number(alm):null,ubicacion:$("#rc-ubi").value.trim(),
     tiene_desperfectos:tiene?1:0,desperfectos:tiene?$("#rc-desptxt").value.trim():"",
-    marcas:tiene?JSON.stringify(recMarcas):"",notas:$("#rc-notas").value.trim()};
+    marcas:tiene?JSON.stringify(recMarcas):"",luz_motor:luz,notas:$("#rc-notas").value.trim()};
   let res=await api("/api/recepciones",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
   if(res&&res.ok===false&&res.puede_forzar){
     const motivo=(prompt("⚠ "+res.error+"\n\nSi el vehículo NO necesita transporte, escribe el motivo para continuar:")||"").trim();
@@ -1835,10 +1845,11 @@ function openDrawer(id){
     <div class="dr-head">
       <button class="close" onclick="closeDrawer()">${svg('<path d="M6 6l12 12M18 6L6 18" stroke-linecap="round"/>')}</button>
       <div class="d-plate">${esc(v.matricula||"—")}</div>
-      <h2>${esc(v.marca||"")} ${esc(v.modelo||"")}</h2>
+      <h2>${esc(v.marca||"")} ${esc(v.modelo||"")}${v.version?` <span style="font-weight:600;color:var(--muted)">${esc(v.version)}</span>`:""}</h2>
       <div class="d-sub"><span>${v.anio?esc(v.anio):""}</span><span>${v.km!=null?num(v.km)+" km":""}</span><span>${esc(v.combustible||"")}</span><span>${esc(v.color||"")}</span>${v.bastidor?`<span>VIN ${esc(v.bastidor)}</span>`:""}</div>
       <div style="margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${estadoPill(v.estado)}
         ${v.etiqueta?`<span title="Etiqueta DGT: ${esc(v.etiqueta)}" style="display:inline-flex">${etiquetaSVG(v.etiqueta,30)}</span>`:""}
+        ${v.luz_motor==="encendida"?'<span class="minipill" style="background:var(--danger-s);color:var(--danger)" title="En la recepción se verificó la luz testigo de fallo de motor y estaba ENCENDIDA">🔴 Luz motor encendida</span>':(v.luz_motor==="apagada"?'<span class="minipill" style="background:var(--ok-s);color:var(--ok)" title="Luz testigo de fallo de motor verificada: apagada">🟢 Luz motor OK</span>':"")}
         ${!v.recepcionado?'<span class="minipill" style="background:var(--warn-s);color:var(--warn)">⚠ No recepcionado</span>':""}
         ${v.estado==="reservado"&&v.reserva_cliente_id?`<span class="minipill" style="background:var(--res-s);color:var(--res)">Reservado: ${esc((DATA.clientes.find(c=>c.id===v.reserva_cliente_id)||{}).nombre||"")}</span>`:""}
         ${v.ubicacion?`<span class="minipill" style="background:var(--line-2);color:var(--muted)">📍 ${esc(v.ubicacion)}</span>`:""}${v.ref_web?webCell(v):""}</div>
@@ -2183,6 +2194,7 @@ const SCHEMAS={
   vehiculos:{title:"vehículo",nota:"El estado, el almacén/posición, la próxima revisión de ITV y la referencia web se gestionan en sus propias pantallas (Logística/Recepción, Almacenes, ITV y la ficha 360). Aquí solo los datos propios del coche.",fields:[
     {k:"matricula",l:"Matrícula",t:"text"},{k:"bastidor",l:"Bastidor (VIN)",t:"text"},
     {k:"marca",l:"Marca",t:"marca"},{k:"modelo",l:"Modelo",t:"modelo"},
+    {k:"version",l:"Versión / acabado",t:"text",ph:"Ej.: 1.5 TSI 150 CV Style DSG"},
     {k:"anio",l:"Año",t:"number"},{k:"km",l:"Kilómetros",t:"number"},{k:"color",l:"Color",t:"text"},
     {k:"combustible",l:"Combustible",t:"select",opts:["","Gasolina","Diésel","Híbrido","Eléctrico","GLP","GNC"]},
     {k:"itv_pasada",l:"¿ITV pasada?",t:"select",opts:["","Sí","No"]},{k:"itv_expira",l:"Caducidad ITV",t:"date"},
@@ -2193,6 +2205,7 @@ const SCHEMAS={
     {k:"vehiculo_id",l:"Vehículo existente (o rellena los datos abajo)",t:"ref-veh",full:1},
     {k:"matricula",l:"Matrícula",t:"text"},{k:"bastidor",l:"Bastidor (VIN)",t:"text"},
     {k:"marca",l:"Marca",t:"marca"},{k:"modelo",l:"Modelo",t:"modelo"},
+    {k:"version",l:"Versión / acabado",t:"text",ph:"Ej.: 1.5 TSI 150 CV Style DSG"},
     {k:"numero_factura",l:"Nº factura",t:"text"},{k:"prov_id",l:"Proveedor",t:"ref-prov"},
     {k:"regimen",l:"Régimen",t:"select",opts:["General","REBU"]},{k:"fecha",l:"Fecha",t:"date",def:1},
     {k:"precio",l:"Precio compra (€)",t:"number"},{k:"gastos",l:"Gastos (€)",t:"number"},
@@ -2376,7 +2389,7 @@ async function openForm(table,id=null,prefill=null){
     else if(f.t==="veh-transporte"){const st=DATA.vehiculos.filter(v=>(v.estado!=="disponible"&&v.estado!=="vendido")||String(v.id)===val);inner=`<select id="f-${f.k}"><option value="">— seleccionar —</option>`+st.map(v=>`<option value="${v.id}" ${String(v.id)===val?"selected":""}>${esc(v.matricula||"")} · ${esc(v.marca||"")} ${esc(v.modelo||"")}</option>`).join("")+`</select>`;}
     else if(f.t==="destinatario"){const cur=val||"MIÑACAR";inner=`<select id="f-${f.k}" onchange="onDestinatario(this)"><option ${cur==="MIÑACAR"?"selected":""}>MIÑACAR</option>`+DATA.clientes.map(c=>`<option ${cur===c.nombre?"selected":""}>${esc(c.nombre)}</option>`).join("")+`<option value="__newcli__">➕ Añadir nuevo cliente…</option></select>`;}
     else if(f.t==="check")inner=`<label style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:13px"><input type="checkbox" id="f-${f.k}" ${(val==1||val==="1"||val==="Sí"||val===true)?"checked":""}> Sí</label>`;
-    else inner=`<input id="f-${f.k}" type="${f.t}" value="${esc(val)}">`;
+    else inner=`<input id="f-${f.k}" type="${f.t}" value="${esc(val)}"${f.ph?` placeholder="${esc(f.ph)}"`:""}>`;
     return `<div class="field" style="flex:${f.full?"1 1 100%":"1 1 45%"}"><label>${f.l}${f.req?" *":""}</label>${inner}</div>`;
   }).join("")+"</div>";
   if(sc.nota)$("#modal-body").insertAdjacentHTML("afterbegin",`<div style="background:var(--info-s);border-radius:8px;padding:8px 12px;font-size:12.5px;color:var(--info);margin-bottom:10px">${sc.nota}</div>`);

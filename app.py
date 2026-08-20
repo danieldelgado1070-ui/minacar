@@ -699,6 +699,11 @@ def migrate(conn):
         add("ventas", "fecha_entrega_doc TEXT")       # entrega de documentación al cliente
         # Ventas existentes = ya son facturas confirmadas
         conn.execute("UPDATE ventas SET estado_factura='factura' WHERE estado_factura IS NULL OR estado_factura=''")
+        # Versión del modelo (relleno manual) y verificación de luz testigo de motor en recepción
+        add("vehiculos", "version TEXT")
+        add("vehiculos", "luz_motor TEXT")           # '' no verificada | 'apagada' | 'encendida'
+        if has_table("recepciones"):
+            add("recepciones", "luz_motor TEXT")
         conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS gestorias (
@@ -857,8 +862,8 @@ def validar_nif(valor):
 FIELDS = {
     "clientes": ["nombre", "nif", "telefono", "email", "direccion", "datos_cobro", "es_flexicar", "notas"],
     "transportistas": ["nombre", "nif", "telefono", "email", "direccion", "notas"],
-    "vehiculos": ["matricula", "bastidor", "marca", "modelo", "anio", "km",
-                  "color", "combustible", "estado", "recepcionado",
+    "vehiculos": ["matricula", "bastidor", "marca", "modelo", "version", "anio", "km",
+                  "color", "combustible", "estado", "recepcionado", "luz_motor",
                   "reserva_cliente_id", "reserva_fecha", "almacen_id", "ubicacion",
                   "itv_pasada", "itv_expira", "proxima_revision", "etiqueta",
                   "fecha_liberacion", "ref_web", "foto", "notas"],
@@ -879,7 +884,7 @@ FIELDS = {
                   "numero_factura", "factura_recibida", "fecha_factura", "pagado", "fecha_pago_est", "notas"],
     "almacenes": ["nombre", "direccion", "notas"],
     "recepciones": ["vehiculo_id", "fecha", "responsable", "almacen_id",
-                    "ubicacion", "tiene_desperfectos", "desperfectos", "marcas", "notas"],
+                    "ubicacion", "tiene_desperfectos", "desperfectos", "marcas", "luz_motor", "notas"],
     "traspasos": ["vehiculo_id", "almacen_destino", "fecha", "notas"],
     "garantias": ["vehiculo_id", "cliente_id", "tipo", "fecha_inicio", "meses",
                   "fecha_fin", "alcance", "estado", "notas"],
@@ -912,7 +917,7 @@ FIELDS = {
 }
 
 # Campos del vehiculo que pueden venir dentro del formulario de compra
-VEH_INLINE = ["matricula", "marca", "modelo", "bastidor"]
+VEH_INLINE = ["matricula", "marca", "modelo", "version", "bastidor"]
 
 
 def _ensure_vehiculo(conn, data):
@@ -1042,23 +1047,25 @@ def registrar_recepcion(data):
         marcas = data.get("marcas")
         if isinstance(marcas, (list, dict)):
             marcas = json.dumps(marcas, ensure_ascii=False)
+        luz = data.get("luz_motor") or ""
         cur = conn.execute(
             """INSERT INTO recepciones
                (vehiculo_id, fecha, responsable, almacen_id, ubicacion,
-                tiene_desperfectos, desperfectos, marcas, notas)
-               VALUES (?,?,?,?,?,?,?,?,?)""",
+                tiene_desperfectos, desperfectos, marcas, luz_motor, notas)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""",
             (vid, data.get("fecha") or date.today().isoformat(),
              data.get("responsable"), data.get("almacen_id") or None,
              data.get("ubicacion"), 1 if data.get("tiene_desperfectos") else 0,
-             data.get("desperfectos"), marcas, data.get("notas")))
+             data.get("desperfectos"), marcas, luz, data.get("notas")))
         rid = cur.lastrowid
         conn.execute(
             """UPDATE vehiculos SET recepcionado=1,
                    estado=CASE WHEN estado='pendiente' THEN 'disponible' ELSE estado END,
                    ubicacion=COALESCE(?, ubicacion),
-                   almacen_id=COALESCE(?, almacen_id)
+                   almacen_id=COALESCE(?, almacen_id),
+                   luz_motor=?
                WHERE id=?""",
-            (data.get("ubicacion") or None, data.get("almacen_id") or None, vid))
+            (data.get("ubicacion") or None, data.get("almacen_id") or None, luz, vid))
         # Al recepcionar, el transporte deja de estar 'En tránsito' → 'Entregado'
         fentrega = data.get("fecha") or date.today().isoformat()
         conn.execute(
