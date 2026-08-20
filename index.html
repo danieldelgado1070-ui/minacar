@@ -387,6 +387,7 @@ const SUB={panel:"Visión general de la operación",stock:"Existencias y ficha 3
 const NEWMAP={stock:"vehiculos",compras:"compras",taller:"taller",ventas:"ventas",logistica:"logistica",marketing:"leads",gestoria:"gestoria",garantias:"garantias",postventa:"postventa",almacenes:"almacenes",clientes:"clientes",proveedores:"proveedores",comerciales:"comerciales",transportistas:"transportistas",gestorias:"gestorias",proformas:"ventas",usuarios:"usuarios"};
 const AREA_LABEL=Object.fromEntries(NAV.map(n=>[n[0],n[1]]));
 const DOC_TIPOS=["Factura proforma","Factura de compra","Pago al proveedor","Hoja de transporte","Albarán de entrega","Ficha técnica","Permiso de circulación","Facturas de reparación/mantenimiento","Garantía comercial","Factura de venta","Justificante de cobro"];
+const BANCOS=["","CaixaBank","Banco Santander","BBVA","Banco Sabadell","Bankinter","Unicaja Banco","Kutxabank","Abanca","Ibercaja","Cajamar","ING","Openbank","EVO Banco","Deutsche Bank","Santander Consumer","Cetelem","Cofidis","Sofinco","Otro"];
 let current="panel", query="", stockFilter="Todos", panelAlmacen="";
 let stockVista="cards", stockSort={campo:"_dias",dir:-1};
 function ordenarStock(campo){if(stockSort.campo===campo)stockSort.dir*=-1;else stockSort={campo,dir:1};render();}
@@ -2070,7 +2071,7 @@ async function liberarReserva(vid){
 function cobrosCard(v){
   if(!v._venta)return "";
   const precio=Number(v._venta.precio)||0, pend=precio-v._cobrado, cuadra=pend<=0.01;
-  const rows=v._cobros.map(c=>`<div class="tl-row" style="align-items:center"><span>${esc(c.medio||"")}${c.veh_cambio_id?` · <b>${esc(c.cambio_matricula||"")} ${esc(c.cambio_marca||"")} ${esc(c.cambio_modelo||"")}</b>`:""} · <span style="color:var(--muted-2)">${fdate(c.fecha)}</span></span><span style="display:flex;gap:6px;align-items:center"><b>${eur2(c.importe)}</b><button class="btn danger sm" style="padding:1px 6px" onclick="delCobro(${c.id},${v.id})">✕</button></span></div>`).join("");
+  const rows=v._cobros.map(c=>`<div class="tl-row" style="align-items:center"><span>${esc(c.medio||"")}${c.banco?` · ${esc(c.banco)}`:""}${c.cuenta?` <span style="color:var(--muted-2)">(${esc(c.cuenta)})</span>`:""}${c.veh_cambio_id?` · <b>${esc(c.cambio_matricula||"")} ${esc(c.cambio_marca||"")} ${esc(c.cambio_modelo||"")}</b>`:""} · <span style="color:var(--muted-2)">${fdate(c.fecha)}</span></span><span style="display:flex;gap:6px;align-items:center"><b>${eur2(c.importe)}</b><button class="btn danger sm" style="padding:1px 6px" onclick="delCobro(${c.id},${v.id})">✕</button></span></div>`).join("");
   return `<div class="card"><div class="card-h"><h3>Cobros de la venta</h3><button class="btn ghost sm" onclick="openCobroForm(${v._venta.id},${v.id})">+ Cobro</button></div>
     <div class="card-b">${v._cobros.length?`<div style="display:flex;flex-direction:column;gap:6px">${rows}</div>`:'<div style="color:var(--muted);font-size:12.5px">Sin cobros. Registra los pagos del cliente (efectivo, transferencia, coche a cambio…).</div>'}
       <div class="tot" style="margin-top:10px;border-top:1px solid var(--line);padding-top:9px"><span>Cobrado / Precio</span><b style="color:${cuadra?"var(--ok)":"var(--warn)"}">${eur2(v._cobrado)} / ${eur2(precio)}</b></div>
@@ -2092,6 +2093,12 @@ function openCobroForm(ventaId,vehId){
       <select id="cb-medio" onchange="onCobroMedio()"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option><option>Financiación</option><option>Coche a cambio</option></select></div>
     <div class="field" style="flex:1 1 45%"><label>Importe (€)</label><input id="cb-importe" type="number" value="${pend||""}"></div>
     <div class="field" style="flex:1 1 45%"><label>Fecha</label><input id="cb-fecha" type="date" value="${todayISO()}"></div>
+    <div class="field cond-field" id="cb-bank-field" style="flex:1 1 100%">
+      <div class="row" style="margin:0">
+        <div class="field" style="flex:1 1 45%"><label>Banco / financiera</label>
+          <select id="cb-banco">${BANCOS.map(b=>`<option value="${esc(b)}">${esc(b||"— seleccionar —")}</option>`).join("")}</select></div>
+        <div class="field" style="flex:1 1 45%"><label>Nº de cuenta (IBAN, si se conoce)</label><input id="cb-cuenta" placeholder="ESxx xxxx xxxx xxxx xxxx xxxx"></div>
+      </div></div>
     <div class="field cond-field" id="cb-veh-field" style="flex:1 1 100%"><label>Coche entregado a cambio (su valor = precio de compra registrado)</label>
       <select id="cb-veh" onchange="onCobroVeh()"><option value="">— seleccionar —</option>${trade.map(x=>{const val=Number(x._base)||0;return `<option value="${x.id}" data-val="${val}">${esc(x.matricula||"")} · ${esc(x.marca||"")} ${esc(x.modelo||"")}${val?` — compra ${eur(val)}`:" — SIN compra registrada"}</option>`;}).join("")}</select>
       <div style="font-size:11.5px;color:var(--muted);margin-top:4px">El coche a cambio debe estar registrado como <b>compra</b> (al proveedor/cliente que lo entrega). Al elegirlo, el importe toma su <b>valor de compra</b>. Se comprobará su documentación (factura de compra, permiso de circulación, ficha técnica) antes de compensarlo.</div></div>
@@ -2100,12 +2107,23 @@ function openCobroForm(ventaId,vehId){
   document.querySelector(".modal .actions button.accent").setAttribute("onclick","saveCobro()");
   $("#modal-bg").classList.add("open");
 }
-function onCobroMedio(){const f=$("#cb-veh-field");if($("#cb-medio").value==="Coche a cambio"){f.classList.add("show");onCobroVeh();}else f.classList.remove("show");}
+function onCobroMedio(){
+  const medio=$("#cb-medio").value, vf=$("#cb-veh-field"), bf=$("#cb-bank-field");
+  if(medio==="Coche a cambio"){vf.classList.add("show");onCobroVeh();}else vf.classList.remove("show");
+  if(bf){if(["Transferencia","Tarjeta","Financiación"].includes(medio))bf.classList.add("show");else bf.classList.remove("show");}
+}
 function onCobroVeh(){const s=$("#cb-veh");if(!s||!s.selectedOptions[0])return;const val=Number(s.selectedOptions[0].dataset.val||0);if(val>0)$("#cb-importe").value=val;}
 async function saveCobro(){
   const {ventaId,vehId}=currentForm, medio=$("#cb-medio").value;
-  const data={venta_id:ventaId,medio,importe:Number($("#cb-importe").value)||0,fecha:$("#cb-fecha").value,notas:$("#cb-notas").value};
+  const importe=Number($("#cb-importe").value)||0;
+  if(importe<=0){toast("Indica el importe del cobro");return;}
+  const venta=DATA.ventas.find(v=>v.id===ventaId);
+  const precio=venta?Number(venta.precio)||0:0, yaCob=venta?cobradoDe(venta.vehiculo_id):0;
+  const data={venta_id:ventaId,medio,importe,fecha:$("#cb-fecha").value,notas:$("#cb-notas").value};
+  if(["Transferencia","Tarjeta","Financiación"].includes(medio)){data.banco=$("#cb-banco").value;data.cuenta=$("#cb-cuenta").value.trim();}
   if(medio==="Coche a cambio"){const vc=$("#cb-veh").value;if(!vc){toast("Elige el coche entregado a cambio");return;}data.veh_cambio_id=Number(vc);}
+  const exceso=(yaCob+importe)-precio;
+  if(exceso>0.01&&!confirm(`Con este cobro se supera el total de la factura en ${eur2(exceso)}.\n\nEl exceso solo es correcto si corresponde a una factura de GARANTÍA o GESTORÍA del mismo cliente, cobrada en el mismo acto.\n\n¿Continuar?`))return;
   let res=await api("/api/cobros",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
   if(res&&res.ok===false&&res.puede_forzar){
     if(!confirm("⚠ "+res.error+"\n\n¿Aceptas expresamente que el cliente NO está obligado a aportar esa documentación y compensar el coche a cambio igualmente?")){return;}
@@ -2546,6 +2564,15 @@ async function factura(id){
   const fechaDoc=prof?(s.fecha_proforma||s.fecha||""):(s.fecha||"");
   const veh=`${esc(s.marca||"")} ${esc(s.modelo||"")}`.trim();
   const concepto=`Venta de vehículo usado ${veh}`+(s.matricula?` · Matrícula ${esc(s.matricula)}`:"")+(s.bastidor?` · Bastidor ${esc(s.bastidor)}`:"")+(s.km!=null&&s.km!==""?` · ${num(s.km)} km`:"")+(s.anio?` · Año ${esc(s.anio)}`:"");
+  // Detalle de forma de cobro (solo en la factura definitiva)
+  const cobrosV=(DATA.cobros||[]).filter(c=>c.venta_id===s.id);
+  const cobrado=cobrosV.reduce((a,c)=>a+(Number(c.importe)||0),0), pendCob=total-cobrado;
+  const cobrosHtml=(!prof&&cobrosV.length)?`<h4 style="margin:22px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#888">Forma de cobro</h4>
+    <table><thead><tr><th>Medio</th><th>Fecha</th><th class="n">Importe</th></tr></thead><tbody>
+    ${cobrosV.map(c=>`<tr><td>${esc(c.medio||"")}${c.banco?` · ${esc(c.banco)}`:""}${c.cuenta?` (${esc(c.cuenta)})`:""}${c.veh_cambio_id?` · coche a cambio ${esc(c.cambio_matricula||"")}`:""}</td><td>${esc(fdate(c.fecha))}</td><td class="n">${eur2(c.importe)}</td></tr>`).join("")}
+    <tr><td colspan="2"><b>Total cobrado</b></td><td class="n"><b>${eur2(cobrado)}</b></td></tr>
+    ${pendCob>0.01?`<tr><td colspan="2" style="color:#b00">Pendiente de cobro</td><td class="n" style="color:#b00">${eur2(pendCob)}</td></tr>`:""}
+    </tbody></table>`:"";
   const html=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>${prof?"Proforma":"Factura"} ${esc(numDoc)}</title>
   <style>*{box-sizing:border-box}body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;margin:0;padding:32px;font-size:13px}
   .proftag{background:#fff4d6;border:1px solid #e6b800;color:#9a6b00;padding:8px 14px;border-radius:8px;font-weight:700;margin-bottom:14px}
@@ -2571,6 +2598,7 @@ async function factura(id){
   <table><thead><tr><th>Concepto</th><th class="n">Base</th><th class="n">IVA</th><th class="n">Importe</th></tr></thead>
     <tbody><tr><td>${concepto}</td><td class="n">${rebu?"—":eur2(base)}</td><td class="n">${rebu?"—":"21%"}</td><td class="n">${eur2(total)}</td></tr></tbody></table>
   <table class="tot">${rebu?`<tr><td>Total (IVA incluido, REBU)</td><td class="n">${eur2(total)}</td></tr><tr class="grand"><td>TOTAL FACTURA</td><td class="n">${eur2(total)}</td></tr>`:`<tr><td>Base imponible</td><td class="n">${eur2(base)}</td></tr><tr><td>IVA (21%)</td><td class="n">${eur2(iva)}</td></tr><tr class="grand"><td>TOTAL FACTURA</td><td class="n">${eur2(total)}</td></tr>`}</table>
+  ${cobrosHtml}
   ${rebu?`<div class="legal"><b>Régimen especial de bienes usados (REBU).</b> Operación acogida al régimen especial de bienes usados (arts. 135-139 Ley 37/1992 del IVA). IVA incluido en el precio, sin desglose y sin derecho a deducción por parte del adquirente.</div>`:""}
   <div class="foot">${EMPRESA.comercial} · ${EMPRESA.razon} · CIF ${EMPRESA.cif} — Factura generada por la aplicación de gestión.</div></body></html>`;
   const w=window.open("","_blank");if(!w){toast("Permite las ventanas emergentes para ver la factura");return;}

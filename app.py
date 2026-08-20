@@ -129,6 +129,8 @@ def init_db():
             fecha        TEXT,
             medio        TEXT,
             importe      REAL DEFAULT 0,
+            banco        TEXT,
+            cuenta       TEXT,
             veh_cambio_id INTEGER REFERENCES vehiculos(id) ON DELETE SET NULL,
             notas        TEXT,
             creado       TEXT DEFAULT (datetime('now','localtime'))
@@ -704,6 +706,10 @@ def migrate(conn):
         add("vehiculos", "luz_motor TEXT")           # '' no verificada | 'apagada' | 'encendida'
         if has_table("recepciones"):
             add("recepciones", "luz_motor TEXT")
+        # Cobros: banco y nº de cuenta por medio de cobro (financiación/tarjeta/transferencia)
+        if has_table("cobros"):
+            add("cobros", "banco TEXT")
+            add("cobros", "cuenta TEXT")
         conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS gestorias (
@@ -894,7 +900,7 @@ FIELDS = {
                   "factura_recibida", "fecha_factura", "notas"],
     "agenda": ["vehiculo_id", "fecha", "tipo", "asunto", "detalle",
                "cerrado", "motivo_cierre", "notas"],
-    "cobros": ["venta_id", "fecha", "medio", "importe", "veh_cambio_id", "notas"],
+    "cobros": ["venta_id", "fecha", "medio", "importe", "banco", "cuenta", "veh_cambio_id", "notas"],
     "taller": ["vehiculo_id", "tipo", "descripcion", "proveedor", "prov_id", "fecha",
                "coste", "pago", "fecha_pago_est",
                "numero_factura", "nif_proveedor", "iva_pct",
@@ -1203,6 +1209,14 @@ def insert_row(table, data):
         cur = conn.execute(
             f"INSERT INTO {table} ({cols}) VALUES ({placeholders})", values)
         new_id = cur.lastrowid
+
+        # Coche entregado a cambio: salda automáticamente la compra de ese coche al proveedor
+        if table == "cobros" and data.get("medio") == "Coche a cambio" and data.get("veh_cambio_id"):
+            conn.execute(
+                """UPDATE compras SET pagado='Sí',
+                       fecha_pago=COALESCE(NULLIF(fecha_pago,''), ?)
+                   WHERE vehiculo_id=?""",
+                (data.get("fecha") or date.today().isoformat(), data.get("veh_cambio_id")))
 
         if table == "ventas" and data.get("vehiculo_id"):
             # Proforma nueva: solo reserva el coche si se pide expresamente (checkbox).
