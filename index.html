@@ -1116,12 +1116,16 @@ function cobradoDe(vehId){const v=DATA.vehiculos.find(x=>x.id===vehId);return v?
 let tesoMes=null;
 function shiftMes(mes,delta){let[y,m]=mes.split("-").map(Number);m+=delta;while(m<1){m+=12;y--;}while(m>12){m-=12;y++;}return `${y}-${String(m).padStart(2,"0")}`;}
 function nombreMes(mes){const[y,m]=mes.split("-").map(Number);return ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"][m-1]+" "+y;}
+// Compra: el "precio" es BASE imponible (sin IVA). IVA soportado y total a pagar:
+function ivaPctCompra(c){return (c.regimen==="REBU")?0:((c.iva_pct!=null&&c.iva_pct!=="")?Number(c.iva_pct):21);}
+function ivaCompra(c){return (Number(c.precio)||0)*ivaPctCompra(c)/100;}                 // IVA soportado de la compra
+function totalCompra(c){return (Number(c.precio)||0)+ivaCompra(c)+(Number(c.gastos)||0);} // importe real a pagar / caja
 function calcIvaMes(mes){
   const inMes=f=>(f||"").slice(0,7)===mes;
   const pctDe=(x,reb)=>{if(reb&&x.regimen==="REBU")return 0;return (x.iva_pct!=null&&x.iva_pct!=="")?Number(x.iva_pct):21;};
   let rep=0,sop=0;
   DATA.ventas.filter(s=>inMes(s.fecha)).forEach(s=>{const precio=Number(s.precio)||0;let iva;if(s.regimen==="REBU"){const coste=Number(s.coste)||0;iva=Math.max(0,precio-coste)*0.21/1.21;}else iva=precio*0.21/1.21;rep+=iva;});
-  DATA.compras.filter(c=>inMes(c.fecha)).forEach(c=>{const total=(Number(c.precio)||0)+(Number(c.gastos)||0);const pct=pctDe(c,true);sop+=pct>0?total*pct/(100+pct):0;});
+  DATA.compras.filter(c=>inMes(c.fecha)).forEach(c=>{sop+=ivaCompra(c);});   // precio = base → IVA = base × %
   DATA.taller.filter(t=>inMes(t.fecha)).forEach(t=>{const pct=pctDe(t,false);sop+=(Number(t.coste)||0)*pct/(100+pct);});
   DATA.postventa.filter(p=>inMes(p.fecha)).forEach(p=>{const pct=pctDe(p,false);sop+=(Number(p.coste)||0)*pct/(100+pct);});
   return rep-sop;
@@ -1132,7 +1136,7 @@ function calendarioTeso(){
   const add=(map,date,amt)=>{if(!date||String(date).slice(0,7)!==mes||!(amt>0))return;map[date]=(map[date]||0)+amt;};
   DATA.ventas.forEach(s=>{const pend=(Number(s.precio)||0)-cobradoDe(s.vehiculo_id);if(pend>0.01){if(s.fecha_cobro_est)add(inflow,s.fecha_cobro_est,pend);else sinFCob+=pend;}});
   const pag=[];
-  DATA.compras.filter(c=>c.pagado!=="Sí").forEach(c=>pag.push({f:c.fecha_pago_est,a:(Number(c.precio)||0)+(Number(c.gastos)||0),noRec:c.factura_recibida==="No"}));
+  DATA.compras.filter(c=>c.pagado!=="Sí").forEach(c=>pag.push({f:c.fecha_pago_est,a:totalCompra(c),noRec:c.factura_recibida==="No"}));
   DATA.taller.filter(t=>t.pago!=="Pagado").forEach(t=>pag.push({f:t.fecha_pago_est,a:Number(t.coste)||0,noRec:t.factura_recibida==="No"}));
   DATA.postventa.filter(p=>p.pago!=="Pagado").forEach(p=>pag.push({f:p.fecha_pago_est,a:Number(p.coste)||0,noRec:p.factura_recibida==="No"}));
   DATA.logistica.filter(l=>l.pagado!=="Sí").forEach(l=>pag.push({f:l.fecha_pago_est,a:Number(l.coste)||0,noRec:l.factura_recibida==="No"}));
@@ -1198,7 +1202,7 @@ function viewTesoreria(){
   let sopTot=0,sopPag=0,sopNoPag=0;
   const addSop=(iva,pag)=>{sopTot+=iva;if(pag)sopPag+=iva;else sopNoPag+=iva;};
   const pctDe=(x,reb)=>{if(reb&&x.regimen==="REBU")return 0;return (x.iva_pct!=null&&x.iva_pct!=="")?Number(x.iva_pct):21;};
-  DATA.compras.filter(c=>inMes(c.fecha)).forEach(c=>{const total=(Number(c.precio)||0)+(Number(c.gastos)||0);const pct=pctDe(c,true);addSop(pct>0?total*pct/(100+pct):0,c.pagado==="Sí");});
+  DATA.compras.filter(c=>inMes(c.fecha)).forEach(c=>{addSop(ivaCompra(c),c.pagado==="Sí");});   // precio = base → IVA = base × %
   DATA.taller.filter(t=>inMes(t.fecha)).forEach(t=>{const pct=pctDe(t,false);addSop((Number(t.coste)||0)*pct/(100+pct),t.pago==="Pagado");});
   DATA.postventa.filter(p=>inMes(p.fecha)).forEach(p=>{const pct=pctDe(p,false);addSop((Number(p.coste)||0)*pct/(100+pct),p.pago==="Pagado");});
   const liquidar=repTot-sopTot;
@@ -1230,7 +1234,7 @@ function viewTesoreria(){
       <td class="r">${docBtn(s.vehiculo_id,'Justificante de cobro')}</td></tr>`).join("");
   // PAGOS pendientes (compras + taller + postventa)
   const pagos=[];
-  DATA.compras.filter(c=>c.pagado!=="Sí").forEach(c=>pagos.push({fuente:"Compra",tabla:"compras",id:c.id,vid:c.vehiculo_id,pf:"pagado",pv:"Sí",concepto:`${esc(c.matricula||"")} ${esc(c.marca||"")} ${esc(c.modelo||"")} · Fra ${esc(c.numero_factura||"—")}`,prov:c.proveedor,imp:(Number(c.precio)||0)+(Number(c.gastos)||0),fest:c.fecha_pago_est}));
+  DATA.compras.filter(c=>c.pagado!=="Sí").forEach(c=>pagos.push({fuente:"Compra",tabla:"compras",id:c.id,vid:c.vehiculo_id,pf:"pagado",pv:"Sí",concepto:`${esc(c.matricula||"")} ${esc(c.marca||"")} ${esc(c.modelo||"")} · Fra ${esc(c.numero_factura||"—")}`,prov:c.proveedor,imp:totalCompra(c),fest:c.fecha_pago_est}));
   DATA.taller.filter(t=>t.pago!=="Pagado").forEach(t=>pagos.push({fuente:"Taller",tabla:"taller",id:t.id,vid:t.vehiculo_id,pf:"pago",pv:"Pagado",concepto:`${esc(t.matricula||"")} · ${esc(t.tipo||"")} ${esc(t.descripcion||"")}`,prov:t.proveedor,imp:Number(t.coste)||0,fest:t.fecha_pago_est}));
   DATA.postventa.filter(p=>p.pago!=="Pagado").forEach(p=>pagos.push({fuente:"Postventa",tabla:"postventa",id:p.id,vid:p.vehiculo_id,pf:"pago",pv:"Pagado",concepto:`${esc(p.matricula||"")} · ${esc(p.tipo||"")} ${esc(p.descripcion||"")}`,prov:p.proveedor,imp:Number(p.coste)||0,fest:p.fecha_pago_est}));
   DATA.logistica.filter(l=>l.factura_recibida==="Sí"&&l.pagado!=="Sí"&&(Number(l.coste)||0)>0).forEach(l=>pagos.push({fuente:"Transporte",tabla:"logistica",id:l.id,vid:l.vehiculo_id,pf:"pagado",pv:"Sí",concepto:`${esc(l.matricula||"")} ${esc(l.marca||"")} ${esc(l.modelo||"")} · Fra ${esc(l.numero_factura||"—")}`,prov:l.transportista_nombre,imp:Number(l.coste)||0,fest:l.fecha_factura}));
@@ -1271,7 +1275,7 @@ function subirExtracto(){
 }
 /* ---------- FACTURAS DE PROVEEDOR (control de recepción y pago) ---------- */
 const FACT_SRC=[
-  {t:"compras",lbl:"Compra",arr:()=>DATA.compras,con:c=>`${c.matricula||""} ${c.marca||""} ${c.modelo||""}`,prov:c=>c.proveedor,imp:c=>(Number(c.precio)||0)+(Number(c.gastos)||0),paid:c=>c.pagado==="Sí",pf:"pagado",pv:"Sí"},
+  {t:"compras",lbl:"Compra",arr:()=>DATA.compras,con:c=>`${c.matricula||""} ${c.marca||""} ${c.modelo||""}`,prov:c=>c.proveedor,imp:c=>totalCompra(c),paid:c=>c.pagado==="Sí",pf:"pagado",pv:"Sí"},
   {t:"taller",lbl:"Taller",arr:()=>DATA.taller,con:t=>`${t.matricula||""} · ${t.tipo||""} ${t.descripcion||""}`,prov:t=>t.proveedor,imp:t=>Number(t.coste)||0,paid:t=>t.pago==="Pagado",pf:"pago",pv:"Pagado"},
   {t:"postventa",lbl:"Postventa",arr:()=>DATA.postventa,con:p=>`${p.matricula||""} · ${p.tipo||""} ${p.descripcion||""}`,prov:p=>p.proveedor,imp:p=>Number(p.coste)||0,paid:p=>p.pago==="Pagado",pf:"pago",pv:"Pagado"},
   {t:"logistica",lbl:"Transporte",arr:()=>DATA.logistica,con:l=>`${l.matricula||""} ${l.marca||""} ${l.modelo||""}`,prov:l=>l.transportista_nombre,imp:l=>Number(l.coste)||0,paid:l=>l.pagado==="Sí",pf:"pagado",pv:"Sí"},
