@@ -297,6 +297,7 @@ def init_db():
             tipo        TEXT,
             descripcion TEXT,
             proveedor   TEXT,
+            prov_id     INTEGER,
             fecha       TEXT,
             coste       REAL DEFAULT 0,
             asume       TEXT,
@@ -668,6 +669,7 @@ def migrate(conn):
             add("postventa", "numero_factura TEXT")
             add("postventa", "nif_proveedor TEXT")
             add("postventa", "iva_pct REAL")
+            add("postventa", "prov_id INTEGER")
         add("compras", "numero_factura TEXT")
         add("compras", "regimen TEXT")
         add("ventas", "numero_factura TEXT")
@@ -930,7 +932,7 @@ FIELDS = {
     "traspasos": ["vehiculo_id", "almacen_destino", "fecha", "notas"],
     "garantias": ["vehiculo_id", "cliente_id", "tipo", "fecha_inicio", "meses",
                   "fecha_fin", "alcance", "estado", "notas"],
-    "postventa": ["vehiculo_id", "tipo", "descripcion", "proveedor", "fecha",
+    "postventa": ["vehiculo_id", "tipo", "descripcion", "proveedor", "prov_id", "fecha",
                   "coste", "asume", "pago", "fecha_pago_est",
                   "numero_factura", "nif_proveedor", "iva_pct",
                   "factura_recibida", "fecha_factura", "notas"],
@@ -1470,20 +1472,29 @@ def list_garantias(q=None):
 def list_postventa(q=None):
     conn = get_db()
     base = """
-        SELECT p.*, v.matricula, v.marca, v.modelo
-        FROM postventa p LEFT JOIN vehiculos v ON v.id = p.vehiculo_id
+        SELECT p.*, v.matricula, v.marca, v.modelo,
+               pr.nombre AS _prov_nom
+        FROM postventa p
+        LEFT JOIN vehiculos v ON v.id = p.vehiculo_id
+        LEFT JOIN proveedores pr ON pr.id = p.prov_id
     """
     if q:
         like = f"%{q}%"
         rows = conn.execute(
             base + """ WHERE p.tipo LIKE ? OR p.descripcion LIKE ? OR p.proveedor LIKE ?
+                             OR pr.nombre LIKE ?
                              OR v.matricula LIKE ? OR v.marca LIKE ? OR v.modelo LIKE ?
                        ORDER BY p.fecha DESC, p.id DESC""",
-            (like, like, like, like, like, like)).fetchall()
+            (like, like, like, like, like, like, like)).fetchall()
     else:
         rows = conn.execute(base + " ORDER BY p.fecha DESC, p.id DESC").fetchall()
     conn.close()
-    return rows_to_list(rows)
+    out = rows_to_list(rows)
+    for d in out:                      # el proveedor del directorio (prov_id) prevalece sobre el texto
+        if d.get("_prov_nom"):
+            d["proveedor"] = d["_prov_nom"]
+        d.pop("_prov_nom", None)
+    return out
 
 
 def list_seguimientos(q=None):
@@ -1694,7 +1705,7 @@ def list_taller(q=None):
     conn = get_db()
     base = """
         SELECT t.*, v.matricula, v.marca, v.modelo,
-               COALESCE(p.nombre, t.proveedor) AS proveedor
+               p.nombre AS _prov_nom
         FROM taller t
         LEFT JOIN vehiculos v ON v.id = t.vehiculo_id
         LEFT JOIN proveedores p ON p.id = t.prov_id
@@ -1710,7 +1721,12 @@ def list_taller(q=None):
     else:
         rows = conn.execute(base + " ORDER BY t.fecha DESC, t.id DESC").fetchall()
     conn.close()
-    return rows_to_list(rows)
+    out = rows_to_list(rows)
+    for d in out:
+        if d.get("_prov_nom"):
+            d["proveedor"] = d["_prov_nom"]
+        d.pop("_prov_nom", None)
+    return out
 
 
 def list_gestorias(q=None):

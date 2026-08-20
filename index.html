@@ -1858,16 +1858,25 @@ function viewITV(){
 
 /* ---------- INFORMES ---------- */
 function viewInformes(){
-  const V=DATA.vehiculos;
+  const V=DATA.vehiculos, oc=ocultaCostes();
   const dim=(key,lab)=>{const m={};V.forEach(v=>{const k=key(v)||"—";if(!m[k])m[k]={n:0,mg:0,ns:0};m[k].n++;if(v._venta){m[k].mg+=(v._margen||0);m[k].ns++;}});
     const rows=Object.entries(m).sort((a,b)=>b[1].n-a[1].n);const mx=Math.max(1,...rows.map(r=>r[1].n));
-    return `<div class="card"><div class="card-h"><h3>${lab}</h3><span class="hint">nº · margen medio (ventas)</span></div>
-      <div class="card-b"><div class="barlist">${rows.map(([k,o])=>`<div class="barrow" style="grid-template-columns:130px 1fr 110px"><div class="bl-lab">${esc(k)}</div><div class="track"><i style="width:${o.n/mx*100}%;background:linear-gradient(90deg,var(--accent),#12a6b8)"></i></div><div class="bl-val">${o.n}${o.ns?" · "+eur(o.mg/o.ns):""}</div></div>`).join("")}</div></div></div>`;};
+    return `<div class="card"><div class="card-h"><h3>${lab}</h3><span class="hint">nº${oc?"":" · margen medio (ventas)"}</span></div>
+      <div class="card-b"><div class="barlist">${rows.map(([k,o])=>`<div class="barrow" style="grid-template-columns:130px 1fr 110px"><div class="bl-lab">${esc(k)}</div><div class="track"><i style="width:${o.n/mx*100}%;background:linear-gradient(90deg,var(--accent),#12a6b8)"></i></div><div class="bl-val">${o.n}${(!oc&&o.ns)?" · "+eur(o.mg/o.ns):""}</div></div>`).join("")}</div></div></div>`;};
+  // Análisis por RANGO DE PRECIO DE VENTA (solo coches vendidos): dónde se vende más
+  const banda=p=>{p=Number(p)||0;if(p<5000)return"< 5.000 €";if(p<10000)return"5.000–10.000 €";if(p<15000)return"10.000–15.000 €";if(p<20000)return"15.000–20.000 €";if(p<30000)return"20.000–30.000 €";return"> 30.000 €";};
+  const ordenBandas=["< 5.000 €","5.000–10.000 €","10.000–15.000 €","15.000–20.000 €","20.000–30.000 €","> 30.000 €"];
+  const dimPrecio=()=>{const m={};V.filter(v=>v._venta).forEach(v=>{const k=banda(v._venta.precio);if(!m[k])m[k]={n:0,mg:0};m[k].n++;m[k].mg+=(v._margen||0);});
+    const rows=ordenBandas.filter(b=>m[b]).map(b=>[b,m[b]]);const mx=Math.max(1,...rows.map(r=>r[1].n));
+    const tot=rows.reduce((a,r)=>a+r[1].n,0);
+    return `<div class="card"><div class="card-h"><h3>Por rango de precio de venta</h3><span class="hint">nº de coches vendidos${oc?"":" · margen medio"}</span></div>
+      <div class="card-b">${rows.length?`<div class="barlist">${rows.map(([k,o])=>`<div class="barrow" style="grid-template-columns:130px 1fr 150px"><div class="bl-lab">${esc(k)}</div><div class="track"><i style="width:${o.n/mx*100}%;background:linear-gradient(90deg,var(--ok),#7bb31a)"></i></div><div class="bl-val">${o.n} vta${o.n===1?"":"s"} (${Math.round(o.n/tot*100)}%)${oc?"":" · "+eur(o.mg/o.n)}</div></div>`).join("")}</div>`:'<div class="empty">Aún no hay ventas para analizar.</div>'}</div></div>`;};
   return `<div class="toolbar" style="margin-bottom:14px"><span style="font-size:12.5px;color:var(--muted)">Descarga el <b>informe completo</b> en Excel con una hoja por módulo:</span>
       <button class="btn accent" onclick="descargarInforme()">⬇ Informe completo (Excel, todas las hojas)</button></div>
     <p style="color:var(--muted);margin:0 0 16px;font-size:13px">Analiza qué <b>rota y deja más margen</b> para orientar la compra según la demanda. (En cualquier ventana, el botón <b>Excel</b> de arriba exporta esa lista.)</p>
-    <div class="grid2">${dim(v=>v.marca,"Por marca")}${dim(v=>v.combustible,"Por combustible")}</div>
-    <div class="grid2">${dim(v=>v.color,"Por color")}${dim(v=>estInfo(v.estado).lab,"Por estado")}</div>`;
+    <div class="grid2">${dimPrecio()}${dim(v=>v.marca,"Por marca")}</div>
+    <div class="grid2">${dim(v=>v.combustible,"Por combustible")}${dim(v=>v.color,"Por color")}</div>
+    <div class="grid2">${dim(v=>estInfo(v.estado).lab,"Por estado")}</div>`;
 }
 
 /* ---------- FICHA 360 (drawer) ---------- */
@@ -2217,8 +2226,10 @@ function enviarFicha(vid){
   currentForm={table:"__envio",id:vid};
   $("#modal-title").textContent="Enviar ficha del coche";
   $("#modal-body").innerHTML=`<div class="row">
-    <div class="field" style="flex:1 1 100%"><label>Cliente</label>
-      <select id="en-cli" onchange="onEnvioCli()"><option value="">— elegir cliente —</option>${DATA.clientes.map(c=>`<option value="${c.id}" ${String(cref||"")===String(c.id)?"selected":""}>${esc(c.nombre)}</option>`).join("")}</select></div>
+    <div style="flex:1 1 100%;font-size:12px;color:var(--muted);background:var(--info-s);border-radius:8px;padding:7px 11px;margin-bottom:2px">No hace falta que sea cliente: basta el <b>nombre</b> y un <b>teléfono y/o email</b>. Si ya es cliente, elígelo y se rellenan sus datos.</div>
+    <div class="field" style="flex:1 1 100%"><label>Cliente (opcional)</label>
+      <select id="en-cli" onchange="onEnvioCli()"><option value="">— no es cliente / contacto nuevo —</option>${DATA.clientes.map(c=>`<option value="${c.id}" ${String(cref||"")===String(c.id)?"selected":""}>${esc(c.nombre)}</option>`).join("")}</select></div>
+    <div class="field" style="flex:1 1 100%"><label>Nombre del contacto</label><input id="en-nombre" placeholder="Nombre y apellidos del interesado"></div>
     <div class="field" style="flex:1 1 45%"><label>Teléfono (WhatsApp)</label><input id="en-tel"></div>
     <div class="field" style="flex:1 1 45%"><label>Email</label><input id="en-email"></div>
     <div class="field" style="flex:1 1 100%"><label>Mensaje</label><textarea id="en-msg" style="min-height:120px">${esc(fichaTexto(v))}</textarea></div>
@@ -2230,15 +2241,18 @@ function enviarFicha(vid){
   onEnvioCli();
   $("#modal-bg").classList.add("open");
 }
-function onEnvioCli(){const c=DATA.clientes.find(x=>String(x.id)===$("#en-cli").value);if($("#en-tel"))$("#en-tel").value=c?(c.telefono||""):"";if($("#en-email"))$("#en-email").value=c?(c.email||""):"";}
+function onEnvioCli(){const c=DATA.clientes.find(x=>String(x.id)===$("#en-cli").value);if(c){if($("#en-tel"))$("#en-tel").value=c.telefono||"";if($("#en-email"))$("#en-email").value=c.email||"";if($("#en-nombre"))$("#en-nombre").value=c.nombre||"";}}
 function enviarPor(canal){
   const msg=$("#en-msg").value;
   if(canal==="wa"){
     const tel=($("#en-tel").value||"").replace(/[^0-9]/g,"");
+    if(!tel){toast("Indica el teléfono del contacto");return;}
     window.open("https://wa.me/"+tel+"?text="+encodeURIComponent(msg),"_blank");
   }else{
+    const email=($("#en-email").value||"").trim();
+    if(!email){toast("Indica el email del contacto");return;}
     const v=DATA.vehiculos.find(x=>x.id===currentForm.id);
-    window.location.href="mailto:"+encodeURIComponent($("#en-email").value.trim())+"?subject="+encodeURIComponent(`Ficha ${v.marca||""} ${v.modelo||""}`.trim())+"&body="+encodeURIComponent(msg);
+    window.location.href="mailto:"+encodeURIComponent(email)+"?subject="+encodeURIComponent(`Ficha ${v.marca||""} ${v.modelo||""}`.trim())+"&body="+encodeURIComponent(msg);
   }
   toast("Abriendo "+(canal==="wa"?"WhatsApp":"el correo")+"…");closeModal();
 }
@@ -2400,7 +2414,8 @@ const SCHEMAS={
     {k:"vehiculo_id",l:"Vehículo",t:"ref-veh",req:1,full:1},
     {k:"tipo",l:"Tipo",t:"select",opts:["Mecánica","Chapa","Pintura","Electricidad","Garantía","Cortesía","Otros"]},
     {k:"descripcion",l:"Actuación realizada",t:"text",full:1},
-    {k:"proveedor",l:"Taller / Proveedor",t:"text"},{k:"nif_proveedor",l:"NIF del proveedor",t:"text"},
+    {k:"prov_id",l:"Taller / Proveedor (elígelo o añádelo con ➕)",t:"ref-prov",full:1},
+    {k:"nif_proveedor",l:"NIF del proveedor",t:"text"},
     {k:"numero_factura",l:"Nº de factura",t:"text"},{k:"fecha",l:"Fecha",t:"date",def:1},
     {k:"coste",l:"Coste total con IVA (€)",t:"number"},{k:"iva_pct",l:"% IVA",t:"number"},
     {k:"asume",l:"¿Quién asume el coste?",t:"select",opts:["","Empresa","Cliente","Garantía","Compartido"]},
