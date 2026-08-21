@@ -132,6 +132,7 @@ def init_db():
             banco        TEXT,
             cuenta       TEXT,
             veh_cambio_id INTEGER REFERENCES vehiculos(id) ON DELETE SET NULL,
+            factura_emitida_id INTEGER REFERENCES facturas_emitidas(id) ON DELETE SET NULL,
             notas        TEXT,
             creado       TEXT DEFAULT (datetime('now','localtime'))
         );
@@ -751,6 +752,7 @@ def migrate(conn):
         if has_table("cobros"):
             add("cobros", "banco TEXT")
             add("cobros", "cuenta TEXT")
+            add("cobros", "factura_emitida_id INTEGER")   # exceso de cobro ligado a factura garantía/gestoría
         if has_table("agenda"):
             add("agenda", "responsable_id INTEGER")   # responsable de la gestión (comercial)
         conn.executescript(
@@ -943,7 +945,7 @@ FIELDS = {
                   "factura_recibida", "fecha_factura", "notas"],
     "agenda": ["vehiculo_id", "fecha", "tipo", "asunto", "detalle",
                "responsable_id", "cerrado", "motivo_cierre", "notas"],
-    "cobros": ["venta_id", "fecha", "medio", "importe", "banco", "cuenta", "veh_cambio_id", "notas"],
+    "cobros": ["venta_id", "fecha", "medio", "importe", "banco", "cuenta", "veh_cambio_id", "factura_emitida_id", "notas"],
     "facturas_emitidas": ["serie", "tipo", "numero", "fecha", "cliente_id", "vehiculo_id",
                           "venta_id", "concepto", "base", "iva_pct", "irpf_pct",
                           "rectifica_numero", "notas"],
@@ -1536,9 +1538,11 @@ def list_cobros(q=None):
     conn = get_db()
     rows = conn.execute(
         """SELECT c.*, vc.matricula AS cambio_matricula, vc.marca AS cambio_marca,
-                  vc.modelo AS cambio_modelo
+                  vc.modelo AS cambio_modelo,
+                  fe.numero AS fe_numero, fe.tipo AS fe_tipo
            FROM cobros c
            LEFT JOIN vehiculos vc ON vc.id = c.veh_cambio_id
+           LEFT JOIN facturas_emitidas fe ON fe.id = c.factura_emitida_id
            ORDER BY c.fecha, c.id""").fetchall()
     conn.close()
     return rows_to_list(rows)

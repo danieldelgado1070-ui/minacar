@@ -2153,19 +2153,28 @@ async function liberarReserva(vid){
 function cobrosCard(v){
   if(!v._venta)return "";
   const precio=Number(v._venta.precio)||0, pend=precio-v._cobrado, cuadra=pend<=0.01;
-  const rows=v._cobros.map(c=>`<div class="tl-row" style="align-items:center"><span>${esc(c.medio||"")}${c.banco?` · ${esc(c.banco)}`:""}${c.cuenta?` <span style="color:var(--muted-2)">(${esc(c.cuenta)})</span>`:""}${c.veh_cambio_id?` · <b>${esc(c.cambio_matricula||"")} ${esc(c.cambio_marca||"")} ${esc(c.cambio_modelo||"")}</b>`:""} · <span style="color:var(--muted-2)">${fdate(c.fecha)}</span></span><span style="display:flex;gap:6px;align-items:center"><b>${eur2(c.importe)}</b><button class="btn danger sm" style="padding:1px 6px" onclick="delCobro(${c.id},${v.id})">✕</button></span></div>`).join("");
+  const rows=v._cobros.map(c=>`<div class="tl-row" style="align-items:center"><span>${esc(c.medio||"")}${c.banco?` · ${esc(c.banco)}`:""}${c.cuenta?` <span style="color:var(--muted-2)">(${esc(c.cuenta)})</span>`:""}${c.veh_cambio_id?` · <b>${esc(c.cambio_matricula||"")} ${esc(c.cambio_marca||"")} ${esc(c.cambio_modelo||"")}</b>`:""}${c.factura_emitida_id?` · <span style="color:var(--accent)" title="Parte de este cobro corresponde a esta factura">→ ${esc(c.fe_numero||"garantía/gestoría")}</span>`:""} · <span style="color:var(--muted-2)">${fdate(c.fecha)}</span></span><span style="display:flex;gap:6px;align-items:center"><b>${eur2(c.importe)}</b><button class="btn danger sm" style="padding:1px 6px" onclick="delCobro(${c.id},${v.id})">✕</button></span></div>`).join("");
   return `<div class="card"><div class="card-h"><h3>Cobros de la venta</h3><button class="btn ghost sm" onclick="openCobroForm(${v._venta.id},${v.id})">+ Cobro</button></div>
     <div class="card-b">${v._cobros.length?`<div style="display:flex;flex-direction:column;gap:6px">${rows}</div>`:'<div style="color:var(--muted);font-size:12.5px">Sin cobros. Registra los pagos del cliente (efectivo, transferencia, coche a cambio…).</div>'}
       <div class="tot" style="margin-top:10px;border-top:1px solid var(--line);padding-top:9px"><span>Cobrado / Precio</span><b style="color:${cuadra?"var(--ok)":"var(--warn)"}">${eur2(v._cobrado)} / ${eur2(precio)}</b></div>
       <div class="tot" style="border:none;padding-top:2px"><span>${cuadra?"✓ Venta totalmente cobrada":"Pendiente de cobro"}</span><b style="color:${cuadra?"var(--ok)":"var(--danger)"}">${cuadra?"":eur2(pend)}</b></div>
     </div></div>`;
 }
+function onCobroImporte(){
+  const imp=Number($("#cb-importe").value)||0;
+  const f=$("#cb-fac-field");if(!f)return;
+  const exceso=(currentForm.yaCob||0)+imp-(currentForm.precio||0);
+  if(exceso>0.01)f.classList.add("show");else f.classList.remove("show");
+  const h=$("#cb-fac-hint");if(h)h.textContent=exceso>0.01?`Exceso sobre el total de la venta: ${eur2(exceso)}`:"";
+}
 function openCobroForm(ventaId,vehId){
-  currentForm={table:"__cobro",id:null,ventaId,vehId};
   const venta=DATA.ventas.find(v=>v.id===ventaId);
   const precio=venta?Number(venta.precio)||0:0;
   const cobrado=venta?cobradoDe(venta.vehiculo_id):0;
   const pend=Math.max(0,precio-cobrado);
+  const cliId=venta?venta.cliente_id:null;
+  const facs=DATA.facturas_emitidas.filter(f=>cliId&&f.cliente_id===cliId&&(f.tipo==="Gestoría"||f.tipo==="Garantía"));
+  currentForm={table:"__cobro",id:null,ventaId,vehId,precio,yaCob:cobrado,facs};
   const trade=DATA.vehiculos.filter(x=>x.id!==vehId);
   $("#modal-title").textContent="Registrar cobro (forma de pago)";
   $("#modal-body").innerHTML=`<div style="background:var(--info-s);color:var(--info);border-radius:8px;padding:8px 12px;font-size:12.5px;margin-bottom:10px">
@@ -2173,8 +2182,11 @@ function openCobroForm(ventaId,vehId){
     <div class="row">
     <div class="field" style="flex:1 1 45%"><label>Medio de pago</label>
       <select id="cb-medio" onchange="onCobroMedio()"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option><option>Financiación</option><option>Coche a cambio</option></select></div>
-    <div class="field" style="flex:1 1 45%"><label>Importe (€)</label><input id="cb-importe" type="number" value="${pend||""}"></div>
+    <div class="field" style="flex:1 1 45%"><label>Importe (€)</label><input id="cb-importe" type="number" value="${pend||""}" oninput="onCobroImporte()"></div>
     <div class="field" style="flex:1 1 45%"><label>Fecha</label><input id="cb-fecha" type="date" value="${todayISO()}"></div>
+    <div class="field cond-field" id="cb-fac-field" style="flex:1 1 100%"><label>Factura de garantía/gestoría a la que corresponde el EXCESO</label>
+      <select id="cb-fac"><option value="">— el exceso no corresponde a una factura (revisar) —</option>${facs.map(f=>`<option value="${f.id}">${esc(f.numero||"")} · ${esc(f.tipo||"")} · ${eur2((Number(f.base)||0)*(1+(Number(f.iva_pct)||0)/100))}</option>`).join("")}</select>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:4px"><span id="cb-fac-hint"></span>${facs.length?"":' · <b>Este cliente no tiene facturas de garantía/gestoría.</b> Créalas en «Facturas emitidas» para poder enlazar el exceso.'}</div></div>
     <div class="field cond-field" id="cb-bank-field" style="flex:1 1 100%">
       <div class="row" style="margin:0">
         <div class="field" style="flex:1 1 45%"><label>Banco / financiera</label>
@@ -2205,7 +2217,11 @@ async function saveCobro(){
   if(["Transferencia","Tarjeta","Financiación"].includes(medio)){data.banco=$("#cb-banco").value;data.cuenta=$("#cb-cuenta").value.trim();}
   if(medio==="Coche a cambio"){const vc=$("#cb-veh").value;if(!vc){toast("Elige el coche entregado a cambio");return;}data.veh_cambio_id=Number(vc);}
   const exceso=(yaCob+importe)-precio;
-  if(exceso>0.01&&!confirm(`Con este cobro se supera el total de la factura en ${eur2(exceso)}.\n\nEl exceso solo es correcto si corresponde a una factura de GARANTÍA o GESTORÍA del mismo cliente, cobrada en el mismo acto.\n\n¿Continuar?`))return;
+  if(exceso>0.01){
+    const fac=$("#cb-fac")?$("#cb-fac").value:"";
+    if(fac){data.factura_emitida_id=Number(fac);}
+    else if(!confirm(`Con este cobro se supera el total de la venta en ${eur2(exceso)}.\n\nNo has enlazado el exceso a ninguna factura de garantía/gestoría del cliente.\n\n¿Guardar de todas formas?`))return;
+  }
   let res=await api("/api/cobros",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
   if(res&&res.ok===false&&res.puede_forzar){
     if(!confirm("⚠ "+res.error+"\n\n¿Aceptas expresamente que el cliente NO está obligado a aportar esa documentación y compensar el coche a cambio igualmente?")){return;}
@@ -2669,7 +2685,7 @@ async function factura(id){
   const cobrado=cobrosV.reduce((a,c)=>a+(Number(c.importe)||0),0), pendCob=total-cobrado;
   const cobrosHtml=(!prof&&cobrosV.length)?`<h4 style="margin:22px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#888">Forma de cobro</h4>
     <table><thead><tr><th>Medio</th><th>Fecha</th><th class="n">Importe</th></tr></thead><tbody>
-    ${cobrosV.map(c=>`<tr><td>${esc(c.medio||"")}${c.banco?` · ${esc(c.banco)}`:""}${c.cuenta?` (${esc(c.cuenta)})`:""}${c.veh_cambio_id?` · coche a cambio ${esc(c.cambio_matricula||"")}`:""}</td><td>${esc(fdate(c.fecha))}</td><td class="n">${eur2(c.importe)}</td></tr>`).join("")}
+    ${cobrosV.map(c=>`<tr><td>${esc(c.medio||"")}${c.banco?` · ${esc(c.banco)}`:""}${c.cuenta?` (${esc(c.cuenta)})`:""}${c.veh_cambio_id?` · coche a cambio ${esc(c.cambio_matricula||"")}`:""}${c.factura_emitida_id?` · incluye ${esc(c.fe_numero||"factura garantía/gestoría")}`:""}</td><td>${esc(fdate(c.fecha))}</td><td class="n">${eur2(c.importe)}</td></tr>`).join("")}
     <tr><td colspan="2"><b>Total cobrado</b></td><td class="n"><b>${eur2(cobrado)}</b></td></tr>
     ${pendCob>0.01?`<tr><td colspan="2" style="color:#b00">Pendiente de cobro</td><td class="n" style="color:#b00">${eur2(pendCob)}</td></tr>`:""}
     </tbody></table>`:"";
