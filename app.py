@@ -725,7 +725,12 @@ def migrate(conn):
             add("leads", "direccion TEXT")
             add("leads", "poblacion TEXT")
         add("clientes", "datos_cobro TEXT")          # datos de cobro obligatorios en clientes (#19)
-        add("clientes", "es_flexicar INTEGER DEFAULT 0")  # cliente del módulo Flexicar
+        add("clientes", "es_flexicar INTEGER DEFAULT 0")  # (heredado) cliente del antiguo módulo Flexicar
+        # Generalización: "Venta a Profesionales" (cualquier cliente profesional, no solo Flexicar)
+        add("clientes", "es_profesional INTEGER DEFAULT 0")
+        if not conn.execute("SELECT 1 FROM contadores WHERE clave='seed:es_profesional'").fetchone():
+            conn.execute("UPDATE clientes SET es_profesional=1 WHERE es_flexicar=1")
+            conn.execute("INSERT OR IGNORE INTO contadores (clave, valor) VALUES ('seed:es_profesional', 1)")
         if has_table("usuarios"):
             add("usuarios", "comercial_id INTEGER")   # vincular usuario con comercial (#21)
         # Proforma obligatoria + campos Flexicar
@@ -904,7 +909,7 @@ def validar_nif(valor):
 
 # Campos permitidos por tabla (para inserciones/actualizaciones seguras)
 FIELDS = {
-    "clientes": ["nombre", "nif", "telefono", "email", "direccion", "datos_cobro", "es_flexicar", "notas"],
+    "clientes": ["nombre", "nif", "telefono", "email", "direccion", "datos_cobro", "es_flexicar", "es_profesional", "notas"],
     "transportistas": ["nombre", "nif", "telefono", "email", "direccion", "notas"],
     "vehiculos": ["matricula", "bastidor", "marca", "modelo", "version", "anio", "km",
                   "color", "combustible", "estado", "recepcionado", "luz_motor",
@@ -1677,7 +1682,7 @@ def list_ventas(q=None):
         SELECT s.*, v.matricula, v.marca, v.modelo, v.bastidor, v.anio, v.km,
                cl.nombre AS cliente, cl.nif AS cliente_nif,
                cl.direccion AS cliente_direccion, cl.email AS cliente_email,
-               cl.telefono AS cliente_telefono, cl.es_flexicar AS cliente_flexicar, co.nombre AS comercial,
+               cl.telefono AS cliente_telefono, cl.es_profesional AS cliente_profesional, co.nombre AS comercial,
                (COALESCE((SELECT precio + gastos FROM compras c WHERE c.vehiculo_id=v.id ORDER BY c.id DESC LIMIT 1),0)
                 + COALESCE((SELECT SUM(coste) FROM taller t WHERE t.vehiculo_id=v.id),0)
                 + COALESCE((SELECT SUM(coste) FROM logistica l WHERE l.vehiculo_id=v.id),0)) AS coste

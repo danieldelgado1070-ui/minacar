@@ -378,12 +378,12 @@ const svg=(p,cls="")=>`<svg class="${cls}" viewBox="0 0 24 24" fill="none" strok
 const NAV=[
   ["panel","Panel",IC.panel,"op"],["stock","Stock",IC.car,"op"],["compras","Compras",IC.cart,"op"],["valoracion","Valoración",IC.chart,"op"],
   ["taller","Taller",IC.wrench,"op"],["logistica","Logística",IC.truck,"op"],["marketing","Marketing",IC.mega,"op"],["agenda","Agenda",IC.book,"op"],
-  ["ventas","Ventas",IC.tag,"op"],["proformas","Proformas",IC.stamp,"op"],["facturas_emitidas","Facturas emitidas",IC.stamp,"op"],["tesoreria","Cobros y pagos",IC.euro,"op"],["facturas","Facturas prov.",IC.supplier,"op"],["flexicar","Flexicar",IC.book,"op"],["bancos","Bancos",IC.bank,"op"],["gestoria","Gestoría",IC.stamp,"op"],["garantias","Garantías",IC.shield,"op"],["postventa","Postventa",IC.support,"op"],["documentos","Documentos",IC.folder,"op"],["almacenes","Almacenes",IC.box,"op"],["web","Web",IC.globe,"op"],
+  ["ventas","Ventas",IC.tag,"op"],["proformas","Proformas",IC.stamp,"op"],["facturas_emitidas","Facturas emitidas",IC.stamp,"op"],["tesoreria","Cobros y pagos",IC.euro,"op"],["facturas","Facturas prov.",IC.supplier,"op"],["profesionales","Venta a Profesionales",IC.book,"op"],["bancos","Bancos",IC.bank,"op"],["gestoria","Gestoría",IC.stamp,"op"],["garantias","Garantías",IC.shield,"op"],["postventa","Postventa",IC.support,"op"],["documentos","Documentos",IC.folder,"op"],["almacenes","Almacenes",IC.box,"op"],["web","Web",IC.globe,"op"],
   ["clientes","Clientes",IC.users,"dir"],["proveedores","Proveedores",IC.supplier,"dir"],["comerciales","Comerciales",IC.users,"dir"],["transportistas","Transportistas",IC.wheel,"dir"],["gestorias","Gestorías",IC.stamp,"dir"],
   ["itv","ITV",IC.clock,"an"],["informes","Informes",IC.chart,"an"],
   ["usuarios","Usuarios",IC.users,"adm"],
 ];
-const SUB={panel:"Visión general de la operación",stock:"Existencias y ficha 360 de cada vehículo",compras:"Facturas y pagos a proveedor",valoracion:"Precio de compra recomendado según tu margen y el mercado",taller:"Reacondicionamiento y costes de preparación",logistica:"Transporte, entrega y coches pendientes",marketing:"Leads e interesados por vehículo",agenda:"Gestiones diarias de leads y postventa",ventas:"Operaciones cerradas y facturas",proformas:"Proformas / presupuestos (se confirman en factura)",tesoreria:"Facturas pendientes de cobro y de pago",facturas:"Facturas de proveedor: pendientes de recibir y de pagar",flexicar:"Cliente Flexicar: informe de deudas",bancos:"Extractos bancarios y conciliación de movimientos",gestoria:"Transferencias y exenciones de matriculación",garantias:"Garantías comerciales por vehículo",postventa:"Atenciones tras venta y agenda de reclamaciones",documentos:"Documentación aportada por vehículo",almacenes:"Ubicaciones, valoración del stock y traspasos",web:"Conciliación con minacar.es",clientes:"Directorio de clientes",proveedores:"Directorio de proveedores",comerciales:"Comerciales y cálculo de comisiones",transportistas:"Directorio de transportistas",gestorias:"Directorio de gestorías / asesorías",itv:"Control de ITV por vencimiento y revisiones concertadas",informes:"Rotación y margen por dimensión",usuarios:"Usuarios y permisos de acceso"};
+const SUB={panel:"Visión general de la operación",stock:"Existencias y ficha 360 de cada vehículo",compras:"Facturas y pagos a proveedor",valoracion:"Precio de compra recomendado según tu margen y el mercado",taller:"Reacondicionamiento y costes de preparación",logistica:"Transporte, entrega y coches pendientes",marketing:"Leads e interesados por vehículo",agenda:"Gestiones diarias de leads y postventa",ventas:"Operaciones cerradas y facturas",proformas:"Proformas / presupuestos (se confirman en factura)",tesoreria:"Facturas pendientes de cobro y de pago",facturas:"Facturas de proveedor: pendientes de recibir y de pagar",profesionales:"Venta a profesionales: informe de deudas (la proforma genera deuda)",bancos:"Extractos bancarios y conciliación de movimientos",gestoria:"Transferencias y exenciones de matriculación",garantias:"Garantías comerciales por vehículo",postventa:"Atenciones tras venta y agenda de reclamaciones",documentos:"Documentación aportada por vehículo",almacenes:"Ubicaciones, valoración del stock y traspasos",web:"Conciliación con minacar.es",clientes:"Directorio de clientes",proveedores:"Directorio de proveedores",comerciales:"Comerciales y cálculo de comisiones",transportistas:"Directorio de transportistas",gestorias:"Directorio de gestorías / asesorías",itv:"Control de ITV por vencimiento y revisiones concertadas",informes:"Rotación y margen por dimensión",usuarios:"Usuarios y permisos de acceso"};
 const NEWMAP={stock:"vehiculos",compras:"compras",taller:"taller",ventas:"ventas",logistica:"logistica",marketing:"leads",gestoria:"gestoria",garantias:"garantias",postventa:"postventa",almacenes:"almacenes",clientes:"clientes",proveedores:"proveedores",comerciales:"comerciales",transportistas:"transportistas",gestorias:"gestorias",proformas:"ventas",usuarios:"usuarios"};
 const AREA_LABEL=Object.fromEntries(NAV.map(n=>[n[0],n[1]]));
 const DOC_TIPOS=["Factura proforma","Factura de compra","Pago al proveedor","Hoja de transporte","Albarán de entrega","Ficha técnica","Permiso de circulación","Facturas de reparación/mantenimiento","Garantía comercial","Factura de venta","Justificante de cobro"];
@@ -553,7 +553,7 @@ function render(){
   else if(current==="facturas_emitidas")views.innerHTML=viewFacturasEmitidas();
   else if(current==="tesoreria")views.innerHTML=viewTesoreria();
   else if(current==="facturas")views.innerHTML=viewFacturas();
-  else if(current==="flexicar")views.innerHTML=viewFlexicar();
+  else if(current==="profesionales")views.innerHTML=viewProfesionales();
   else if(current==="bancos")views.innerHTML=viewBancos();
   else if(current==="usuarios")views.innerHTML=viewUsuarios();
   else if(current==="gestoria")views.innerHTML=viewGestoria();
@@ -1364,20 +1364,21 @@ function subirJustificantePago(vid){
   inp.click();
 }
 /* ---------- FLEXICAR (informe de deudas) ---------- */
-function esFlexicar(s){return s.cliente_flexicar==1||s.cliente_flexicar==="1"||s.cliente_flexicar==="Sí";}
-function flexicarItems(){
-  return DATA.ventas.filter(s=>esFlexicar(s)).map(s=>{
+function esProfesional(s){return s.cliente_profesional==1||s.cliente_profesional==="1"||s.cliente_profesional==="Sí";}
+function profesionalesItems(){
+  return DATA.ventas.filter(s=>esProfesional(s)).map(s=>{
     const deuda=(Number(s.precio)||0)-cobradoDe(s.vehiculo_id);
     const veh=DATA.vehiculos.find(x=>x.id===s.vehiculo_id)||{};
     const compra=veh._compra||null;
     return {s,veh,compra,pagadoProv:!!(compra&&compra.pagado==="Sí"),deuda};
   }).filter(it=>it.deuda>0.01);
 }
-function viewFlexicar(){
-  const items=flexicarItems().filter(it=>matchQ(it.s,[it.s.matricula,it.s.marca,it.s.modelo,it.s.numero_proforma]));
+function viewProfesionales(){
+  const items=profesionalesItems().filter(it=>matchQ(it.s,[it.s.matricula,it.s.marca,it.s.modelo,it.s.cliente,it.s.numero_proforma]));
   const p1=items.filter(it=>it.pagadoProv), p2=items.filter(it=>!it.pagadoProv);
-  const cols=[{t:"Marca / Modelo / Matrícula"},{t:"Importe deuda",r:1},{t:"F. proforma"},{t:"F. pago (nosotros)"},{t:"F. liberación"},{t:"F. entrega"},{t:"F. cobro (prev.)"},{t:"Entrega doc."}];
+  const cols=[{t:"Cliente"},{t:"Marca / Modelo / Matrícula"},{t:"Importe deuda",r:1},{t:"F. proforma"},{t:"F. pago (nosotros)"},{t:"F. liberación"},{t:"F. entrega"},{t:"F. cobro (prev.)"},{t:"Entrega doc."}];
   const row=it=>`<tr data-veh="${it.s.vehiculo_id||''}">
+    <td>${esc(it.s.cliente||"—")}</td>
     <td><span class="plate">${esc(it.s.matricula||"")}</span> ${esc(it.s.marca||"")} ${esc(it.s.modelo||"")}</td>
     <td class="r" style="font-weight:700;color:var(--danger)">${eur2(it.deuda)}</td>
     <td>${fdate(it.s.fecha_proforma)}</td>
@@ -1389,7 +1390,7 @@ function viewFlexicar(){
   </tr>`;
   const tot1=p1.reduce((a,it)=>a+it.deuda,0), tot2=p2.reduce((a,it)=>a+it.deuda,0);
   const kpi=(l,v,c)=>`<div class="kpi"><div class="k-lab">${l}</div><div class="k-val" style="color:${c}">${v}</div></div>`;
-  return `<p style="color:var(--muted);margin:0 0 14px;font-size:13px">Informe de deudas de <b>Flexicar</b>: coches vendidos a Flexicar <b>pendientes de cobro</b>, separados según si ya hemos pagado al proveedor o no. (Marca un cliente como «Flexicar» en su ficha para que sus ventas aparezcan aquí.)</p>
+  return `<p style="color:var(--muted);margin:0 0 14px;font-size:13px">Ventas a <b>clientes profesionales</b> (Flexicar, compraventas, etc.) <b>pendientes de cobro</b>. En estas ventas <b>la proforma ya genera la deuda</b>: el coche se le entrega/reserva y la <b>factura se emite cuando se ha cobrado íntegramente</b>. Separadas según si ya hemos pagado al proveedor o no. (Marca un cliente como <b>«profesional»</b> en su ficha para que sus ventas aparezcan aquí.)</p>
     <div class="kpis" style="grid-template-columns:repeat(2,1fr);margin-bottom:16px">${kpi("Deuda · ya pagados al proveedor",eur(tot1),"var(--ok)")}${kpi("Deuda · pendientes de pagar al proveedor",eur(tot2),"var(--danger)")}</div>
     <div class="card" style="margin-bottom:16px"><div class="card-h"><h3>1 · Pendientes de cobro y PAGADOS al proveedor (${p1.length})</h3></div>
       <div class="card-b" style="padding:0 18px 12px">${tableWrap(cols,p1.map(row).join(""))}</div></div>
@@ -2274,7 +2275,7 @@ const SCHEMAS={
     {k:"email",l:"Email",t:"text"},
     {k:"direccion",l:"Dirección completa",t:"text",req:1,full:1},
     {k:"datos_cobro",l:"Datos de cobro (IBAN / forma de cobro)",t:"text",req:1,full:1},
-    {k:"es_flexicar",l:"¿Es cliente Flexicar? (activa su módulo especial)",t:"check"},
+    {k:"es_profesional",l:"¿Es cliente profesional? (Flexicar, compraventas… activa «Venta a Profesionales»)",t:"check"},
     {k:"notas",l:"Notas",t:"textarea",full:1}]},
   transportistas:{title:"transportista",fields:[
     {k:"nombre",l:"Nombre / Razón social",t:"text",req:1,full:1},
@@ -2303,7 +2304,7 @@ const SCHEMAS={
     {k:"combustible",l:"Combustible",t:"select",opts:["","Gasolina","Diésel","Híbrido","Eléctrico","GLP","GNC"]},
     {k:"itv_pasada",l:"¿ITV pasada?",t:"select",opts:["","Sí","No"]},{k:"itv_expira",l:"Caducidad ITV",t:"date"},
     {k:"etiqueta",l:"Etiqueta medioambiental (DGT)",t:"select",opts:["","0 Emisiones","ECO","C","B","Sin etiqueta"]},
-    {k:"fecha_liberacion",l:"Fecha de liberación (Flexicar, opcional)",t:"date"},
+    {k:"fecha_liberacion",l:"Fecha de liberación (venta a profesionales, opcional)",t:"date"},
     {k:"foto",l:"Fotografía",t:"foto",full:1},{k:"notas",l:"Notas",t:"textarea",full:1}]},
   facturas_emitidas:{title:"factura emitida",nota:"Factura emitida por MIÑACAR/LYRWIRS. Cada tipo usa su propia serie: Gestoría→GES, Garantía→GAR, Arrendamiento→ALQ, Rectificativa→REC. El número se asigna solo al guardar. El arrendamiento aplica automáticamente el 19% de IRPF.",fields:[
     {k:"tipo",l:"Tipo de factura",t:"select",opts:["Gestoría","Garantía","Arrendamiento de inmueble","Rectificativa"]},
@@ -2785,8 +2786,8 @@ function exportCurrentView(){
     rows=DATA.gestoria.map(g=>[g.matricula,g.marca,g.modelo,g.tipo,g.estado,g.gestoria,g.fecha_solicitud,g.fecha_resolucion]);}
   else if(v==="facturas"){name="facturas_proveedor";cols=["Origen","Concepto","Proveedor","Nº factura","Importe","Factura recibida","Pagada","Pago previsto"];
     rows=factItems().filter(x=>x.noRec||(x.recibida&&!x.paid)).map(x=>[x.s.lbl,x.s.con(x.r),x.s.prov(x.r),x.num,x.imp,x.recibida?"Sí":"No",x.paid?"Sí":"No",x.fest]);}
-  else if(v==="flexicar"){name="flexicar_deudas";cols=["Marca","Modelo","Matrícula","Pago al proveedor","Importe deuda","F. proforma","F. pago (nosotros)","F. liberación","F. entrega","F. cobro prev.","Entrega doc."];
-    rows=flexicarItems().map(it=>[it.s.marca,it.s.modelo,it.s.matricula,it.pagadoProv?"Pagado":"Pendiente",it.deuda,it.s.fecha_proforma,(it.compra?it.compra.fecha_pago:""),it.veh.fecha_liberacion,it.s.fecha_entrega_cli,it.s.fecha_cobro_est,it.s.fecha_entrega_doc]);}
+  else if(v==="profesionales"){name="profesionales_deudas";cols=["Cliente","Marca","Modelo","Matrícula","Pago al proveedor","Importe deuda","F. proforma","F. pago (nosotros)","F. liberación","F. entrega","F. cobro prev.","Entrega doc."];
+    rows=profesionalesItems().map(it=>[it.s.cliente,it.s.marca,it.s.modelo,it.s.matricula,it.pagadoProv?"Pagado":"Pendiente",it.deuda,it.s.fecha_proforma,(it.compra?it.compra.fecha_pago:""),it.veh.fecha_liberacion,it.s.fecha_entrega_cli,it.s.fecha_cobro_est,it.s.fecha_entrega_doc]);}
   else if(v==="almacenes"){name="almacenes_stock";cols=["Matrícula","Marca","Modelo","Almacén","Posición","Valor compra"];
     rows=DATA.vehiculos.filter(x=>x.estado==="disponible").map(x=>[x.matricula,x.marca,x.modelo,x.almacen_nombre||"Sin asignar",x.ubicacion,x._base]);}
   else if(v==="clientes"){name="clientes";cols=["Nombre","NIF","NIF válido","Teléfono","Email","Dirección"];
