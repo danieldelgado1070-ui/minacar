@@ -466,7 +466,7 @@ function buildNav(){
   navEl.innerHTML=html;
   updateNavCounts();
 }
-navEl.addEventListener("click",e=>{const b=e.target.closest("button");if(b)go(b.dataset.v);});
+navEl.addEventListener("click",e=>{const b=e.target.closest("button[data-v]");if(b&&b.dataset.v)go(b.dataset.v);});
 $("#newBtn").addEventListener("click",()=>{if(current==="usuarios")return openUserForm();const t=NEWMAP[current]||"vehiculos";openForm(t);});
 $("#expBtn").addEventListener("click",exportCurrentView);
 $("#impBtn").addEventListener("click",abrirImportar);
