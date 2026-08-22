@@ -48,6 +48,16 @@
   .nav button:hover{background:var(--side-2);color:#fff}
   .nav button.on{background:linear-gradient(90deg,rgba(13,125,140,.28),rgba(13,125,140,.05));color:#fff;box-shadow:inset 2px 0 0 var(--accent)}
   .nav button .n{margin-left:auto;font-size:11px;color:var(--side-mut);font-family:var(--mono)}
+  .nav .appsw{display:flex;gap:6px;padding:4px 2px 8px;margin-bottom:4px;border-bottom:1px solid var(--side-line)}
+  .nav .appbtn{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:10px 8px;border-radius:9px;background:var(--side-2);color:#aab7c2;font-size:12.5px;font-weight:700}
+  .nav .appbtn svg{width:16px;height:16px;flex:none}
+  .nav .appbtn:hover{color:#fff}
+  .nav .appbtn.sel{background:var(--accent);color:#fff;box-shadow:none}
+  .nav .dept-h{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:10px 11px;margin-top:2px;border-radius:8px;color:#8ea0af;font-size:10.5px;letter-spacing:.7px;text-transform:uppercase;font-weight:700}
+  .nav .dept-h:hover{background:var(--side-2);color:#cfd8df}
+  .nav .dept-h.open{color:#d9e2e8}
+  .nav .dept-h .chev{font-size:10px;color:#5f7080}
+  .nav .dept button[data-v]{padding-left:16px}
   .side-foot{margin-top:auto;padding:14px 16px;border-top:1px solid var(--side-line);display:flex;align-items:center;gap:10px;font-size:12px;color:var(--side-mut)}
   .avatar{width:30px;height:30px;border-radius:50%;background:var(--gold);color:#3a2c07;display:grid;place-items:center;font-weight:700;font-size:12px;flex:none}
 
@@ -383,7 +393,7 @@ const NAV=[
   ["itv","ITV",IC.clock,"an"],["informes","Informes",IC.chart,"an"],
   ["usuarios","Usuarios",IC.users,"adm"],
 ];
-const SUB={panel:"Visión general de la operación",stock:"Existencias y ficha 360 de cada vehículo",compras:"Facturas y pagos a proveedor",valoracion:"Precio de compra recomendado según tu margen y el mercado",taller:"Reacondicionamiento y costes de preparación",logistica:"Transporte, entrega y coches pendientes",marketing:"Leads e interesados por vehículo",agenda:"Gestiones diarias de leads y postventa",ventas:"Operaciones cerradas y facturas",proformas:"Proformas / presupuestos (se confirman en factura)",tesoreria:"Facturas pendientes de cobro y de pago",facturas:"Facturas de proveedor: pendientes de recibir y de pagar",profesionales:"Venta a profesionales: informe de deudas (la proforma genera deuda)",bancos:"Extractos bancarios y conciliación de movimientos",gestoria:"Transferencias y exenciones de matriculación",garantias:"Garantías comerciales por vehículo",postventa:"Atenciones tras venta y agenda de reclamaciones",documentos:"Documentación aportada por vehículo",almacenes:"Ubicaciones, valoración del stock y traspasos",web:"Conciliación con minacar.es",clientes:"Directorio de clientes",proveedores:"Directorio de proveedores",comerciales:"Comerciales y cálculo de comisiones",transportistas:"Directorio de transportistas",gestorias:"Directorio de gestorías / asesorías",itv:"Control de ITV por vencimiento y revisiones concertadas",informes:"Rotación y margen por dimensión",usuarios:"Usuarios y permisos de acceso"};
+const SUB={panel:"Visión general de la operación",stock:"Existencias y ficha 360 de cada vehículo",compras:"Facturas y pagos a proveedor",valoracion:"Precio de compra recomendado según tu margen y el mercado",taller:"Reacondicionamiento y costes de preparación",logistica:"Transporte, entrega y coches pendientes",marketing:"Leads e interesados por vehículo",agenda:"Gestiones diarias de leads y postventa",ventas:"Operaciones cerradas y facturas",proformas:"Proformas / presupuestos (se confirman en factura)",tesoreria:"Facturas pendientes de cobro y de pago",facturas:"Facturas de proveedor: pendientes de recibir y de pagar",profesionales:"Venta a profesionales: informe de deudas (la proforma genera deuda)",bancos:"Extractos bancarios y conciliación de movimientos",gestoria:"Transferencias y exenciones de matriculación",garantias:"Garantías comerciales por vehículo",postventa:"Atenciones tras venta y agenda de reclamaciones",documentos:"Documentación aportada por vehículo",almacenes:"Ubicaciones, valoración del stock y traspasos",web:"Conciliación con minacar.es",clientes:"Directorio de clientes",proveedores:"Directorio de proveedores",comerciales:"Comerciales y cálculo de comisiones",transportistas:"Directorio de transportistas",gestorias:"Directorio de gestorías / asesorías",itv:"Control de ITV por vencimiento y revisiones concertadas",informes:"Rotación y margen por dimensión",usuarios:"Usuarios y permisos de acceso",rc_inicio:"Alquiler de vehículos (en construcción, enlazado con Compraventa)"};
 const NEWMAP={stock:"vehiculos",compras:"compras",taller:"taller",ventas:"ventas",logistica:"logistica",marketing:"leads",gestoria:"gestoria",garantias:"garantias",postventa:"postventa",almacenes:"almacenes",clientes:"clientes",proveedores:"proveedores",comerciales:"comerciales",transportistas:"transportistas",gestorias:"gestorias",proformas:"ventas",usuarios:"usuarios"};
 const AREA_LABEL=Object.fromEntries(NAV.map(n=>[n[0],n[1]]));
 const DOC_TIPOS=["Factura proforma","Factura de compra","Pago al proveedor","Hoja de transporte","Albarán de entrega","Ficha técnica","Permiso de circulación","Facturas de reparación/mantenimiento","Garantía comercial","Factura de venta","Justificante de cobro"];
@@ -408,10 +418,53 @@ function puedeEscribir(area){return nivel(area)==="w";}
 function puedeEscribirTabla(table){if(CURRENTUSER&&CURRENTUSER.rol==="admin")return true;const a=TAREA[table];if(!a)return true;return puedeEscribir(a);}
 function bloqueadoRO(table){if(puedeEscribirTabla(table))return false;toast("🔒 Solo lectura en este módulo");return true;}
 const navEl=$("#nav");
-function navBtn([id,lab,ic]){return `<button data-v="${id}">${svg(ic)}<span>${lab}</span><span class="n" id="nav-n-${id}"></span></button>`;}
+// Metadatos de cada opción (etiqueta + icono) tomados de NAV, + opciones propias
+const NAVMETA={}; NAV.forEach(n=>{NAVMETA[n[0]]={lab:n[1],ic:n[2]};});
+NAVMETA["rc_inicio"]={lab:"RentaCar (en construcción)",ic:IC.wheel};
+// Dos aplicaciones enlazadas
+const APPS=[{id:"cv",lab:"Compraventa",ic:IC.car},{id:"rc",lab:"RentaCar",ic:IC.wheel}];
+// Organización por DEPARTAMENTOS dentro de cada app
+const DEPTS={
+  cv:[
+    {dept:"Dirección",items:["panel","stock"]},
+    {dept:"Compras y preparación",items:["compras","valoracion","taller","facturas"]},
+    {dept:"Logística",items:["logistica","almacenes"]},
+    {dept:"Marketing",items:["marketing","agenda","web"]},
+    {dept:"Comercial / Ventas",items:["ventas","proformas","profesionales","tesoreria","facturas_emitidas"]},
+    {dept:"Postventa y gestoría",items:["garantias","postventa","gestoria"]},
+    {dept:"Análisis y documentación",items:["informes","itv","bancos","documentos"]},
+    {dept:"Directorio",items:["clientes","proveedores","comerciales","transportistas","gestorias"]},
+    {dept:"Administración",items:["usuarios"]},
+  ],
+  rc:[
+    {dept:"RentaCar",items:["rc_inicio"]},
+  ],
+};
+let appActivo="cv", deptsAbiertos=null;
+function itemVisible(id){
+  if(id==="usuarios")return CURRENTUSER&&CURRENTUSER.rol==="admin";
+  if(id==="rc_inicio")return true;
+  return puede(id);
+}
+function deptDeAny(id){for(const app in DEPTS){for(const d of DEPTS[app]){if(d.items.includes(id))return {app,dept:d.dept};}}return null;}
+function toggleDept(name){if(!deptsAbiertos)deptsAbiertos=new Set();if(deptsAbiertos.has(name))deptsAbiertos.delete(name);else deptsAbiertos.add(name);buildNav();}
+function cambiarApp(a){appActivo=a;deptsAbiertos=null;go(a==="rc"?"rc_inicio":"panel");}
+function navBtn([id,lab,ic]){return `<button data-v="${id}" class="${id===current?'on':''}">${svg(ic)}<span>${lab}</span><span class="n" id="nav-n-${id}"></span></button>`;}
 function buildNav(){
-  const grp=(lbl,tipo)=>{const its=NAV.filter(n=>n[3]===tipo&&(n[0]==="usuarios"?CURRENTUSER.rol==="admin":puede(n[0])));return its.length?`<div class="lbl">${lbl}</div>`+its.map(navBtn).join(""):"";};
-  navEl.innerHTML=grp("Operación","op")+grp("Directorio","dir")+grp("Análisis","an")+grp("Administración","adm");
+  const cur=deptDeAny(current);
+  if(cur&&cur.app)appActivo=cur.app;
+  if(!deptsAbiertos){deptsAbiertos=new Set(cur?[cur.dept]:[]);}   // por defecto, solo el dpto. actual
+  let html=`<div class="appsw">${APPS.map(a=>`<button class="appbtn${appActivo===a.id?' sel':''}" onclick="cambiarApp('${a.id}')">${svg(a.ic)}<span>${a.lab}</span></button>`).join("")}</div>`;
+  (DEPTS[appActivo]||[]).forEach(d=>{
+    const its=d.items.filter(itemVisible);
+    if(!its.length)return;
+    const open=deptsAbiertos.has(d.dept);
+    html+=`<div class="dept"><button class="dept-h${open?' open':''}" onclick="toggleDept('${d.dept.replace(/'/g,"\\'")}')"><span>${esc(d.dept)}</span><span class="chev">${open?"▾":"▸"}</span></button>`;
+    if(open)html+=its.map(id=>navBtn([id,NAVMETA[id].lab,NAVMETA[id].ic])).join("");
+    html+=`</div>`;
+  });
+  navEl.innerHTML=html;
+  updateNavCounts();
 }
 navEl.addEventListener("click",e=>{const b=e.target.closest("button");if(b)go(b.dataset.v);});
 $("#newBtn").addEventListener("click",()=>{if(current==="usuarios")return openUserForm();const t=NEWMAP[current]||"vehiculos";openForm(t);});
@@ -423,15 +476,16 @@ $("#q").addEventListener("input",e=>{query=e.target.value;render();});
 function toggleNav(){document.body.classList.toggle("nav-open");}
 function closeNav(){document.body.classList.remove("nav-open");}
 function go(v){
-  if(CURRENTUSER){ if(v==="usuarios"){if(CURRENTUSER.rol!=="admin")return;} else if(!puede(v))return; }
+  if(CURRENTUSER){ if(v==="usuarios"){if(CURRENTUSER.rol!=="admin")return;} else if(v!=="rc_inicio"&&!puede(v))return; }
   closeNav();
   current=v;query="";$("#q").value="";
-  document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
-  $("#viewTitle").textContent=NAV.find(n=>n[0]===v)[1];
-  $("#viewSub").textContent=SUB[v];
+  const cd=deptDeAny(v);if(cd)appActivo=cd.app;deptsAbiertos=new Set(cd?[cd.dept]:[]);  // acordeón: solo el dpto. de la vista
+  $("#viewTitle").textContent=(NAVMETA[v]&&NAVMETA[v].lab)||"";
+  $("#viewSub").textContent=SUB[v]||"";
   $("#newBtn").style.display=(NEWMAP[v]&&puedeEscribirTabla(NEWMAP[v]))?"inline-flex":"none";
   const it=IMPORT_VIEWS[v];
   $("#impBtn").style.display=(it&&puedeEscribirTabla(it))?"inline-flex":"none";
+  buildNav();   // refresca el menú (departamento activo abierto + opción marcada)
   render();
 }
 // Vistas que admiten importación desde Excel/CSV → tabla destino
@@ -540,8 +594,23 @@ function matchQ(v,fields){if(!query)return true;const q=query.toLowerCase();retu
 
 /* ---------- render dispatcher ---------- */
 const views=$("#views");
+function viewRentacar(){
+  const dep=(t,d)=>`<div class="card"><div class="card-h"><h3>${t}</h3><span class="minipill" style="background:var(--warn-s);color:var(--warn)">Próximamente</span></div><div class="card-b" style="color:var(--muted);font-size:13px">${d}</div></div>`;
+  return `<div class="card" style="margin-bottom:16px;background:linear-gradient(135deg,var(--accent-soft),#fff)"><div class="card-b" style="padding:20px">
+      <h2 style="margin:0 0 6px">🔑 Módulo RentaCar</h2>
+      <p style="margin:0;color:var(--muted);font-size:13.5px;max-width:720px">Este módulo de <b>alquiler de vehículos</b> está en construcción. Funcionará <b>enlazado con Compraventa</b>: compartirá los <b>coches</b> (un vehículo podrá pasar de flota de alquiler a venta y viceversa), los <b>clientes</b> y la <b>facturación</b> (serie de alquiler ALQ ya creada). Cuéntame cómo trabajáis el alquiler y lo vamos montando.</p></div></div>
+    <div class="grid2">
+      ${dep("Flota","Vehículos dedicados a alquiler: disponibilidad, estado, kilometraje, mantenimiento y seguros.")}
+      ${dep("Reservas","Calendario de reservas, entregas y devoluciones, con control de solapes.")}
+      ${dep("Contratos","Contratos de alquiler, fianzas, condiciones, conductor autorizado y firma.")}
+      ${dep("Facturación y cobros","Tarifas, facturas de alquiler (serie ALQ), fianzas y cobros; enlazado con Tesorería.")}
+      ${dep("Partes e incidencias","Daños, multas, siniestros y su repercusión al cliente.")}
+      ${dep("Análisis","Ocupación de la flota, ingresos por vehículo y rentabilidad.")}
+    </div>`;
+}
 function render(){
-  if(current==="panel")views.innerHTML=viewPanel();
+  if(current==="rc_inicio")views.innerHTML=viewRentacar();
+  else if(current==="panel")views.innerHTML=viewPanel();
   else if(current==="stock")views.innerHTML=viewStock();
   else if(current==="compras")views.innerHTML=viewCompras();
   else if(current==="valoracion")views.innerHTML=viewValoracion();
