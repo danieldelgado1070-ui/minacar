@@ -399,6 +399,7 @@ const AREA_LABEL=Object.fromEntries(NAV.map(n=>[n[0],n[1]]));
 const DOC_TIPOS=["Factura proforma","Factura de compra","Pago al proveedor","Hoja de transporte","Albarán de entrega","Ficha técnica","Permiso de circulación","Facturas de reparación/mantenimiento","Garantía comercial","Factura de venta","Justificante de cobro"];
 const BANCOS=["","CaixaBank","Banco Santander","BBVA","Banco Sabadell","Bankinter","Unicaja Banco","Kutxabank","Abanca","Ibercaja","Cajamar","ING","Openbank","EVO Banco","Deutsche Bank","Santander Consumer","Cetelem","Cofidis","Sofinco","Otro"];
 let current="panel", query="", stockFilter="Todos", panelAlmacen="";
+let _saving=false;   // cerrojo global anti doble-envío (todos los guardados lo comparten)
 let stockVista="cards", stockSort={campo:"_dias",dir:-1}, stockModo="todos";
 function ordenarStock(campo){if(stockSort.campo===campo)stockSort.dir*=-1;else stockSort={campo,dir:1};render();}
 
@@ -1009,6 +1010,8 @@ async function onRecAlm(sel){
   }else{sel.value="";toast("⚠ No se pudo crear el almacén");}
 }
 async function guardarRecepcion(){
+  if(_saving)return; _saving=true;
+  try{
   const vid=currentForm.id,tiene=$("#rc-desp").checked,alm=$("#rc-alm").value;
   const luzChk=$("#rc-luz-chk").checked;
   const luz=luzChk?((document.querySelector('input[name="rc-luz"]:checked')||{}).value||"apagada"):"";
@@ -1026,6 +1029,7 @@ async function guardarRecepcion(){
   if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo registrar la recepción"));return;}
   document.querySelector(".modal .actions button.accent").setAttribute("onclick","saveForm()");
   closeModal();toast("Recepción registrada ✔ · coche en stock");await reloadAll();
+  }finally{_saving=false;}
 }
 async function marcarEntregado(sid){await api(`/api/ventas/${sid}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({entregado:"Sí",fecha_entrega_cli:todayISO()})});toast("Marcado como entregado ✔");await reloadAll();}
 
@@ -1633,6 +1637,8 @@ function openUserForm(id){
   $("#modal-bg").classList.add("open");
 }
 async function saveUserForm(){
+  if(_saving)return; _saving=true;
+  try{
   const {id}=currentForm;
   const permisos={};document.querySelectorAll(".u-perm").forEach(s=>{if(s.value)permisos[s.dataset.area]=s.value;});
   const data={nombre:$("#u-nombre").value.trim(),rol:$("#u-rol").value,activo:$("#u-activo").value==="1",permisos,comercial_id:$("#u-comercial").value?Number($("#u-comercial").value):null};
@@ -1642,6 +1648,7 @@ async function saveUserForm(){
   if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo guardar"));return;}
   document.querySelector(".modal .actions button.accent").setAttribute("onclick","saveForm()");
   closeModal();toast(id?"Usuario actualizado ✔":"Usuario creado ✔");await reloadAll();
+  }finally{_saving=false;}
 }
 async function delUser(id){if(!confirm("¿Eliminar este usuario?"))return;const r=await api("/api/usuarios/"+id,{method:"DELETE"});if(r&&r.ok===false){toast("⚠ "+r.error);return;}toast("Usuario eliminado");await reloadAll();}
 
@@ -1798,12 +1805,15 @@ function openGestionForm(ambito,id){
   $("#modal-bg").classList.add("open");
 }
 async function saveGestion(){
+  if(_saving)return; _saving=true;
+  try{
   const {ambito,id}=currentForm;
   const data={ambito,ref_id:id,fecha:$("#g-fecha").value,contacto:$("#g-contacto").value,detalle:$("#g-detalle").value,proxima_fecha:$("#g-proxima").value,comercial_id:$("#g-com").value?Number($("#g-com").value):null};
   if(!data.detalle.trim()){toast("Anota qué se ha hecho");return;}
   await api("/api/seguimientos",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
   document.querySelector(".modal .actions button.accent").setAttribute("onclick","saveForm()");
   closeModal();toast("Gestión registrada ✔");await reloadAll();
+  }finally{_saving=false;}
 }
 function verHistorial(ambito,id){
   const segs=segsDe(ambito,id);
@@ -1835,6 +1845,8 @@ function traspasarGestion(ambito,id){
   $("#modal-bg").classList.add("open");
 }
 async function saveTraspaso(){
+  if(_saving)return; _saving=true;
+  try{
   const {ambito,id,actual}=currentForm;
   const nuevo=$("#tr-com").value, motivo=($("#tr-motivo").value||"").trim();
   if(!nuevo){toast("Elige el nuevo responsable");return;}
@@ -1847,6 +1859,7 @@ async function saveTraspaso(){
   await api("/api/seguimientos",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ambito,ref_id:id,fecha:todayISO(),contacto:"Traspaso de responsable",detalle:`Traspaso de «${actual}» a «${nombreNuevo}». Motivo: ${motivo}`,comercial_id:Number(nuevo)})});
   document.querySelector(".modal .actions button.accent").setAttribute("onclick","saveForm()");
   closeModal();toast("Gestión traspasada a "+nombreNuevo+" ✔");await reloadAll();
+  }finally{_saving=false;}
 }
 
 /* ---------- CLIENTES / TRANSPORTISTAS ---------- */
@@ -2208,10 +2221,13 @@ function reservar(vid){
   $("#modal-bg").classList.add("open");
 }
 async function guardarReserva(){
+  if(_saving)return; _saving=true;
+  try{
   const vid=currentForm.id, cli=$("#rv-cli").value, fecha=$("#rv-fecha").value;
   await api("/api/vehiculos/"+vid,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({estado:"reservado",reserva_cliente_id:cli?Number(cli):null,reserva_fecha:fecha||null})});
   document.querySelector(".modal .actions button.accent").setAttribute("onclick","saveForm()");
   closeModal();toast("Vehículo reservado ✔");await reloadAll();openDrawer(vid);
+  }finally{_saving=false;}
 }
 async function liberarReserva(vid){
   const v=DATA.vehiculos.find(x=>x.id===vid);
@@ -2627,7 +2643,6 @@ async function volverAlFormulario(fr,nuevoId){
 }
 $("#modal-bg").addEventListener("click",e=>{if(e.target.id==="modal-bg")closeModal();});
 
-let _saving=false;
 async function saveForm(){
   if(_saving)return;   // evita doble envío (doble clic / clic mientras viaja la petición)
   _saving=true;
