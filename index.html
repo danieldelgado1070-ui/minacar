@@ -2277,6 +2277,8 @@ function onCobroMedio(){
 }
 function onCobroVeh(){const s=$("#cb-veh");if(!s||!s.selectedOptions[0])return;const val=Number(s.selectedOptions[0].dataset.val||0);if(val>0)$("#cb-importe").value=val;}
 async function saveCobro(){
+  if(_saving)return; _saving=true;
+  try{
   const {ventaId,vehId}=currentForm, medio=$("#cb-medio").value;
   const importe=Number($("#cb-importe").value)||0;
   if(importe<=0){toast("Indica el importe del cobro");return;}
@@ -2299,6 +2301,7 @@ async function saveCobro(){
   if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo guardar"));return;}
   document.querySelector(".modal .actions button.accent").setAttribute("onclick","saveForm()");
   closeModal();toast("Cobro registrado ✔");await reloadAll();openDrawer(vehId);
+  }finally{_saving=false;}
 }
 async function delCobro(id,vehId){if(!confirm("¿Quitar este cobro?"))return;await api("/api/cobros/"+id,{method:"DELETE"});toast("Cobro quitado");await reloadAll();openDrawer(vehId);}
 function fichaTexto(v){
@@ -2624,7 +2627,11 @@ async function volverAlFormulario(fr,nuevoId){
 }
 $("#modal-bg").addEventListener("click",e=>{if(e.target.id==="modal-bg")closeModal();});
 
+let _saving=false;
 async function saveForm(){
+  if(_saving)return;   // evita doble envío (doble clic / clic mientras viaja la petición)
+  _saving=true;
+  try{
   const {table,id}=currentForm,sc=SCHEMAS[table],data={};
   for(const f of sc.fields){const el=$("#f-"+f.k);if(!el)continue;let v=(f.t==="check")?(el.checked?1:0):el.value;
     if(f.t==="number"||f.t==="veh-stock"||f.t==="veh-transporte"||f.t.startsWith("ref-"))v=v===""?null:Number(v);if(v==="__add__"||v==="__new__"||v==="__newcli__")v="";data[f.k]=v;}
@@ -2667,6 +2674,7 @@ async function saveForm(){
       proxima_fecha:data.proxima_fecha||null,comercial_id:data.comercial_id||null})});
   }
   closeModal();toast(id?"Actualizado ✔":"Guardado ✔");closeDrawer();await reloadAll();
+  }finally{_saving=false;}
 }
 async function delRow(table,id,fromDrawer){
   if(bloqueadoRO(table))return;
