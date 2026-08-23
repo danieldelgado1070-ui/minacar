@@ -26,6 +26,7 @@ import base64
 import zipfile
 import hashlib
 import secrets
+import time
 import mimetypes
 import unicodedata
 import urllib.request
@@ -420,6 +421,20 @@ def init_db():
 # --------------------------------------------------------------------------
 
 SESSIONS = {}  # token -> {id, username, nombre, rol, permisos}
+
+# Anti fuerza-bruta en el login (memoria; se reinicia con el proceso, suficiente aquí)
+LOGIN_FAILS = {}      # ip -> [timestamps de fallos]
+LOGIN_WINDOW = 900    # 15 minutos
+LOGIN_MAX = 10        # máximo de fallos por ventana antes de bloquear temporalmente
+def login_bloqueado(ip):
+    now = time.time()
+    arr = [t for t in LOGIN_FAILS.get(ip, []) if now - t < LOGIN_WINDOW]
+    LOGIN_FAILS[ip] = arr
+    return len(arr) >= LOGIN_MAX
+def registrar_fallo_login(ip):
+    LOGIN_FAILS.setdefault(ip, []).append(time.time())
+def limpiar_fallos_login(ip):
+    LOGIN_FAILS.pop(ip, None)
 AREAS = ["panel", "stock", "compras", "taller", "logistica", "marketing",
          "agenda", "ventas", "gestoria", "garantias", "postventa", "documentos",
          "almacenes", "tesoreria", "bancos", "web", "clientes", "proveedores",
@@ -516,9 +531,12 @@ def cargar_sesion_db(tok):
         return None
     try:
         conn = get_db()
+        conn.execute("DELETE FROM sesiones WHERE creado < datetime('now','-60 days')")  # caducar tokens viejos
+        conn.commit()
         row = conn.execute(
             """SELECT u.* FROM sesiones s JOIN usuarios u ON u.id = s.usuario_id
-               WHERE s.token = ? AND u.activo = 1""", (tok,)).fetchone()
+               WHERE s.token = ? AND u.activo = 1
+                 AND s.creado > datetime('now','-60 days')""", (tok,)).fetchone()
         conn.close()
     except Exception:
         return None
@@ -1858,6 +1876,7 @@ def guardar_documento(data):
     if not ext:
         fn = data.get("filename") or ""
         ext = (fn.rsplit(".", 1)[-1] if "." in fn else "bin").lower()[:5]
+    ext = re.sub(r"[^a-z0-9]", "", ext.lower())[:5] or "bin"   # solo alfanumérico (evita rutas)
     conn = get_db()
     cur = conn.execute(
         """INSERT INTO documentos (vehiculo_id, tipo, nombre_original, mime, importe, fecha, notas, agenda_id)
@@ -2848,6 +2867,41 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass  # silencioso
 
+    # -- seguridad --
+    def _is_https(self):
+        return (self.headers.get("X-Forwarded-Proto", "") or "").lower() == "https"
+
+    def client_ip(self):
+        xff = self.headers.get("X-Forwarded-For", "")
+        if xff:
+            return xff.split(",")[0].strip()
+        try:
+            return self.client_address[0]
+        except Exception:
+            return "?"
+
+    def cookie_flags(self):
+        # Secure solo cuando se sirve por HTTPS (en la nube); en local http no romper
+        return "; Secure" if self._is_https() else ""
+
+    def end_headers(self):
+        # Cabeceras de seguridad en TODAS las respuestas (evita sniffing, clickjacking,
+        # carga de recursos externos y filtrado de referer).
+        if not getattr(self, "_sec_done", False):
+            self._sec_done = True
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("X-Frame-Options", "DENY")
+            self.send_header("Referrer-Policy", "no-referrer")
+            self.send_header("Content-Security-Policy",
+                             "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+                             "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
+                             "font-src 'self' data:; connect-src 'self'; "
+                             "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; "
+                             "object-src 'none'")
+            if self._is_https():
+                self.send_header("Strict-Transport-Security", "max-age=15552000")
+        super().end_headers()
+
     # -- helpers de respuesta --
     def send_json(self, obj, status=200):
         body = json.dumps(obj, ensure_ascii=False, default=str).encode("utf-8")
@@ -2863,11 +2917,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # la conexión keep-alive no se desincroniza.
         if hasattr(self, "_parsed_body"):
             return self._parsed_body
+        MAX_BODY = 40 * 1024 * 1024   # 40 MB (los documentos ya se limitan a 20 MB)
         te = (self.headers.get("Transfer-Encoding", "") or "").lower()
         if "chunked" in te:
             raw = self._read_chunked()
         else:
             length = int(self.headers.get("Content-Length", 0) or 0)
+            if length > MAX_BODY:
+                # Petición desmesurada: no la leemos (evita OOM) y cerramos la conexión.
+                self.close_connection = True
+                self._parsed_body = {}
+                self._too_large = True
+                return {}
             raw = self.rfile.read(length) if length else b""
         result = {}
         if raw:
@@ -3134,16 +3195,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
         path = urlparse(self.path).path
 
         if path == "/api/login":
+            ip = self.client_ip()
+            if login_bloqueado(ip):
+                return self.send_json({"ok": False, "error": "Demasiados intentos fallidos. Espera unos minutos e inténtalo de nuevo."}, status=429)
             data = self.read_body()
             row = autenticar((data.get("username") or "").strip(), data.get("password") or "")
             if not row:
+                registrar_fallo_login(ip)
                 return self.send_json({"ok": False, "error": "Usuario o contraseña incorrectos"}, status=401)
+            limpiar_fallos_login(ip)
             tok = crear_sesion(row)
             body = json.dumps({"ok": True, "user": SESSIONS[tok]}, ensure_ascii=False).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Set-Cookie", f"sid={tok}; Path=/; HttpOnly; SameSite=Lax")
+            self.send_header("Set-Cookie", f"sid={tok}; Path=/; HttpOnly; SameSite=Lax{self.cookie_flags()}")
             self.end_headers()
             self.wfile.write(body)
             return
@@ -3154,7 +3220,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             borrar_sesion_db(_sid)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
-            self.send_header("Set-Cookie", "sid=; Path=/; Max-Age=0")
+            self.send_header("Set-Cookie", f"sid=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax{self.cookie_flags()}")
             self.send_header("Content-Length", "11")
             self.end_headers()
             self.wfile.write(b'{"ok":true}')
