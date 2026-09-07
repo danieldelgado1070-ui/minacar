@@ -493,16 +493,16 @@ function go(v){
 const IMPORT_VIEWS={clientes:"clientes",proveedores:"proveedores",transportistas:"transportistas",gestorias:"gestorias",comerciales:"comerciales",stock:"vehiculos"};
 
 /* ---------- datos ---------- */
-let DATA={vehiculos:[],clientes:[],transportistas:[],proveedores:[],comerciales:[],compras:[],ventas:[],logistica:[],taller:[],leads:[],gestoria:[],documentos:[],almacenes:[],traspasos:[],garantias:[],postventa:[],agenda:[],cobros:[],seguimientos:[],extractos:[],movimientos:[],recepciones:[],gestorias:[],facturas_emitidas:[]};
+let DATA={vehiculos:[],clientes:[],transportistas:[],proveedores:[],comerciales:[],compras:[],ventas:[],logistica:[],taller:[],leads:[],gestoria:[],documentos:[],almacenes:[],traspasos:[],garantias:[],postventa:[],agenda:[],cobros:[],seguimientos:[],extractos:[],movimientos:[],recepciones:[],gestorias:[],facturas_emitidas:[],pagos_prov:[]};
 let listasCache={marca:[],ciudad:[],ubicacion:[]}, modelosActuales=[];
 async function loadAll(){
-  const [veh,cli,tra,prv,com,ven,log,tal,led,ges,doc,alm,tsp,gar,pos,age,cob,cme,seg,ext,mov,rec,gst,fem]=await Promise.all([
+  const [veh,cli,tra,prv,com,ven,log,tal,led,ges,doc,alm,tsp,gar,pos,age,cob,cme,seg,ext,mov,rec,gst,fem,ppr]=await Promise.all([
     api("/api/vehiculos"),api("/api/clientes"),api("/api/transportistas"),api("/api/proveedores"),
     api("/api/compras"),api("/api/ventas"),api("/api/logistica"),
     api("/api/taller"),api("/api/leads"),api("/api/gestoria"),api("/api/documentos"),
     api("/api/almacenes"),api("/api/traspasos"),
-    api("/api/garantias"),api("/api/postventa"),api("/api/agenda"),api("/api/cobros"),api("/api/comerciales"),api("/api/seguimientos"),api("/api/extractos"),api("/api/movimientos"),api("/api/recepciones"),api("/api/gestorias"),api("/api/facturas_emitidas")]);
-  DATA={vehiculos:veh,clientes:cli,transportistas:tra,proveedores:prv,compras:com,ventas:ven,logistica:log,taller:tal,leads:led,gestoria:ges,documentos:doc,almacenes:alm,traspasos:tsp,garantias:gar,postventa:pos,agenda:age,cobros:cob,comerciales:cme,seguimientos:seg,extractos:ext,movimientos:mov,recepciones:rec,gestorias:gst||[],facturas_emitidas:fem||[],usuarios:[]};
+    api("/api/garantias"),api("/api/postventa"),api("/api/agenda"),api("/api/cobros"),api("/api/comerciales"),api("/api/seguimientos"),api("/api/extractos"),api("/api/movimientos"),api("/api/recepciones"),api("/api/gestorias"),api("/api/facturas_emitidas"),api("/api/pagos_prov")]);
+  DATA={vehiculos:veh,clientes:cli,transportistas:tra,proveedores:prv,compras:com,ventas:ven,logistica:log,taller:tal,leads:led,gestoria:ges,documentos:doc,almacenes:alm,traspasos:tsp,garantias:gar,postventa:pos,agenda:age,cobros:cob,comerciales:cme,seguimientos:seg,extractos:ext,movimientos:mov,recepciones:rec,gestorias:gst||[],facturas_emitidas:fem||[],pagos_prov:ppr||[],usuarios:[]};
   if(CURRENTUSER&&CURRENTUSER.rol==="admin"){try{DATA.usuarios=await api("/api/usuarios")||[];}catch(e){}}
   await cargarListas();
   enrich();
@@ -539,6 +539,8 @@ function enrich(){
     v._docN=DOC_TIPOS.filter(t=>v._docTipos.has(t)).length;
     v._cobros=v._venta?DATA.cobros.filter(c=>c.venta_id===v._venta.id):[];
     v._cobrado=v._cobros.reduce((s,c)=>s+(Number(c.importe)||0),0);
+    v._pagosProv=v._compra?DATA.pagos_prov.filter(p=>p.compra_id===v._compra.id):[];
+    v._pagadoProv=v._pagosProv.reduce((s,p)=>s+(Number(p.importe)||0),0);
     const base=v._compra?Number(v._compra.precio)||0:0;
     const gastos=v._compra?Number(v._compra.gastos)||0:0;
     v._reacond=v._taller.reduce((s,t)=>s+(Number(t.coste)||0),0);
@@ -1117,22 +1119,41 @@ function viewGestoria(){
     <tr data-veh="${g.vehiculo_id||''}">
       <td><span class="plate">${esc(g.matricula||"")}</span> ${esc(g.marca||"")} ${esc(g.modelo||"")}</td>
       <td>${esc(g.tipo||"")}</td><td>${gestPill(g.estado)}</td><td>${esc(g.gestoria||"")}</td>
-      <td>${fdate(g.fecha_solicitud)}</td><td>${fdate(g.fecha_resolucion)}</td>
+      <td>${fdate(g.fecha_solicitud)}</td><td>${g.fecha_vencimiento?fdate(g.fecha_vencimiento):"—"}</td>
+      <td>${g.doc_recibida==="Sí"?`<span class="minipill" style="background:var(--ok-s);color:var(--ok)">✓ ${fdate(g.fecha_doc_recibida)}</span>`:'<span style="color:var(--muted-2)">pendiente</span>'}</td>
       <td class="r"><button class="btn ghost sm" onclick="openForm('gestoria',${g.id})">✎</button> ${docBtn(g.vehiculo_id,'Documento de gestoría')}<button class="btn danger sm" onclick="delRow('gestoria',${g.id})">🗑</button></td>
     </tr>`).join("");
-  // Listado: vehículos que están AHORA en la gestoría (documentación enviada, sin resolver)
-  const enGest=arr.filter(g=>["Enviada a gestoría","En trámite","Presentada a AEAT"].includes(g.estado));
-  const egRows=enGest.map(g=>`<tr data-veh="${g.vehiculo_id||''}">
+  // Documentación pendiente de RECIBIR de la gestoría (con vencimiento y aviso)
+  const hoy=todayISO();
+  const pendRecibir=arr.filter(g=>g.doc_recibida!=="Sí"&&!["Completada","Denegada"].includes(g.estado));
+  pendRecibir.sort((a,b)=>((a.fecha_vencimiento||"9999")+"").localeCompare((b.fecha_vencimiento||"9999")+""));
+  const nVenc=pendRecibir.filter(g=>g.fecha_vencimiento&&g.fecha_vencimiento<hoy).length;
+  const prRows=pendRecibir.map(g=>{
+    let vtxt="— sin fecha",vcol="var(--muted-2)";
+    if(g.fecha_vencimiento){
+      if(g.fecha_vencimiento<hoy){vcol="var(--danger)";vtxt=fdate(g.fecha_vencimiento)+" · ⚠ vencida ("+daysBetween(g.fecha_vencimiento,hoy)+" d)";}
+      else{const d=daysBetween(hoy,g.fecha_vencimiento);vcol=d<=7?"var(--warn)":"var(--ink)";vtxt=fdate(g.fecha_vencimiento)+(d<=7?` · en ${d} d`:"");}
+    }
+    return `<tr data-veh="${g.vehiculo_id||''}">
       <td><span class="plate">${esc(g.matricula||"")}</span> ${esc(g.marca||"")} ${esc(g.modelo||"")}</td>
       <td>${esc(g.tipo||"")}</td><td>${esc(g.gestoria||"")}</td><td>${gestPill(g.estado)}</td>
-      <td>${fdate(g.fecha_solicitud)}</td><td class="r">${g.fecha_solicitud?daysBetween(g.fecha_solicitud,todayISO())+" d":"—"}</td></tr>`).join("");
-  const enGestCard=`<div class="card" style="margin-bottom:16px"><div class="card-h"><h3>🏛️ Vehículos actualmente en la gestoría (${enGest.length})</h3><span class="hint">documentación enviada, pendiente de resolver</span></div>
-    <div class="card-b" style="padding:0 18px 12px">${tableWrap([{t:"Vehículo"},{t:"Trámite"},{t:"Gestoría"},{t:"Estado"},{t:"Enviado"},{t:"Días",r:1}],egRows)}</div></div>`;
-  return `<div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">${kpi("Trámites",arr.length)}${kpi("En curso",pend)}${kpi("Aceptados / completados",aceptadas)}</div>`
-    +enGestCard
+      <td>${fdate(g.fecha_solicitud)}</td>
+      <td style="color:${vcol};font-weight:600">${vtxt}</td>
+      <td class="r">${docBtn(g.vehiculo_id,'Documento de gestoría')}<button class="btn accent sm" onclick="marcarDocRecibida(${g.id})">✓ Recibida</button></td></tr>`;}).join("");
+  const prCard=`<div class="card" style="margin-bottom:16px${nVenc?";border:1px solid var(--danger)":""}"><div class="card-h"><h3>📥 Documentación pendiente de recibir (${pendRecibir.length})</h3><span class="hint">${nVenc?`<span style="color:var(--danger);font-weight:700">⚠ ${nVenc} vencida(s)</span> · `:""}marca «Recibida» cuando llegue para cerrar el expediente</span></div>
+    <div class="card-b" style="padding:0 18px 12px">${tableWrap([{t:"Vehículo"},{t:"Trámite"},{t:"Gestoría"},{t:"Estado"},{t:"Solicitud"},{t:"Vencimiento"},{t:"",r:1}],prRows)}</div></div>`;
+  return `<div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">${kpi("Trámites",arr.length)}${kpi("En curso",pend)}${kpi("Docs. pendientes",pendRecibir.length)}${kpi("Vencidas",nVenc)}</div>`
+    +prCard
     +`<div class="card"><div class="card-h"><h3>Todos los trámites</h3></div><div class="card-b" style="padding:0 18px 12px">`
-    +tableWrap([{t:"Vehículo"},{t:"Trámite"},{t:"Estado"},{t:"Gestoría"},{t:"Solicitud"},{t:"Resolución"},{t:"",r:1}],rows)
+    +tableWrap([{t:"Vehículo"},{t:"Trámite"},{t:"Estado"},{t:"Gestoría"},{t:"Solicitud"},{t:"Vencimiento"},{t:"Recibida"},{t:"",r:1}],rows)
     +`</div></div>`;
+}
+async function marcarDocRecibida(id){
+  if(bloqueadoRO("gestoria"))return;
+  if(!confirm("¿Confirmas que la documentación de este trámite ya se ha RECIBIDO?\n\nSe cerrará el expediente de gestoría (estado «Completada»)."))return;
+  const res=await api(`/api/gestoria/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({doc_recibida:"Sí",fecha_doc_recibida:todayISO(),estado:"Completada"})});
+  if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo actualizar"));return;}
+  toast("Documentación recibida ✔ · expediente cerrado");await reloadAll();
 }
 
 /* ---------- DOCUMENTOS (overview) ---------- */
@@ -1193,6 +1214,8 @@ function nombreMes(mes){const[y,m]=mes.split("-").map(Number);return ["enero","f
 function ivaPctCompra(c){return (c.regimen==="REBU")?0:((c.iva_pct!=null&&c.iva_pct!=="")?Number(c.iva_pct):21);}
 function ivaCompra(c){return (Number(c.precio)||0)*ivaPctCompra(c)/100;}                 // IVA soportado de la compra
 function totalCompra(c){return (Number(c.precio)||0)+ivaCompra(c)+(Number(c.gastos)||0);} // importe real a pagar / caja
+function pagadoCompra(c){return (DATA.pagos_prov||[]).filter(p=>p.compra_id===c.id).reduce((s,p)=>s+(Number(p.importe)||0),0);}
+function pendienteCompra(c){return Math.max(0,totalCompra(c)-pagadoCompra(c));}
 function calcIvaMes(mes){
   const inMes=f=>(f||"").slice(0,7)===mes;
   const pctDe=(x,reb)=>{if(reb&&x.regimen==="REBU")return 0;return (x.iva_pct!=null&&x.iva_pct!=="")?Number(x.iva_pct):21;};
@@ -1209,7 +1232,7 @@ function calendarioTeso(){
   const add=(map,date,amt)=>{if(!date||String(date).slice(0,7)!==mes||!(amt>0))return;map[date]=(map[date]||0)+amt;};
   DATA.ventas.forEach(s=>{const pend=(Number(s.precio)||0)-cobradoDe(s.vehiculo_id);if(pend>0.01){if(s.fecha_cobro_est)add(inflow,s.fecha_cobro_est,pend);else sinFCob+=pend;}});
   const pag=[];
-  DATA.compras.filter(c=>c.pagado!=="Sí").forEach(c=>pag.push({f:c.fecha_pago_est,a:totalCompra(c),noRec:c.factura_recibida==="No"}));
+  DATA.compras.filter(c=>c.pagado!=="Sí"&&pendienteCompra(c)>0.01).forEach(c=>pag.push({f:c.fecha_pago_est,a:pendienteCompra(c),noRec:c.factura_recibida==="No"}));
   DATA.taller.filter(t=>t.pago!=="Pagado").forEach(t=>pag.push({f:t.fecha_pago_est,a:Number(t.coste)||0,noRec:t.factura_recibida==="No"}));
   DATA.postventa.filter(p=>p.pago!=="Pagado").forEach(p=>pag.push({f:p.fecha_pago_est,a:Number(p.coste)||0,noRec:p.factura_recibida==="No"}));
   DATA.logistica.filter(l=>l.pagado!=="Sí").forEach(l=>pag.push({f:l.fecha_pago_est,a:Number(l.coste)||0,noRec:l.factura_recibida==="No"}));
@@ -1307,7 +1330,7 @@ function viewTesoreria(){
       <td class="r">${docBtn(s.vehiculo_id,'Justificante de cobro')}</td></tr>`).join("");
   // PAGOS pendientes (compras + taller + postventa)
   const pagos=[];
-  DATA.compras.filter(c=>c.pagado!=="Sí").forEach(c=>pagos.push({fuente:"Compra",tabla:"compras",id:c.id,vid:c.vehiculo_id,pf:"pagado",pv:"Sí",concepto:`${esc(c.matricula||"")} ${esc(c.marca||"")} ${esc(c.modelo||"")} · Fra ${esc(c.numero_factura||"—")}`,prov:c.proveedor,imp:totalCompra(c),fest:c.fecha_pago_est}));
+  DATA.compras.filter(c=>c.pagado!=="Sí"&&pendienteCompra(c)>0.01).forEach(c=>{const pg=pagadoCompra(c);pagos.push({fuente:"Compra",tabla:"compras",id:c.id,vid:c.vehiculo_id,pf:"pagado",pv:"Sí",concepto:`${esc(c.matricula||"")} ${esc(c.marca||"")} ${esc(c.modelo||"")} · Fra ${esc(c.numero_factura||"—")}${pg>0.01?` · <span style="color:var(--muted)">pagado ${eur2(pg)}</span>`:""}`,prov:c.proveedor,imp:pendienteCompra(c),fest:c.fecha_pago_est});});
   DATA.taller.filter(t=>t.pago!=="Pagado").forEach(t=>pagos.push({fuente:"Taller",tabla:"taller",id:t.id,vid:t.vehiculo_id,pf:"pago",pv:"Pagado",concepto:`${esc(t.matricula||"")} · ${esc(t.tipo||"")} ${esc(t.descripcion||"")}`,prov:t.proveedor,imp:Number(t.coste)||0,fest:t.fecha_pago_est}));
   DATA.postventa.filter(p=>p.pago!=="Pagado").forEach(p=>pagos.push({fuente:"Postventa",tabla:"postventa",id:p.id,vid:p.vehiculo_id,pf:"pago",pv:"Pagado",concepto:`${esc(p.matricula||"")} · ${esc(p.tipo||"")} ${esc(p.descripcion||"")}`,prov:p.proveedor,imp:Number(p.coste)||0,fest:p.fecha_pago_est}));
   DATA.logistica.filter(l=>l.factura_recibida==="Sí"&&l.pagado!=="Sí"&&(Number(l.coste)||0)>0).forEach(l=>pagos.push({fuente:"Transporte",tabla:"logistica",id:l.id,vid:l.vehiculo_id,pf:"pagado",pv:"Sí",concepto:`${esc(l.matricula||"")} ${esc(l.marca||"")} ${esc(l.modelo||"")} · Fra ${esc(l.numero_factura||"—")}`,prov:l.transportista_nombre,imp:Number(l.coste)||0,fest:l.fecha_factura}));
@@ -1348,7 +1371,7 @@ function subirExtracto(){
 }
 /* ---------- FACTURAS DE PROVEEDOR (control de recepción y pago) ---------- */
 const FACT_SRC=[
-  {t:"compras",lbl:"Compra",arr:()=>DATA.compras,con:c=>`${c.matricula||""} ${c.marca||""} ${c.modelo||""}`,prov:c=>c.proveedor,imp:c=>totalCompra(c),paid:c=>c.pagado==="Sí",pf:"pagado",pv:"Sí"},
+  {t:"compras",lbl:"Compra",arr:()=>DATA.compras,con:c=>`${c.matricula||""} ${c.marca||""} ${c.modelo||""}`,prov:c=>c.proveedor,imp:c=>pendienteCompra(c),paid:c=>c.pagado==="Sí",pf:"pagado",pv:"Sí"},
   {t:"taller",lbl:"Taller",arr:()=>DATA.taller,con:t=>`${t.matricula||""} · ${t.tipo||""} ${t.descripcion||""}`,prov:t=>t.proveedor,imp:t=>Number(t.coste)||0,paid:t=>t.pago==="Pagado",pf:"pago",pv:"Pagado"},
   {t:"postventa",lbl:"Postventa",arr:()=>DATA.postventa,con:p=>`${p.matricula||""} · ${p.tipo||""} ${p.descripcion||""}`,prov:p=>p.proveedor,imp:p=>Number(p.coste)||0,paid:p=>p.pago==="Pagado",pf:"pago",pv:"Pagado"},
   {t:"logistica",lbl:"Transporte",arr:()=>DATA.logistica,con:l=>`${l.matricula||""} ${l.marca||""} ${l.modelo||""}`,prov:l=>l.transportista_nombre,imp:l=>Number(l.coste)||0,paid:l=>l.pagado==="Sí",pf:"pagado",pv:"Sí"},
@@ -1416,6 +1439,7 @@ async function factPagar(tabla,id,pf,pv){return registrarPagoProv(tabla,id,pf,pv
 /* Registrar pago a proveedor + pedir el justificante escaneado para el expediente */
 async function registrarPagoProv(tabla,id,pf,pv,vid){
   if(bloqueadoRO(tabla))return;
+  if(tabla==="compras"){openPagoParcial(id);return;}   // compras: pagos parciales con fecha/cuenta/justificante
   const data={};data[pf]=pv;
   const res=await api(`/api/${tabla}/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
   if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo guardar"));return;}
@@ -1435,6 +1459,53 @@ function subirJustificantePago(vid){
       toast("Justificante guardado en el expediente ✔");await reloadAll();};
     rd.readAsDataURL(file);};
   inp.click();
+}
+/* ---------- PAGOS PARCIALES AL PROVEEDOR (compras) ---------- */
+function pagosDeCompra(compraId){return DATA.pagos_prov.filter(p=>p.compra_id===compraId);}
+function openPagoParcial(compraId){
+  if(bloqueadoRO("compras"))return;
+  const c=DATA.compras.find(x=>x.id===compraId);if(!c){toast("Compra no encontrada");return;}
+  const total=totalCompra(c);
+  const pagos=pagosDeCompra(compraId);
+  const pagado=pagos.reduce((s,p)=>s+(Number(p.importe)||0),0);
+  const pend=Math.max(0,total-pagado);
+  currentForm={table:"__pagoprov",compraId,vid:c.vehiculo_id};
+  $("#modal-title").textContent="Registrar pago al proveedor";
+  const lista=pagos.length?`<div style="margin-bottom:10px"><div style="font-size:12px;color:var(--muted);margin-bottom:4px">Pagos ya registrados:</div>${pagos.map(p=>`<div class="tl-row" style="align-items:center"><span>${fdate(p.fecha)}${p.banco?` · ${esc(p.banco)}`:""}${p.cuenta?` <span style="color:var(--muted-2)">(${esc(p.cuenta)})</span>`:""}</span><span style="display:flex;gap:6px;align-items:center"><b>${eur2(p.importe)}</b><button class="btn danger sm" style="padding:1px 6px" onclick="delPagoParcial(${p.id},${compraId})">✕</button></span></div>`).join("")}</div>`:"";
+  $("#modal-body").innerHTML=`<div style="background:var(--info-s);color:var(--info);border-radius:8px;padding:8px 12px;font-size:12.5px;margin-bottom:10px">
+      ${esc((c.matricula||"")+" "+(c.marca||"")+" "+(c.modelo||""))} · Total compra (con IVA) <b>${eur2(total)}</b> · pagado <b>${eur2(pagado)}</b> · <b>pendiente ${eur2(pend)}</b>. Puedes pagar en <b>varias veces</b>.</div>
+    ${lista}
+    <div class="row">
+      <div class="field" style="flex:1 1 45%"><label>Importe de este pago (€)</label><input id="pp-importe" type="number" value="${pend||""}"></div>
+      <div class="field" style="flex:1 1 45%"><label>Fecha del pago</label><input id="pp-fecha" type="date" value="${todayISO()}"></div>
+      <div class="field" style="flex:1 1 45%"><label>Banco / cuenta de origen</label><select id="pp-banco">${BANCOS.map(b=>`<option value="${esc(b)}">${esc(b||"— seleccionar —")}</option>`).join("")}</select></div>
+      <div class="field" style="flex:1 1 45%"><label>Nº de cuenta (si se conoce)</label><input id="pp-cuenta" placeholder="ESxx …"></div>
+      <div class="field" style="flex:1 1 100%"><label>Notas</label><input id="pp-notas"></div>
+    </div>`;
+  document.querySelector(".modal .actions button.accent").setAttribute("onclick","savePagoParcial()");
+  $("#modal-bg").classList.add("open");
+}
+async function savePagoParcial(){
+  if(_saving)return; _saving=true;
+  try{
+    const {compraId,vid}=currentForm;
+    const importe=Number($("#pp-importe").value)||0;
+    if(importe<=0){toast("Indica el importe del pago");return;}
+    const data={compra_id:compraId,vehiculo_id:vid,importe,fecha:$("#pp-fecha").value||todayISO(),banco:$("#pp-banco").value,cuenta:$("#pp-cuenta").value.trim(),notas:$("#pp-notas").value.trim()};
+    const res=await api("/api/pagos_prov",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+    if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo registrar el pago"));return;}
+    document.querySelector(".modal .actions button.accent").setAttribute("onclick","saveForm()");
+    closeModal();toast("Pago registrado ✔");await reloadAll();
+    if(vid&&confirm("¿Adjuntar el justificante de pago escaneado?\n\nSe guardará en la documentación del coche (expediente).")){
+      subirJustificantePago(vid);
+    }
+  }finally{_saving=false;}
+}
+async function delPagoParcial(id,compraId){
+  if(!confirm("¿Quitar este pago?"))return;
+  await api("/api/pagos_prov/"+id,{method:"DELETE"});
+  toast("Pago quitado");await reloadAll();
+  openPagoParcial(compraId);
 }
 /* ---------- FLEXICAR (informe de deudas) ---------- */
 function esProfesional(s){return s.cliente_profesional==1||s.cliente_profesional==="1"||s.cliente_profesional==="Sí";}
@@ -2042,6 +2113,7 @@ function openDrawer(id){
           </div></div></div>`}
       <div class="card"><div class="card-h"><h3>Trazabilidad 360</h3><span class="hint">${v._dias!=null?v._dias+" días de ciclo":""}</span></div>
         <div class="card-b"><div class="tl">${tl.join("")}</div></div></div>
+      ${ocultaCostes()?"":pagosProvCard(v)}
       ${ocultaCostes()?"":cobrosCard(v)}
       ${recepcionCard(v)}
       ${gestoriaCard(v)}
@@ -2243,6 +2315,16 @@ function cobrosCard(v){
     <div class="card-b">${v._cobros.length?`<div style="display:flex;flex-direction:column;gap:6px">${rows}</div>`:'<div style="color:var(--muted);font-size:12.5px">Sin cobros. Registra los pagos del cliente (efectivo, transferencia, coche a cambio…).</div>'}
       <div class="tot" style="margin-top:10px;border-top:1px solid var(--line);padding-top:9px"><span>Cobrado / Precio</span><b style="color:${cuadra?"var(--ok)":"var(--warn)"}">${eur2(v._cobrado)} / ${eur2(precio)}</b></div>
       <div class="tot" style="border:none;padding-top:2px"><span>${cuadra?"✓ Venta totalmente cobrada":"Pendiente de cobro"}</span><b style="color:${cuadra?"var(--ok)":"var(--danger)"}">${cuadra?"":eur2(pend)}</b></div>
+    </div></div>`;
+}
+function pagosProvCard(v){
+  if(!v._compra)return "";
+  const total=totalCompra(v._compra), pagado=v._pagadoProv||0, pend=Math.max(0,total-pagado), cuadra=pend<=0.01;
+  const rows=(v._pagosProv||[]).map(p=>`<div class="tl-row" style="align-items:center"><span>${fdate(p.fecha)}${p.banco?` · ${esc(p.banco)}`:""}${p.cuenta?` <span style="color:var(--muted-2)">(${esc(p.cuenta)})</span>`:""}</span><span style="display:flex;gap:6px;align-items:center"><b>${eur2(p.importe)}</b><button class="btn danger sm" style="padding:1px 6px" onclick="delPagoParcial(${p.id},${v._compra.id})">✕</button></span></div>`).join("");
+  return `<div class="card"><div class="card-h"><h3>Pagos al proveedor</h3><button class="btn ghost sm" onclick="openPagoParcial(${v._compra.id})">+ Pago</button></div>
+    <div class="card-b">${(v._pagosProv||[]).length?`<div style="display:flex;flex-direction:column;gap:6px">${rows}</div>`:'<div style="color:var(--muted);font-size:12.5px">Sin pagos. La compra puede pagarse en varias veces.</div>'}
+      <div class="tot" style="margin-top:10px;border-top:1px solid var(--line);padding-top:9px"><span>Pagado / Total</span><b style="color:${cuadra?"var(--ok)":"var(--warn)"}">${eur2(pagado)} / ${eur2(total)}</b></div>
+      <div class="tot" style="border:none;padding-top:2px"><span>${cuadra?"✓ Compra totalmente pagada":"Pendiente de pago"}</span><b style="color:${cuadra?"var(--ok)":"var(--danger)"}">${cuadra?"":eur2(pend)}</b></div>
     </div></div>`;
 }
 function onCobroImporte(){
@@ -2496,6 +2578,7 @@ const SCHEMAS={
     {k:"estado",l:"Estado",t:"select",opts:["Pendiente","En trámite","Enviada a gestoría","Presentada a AEAT","Aceptada AEAT","Denegada","Completada"]},
     {k:"gestoria_id",l:"Gestoría / Asesoría (elígela o añádela con ➕)",t:"ref-gestoria",full:1},
     {k:"fecha_solicitud",l:"Fecha de solicitud / envío",t:"date"},
+    {k:"fecha_vencimiento",l:"Vencimiento (fecha límite para recibir la documentación)",t:"date"},
     {k:"fecha_resolucion",l:"Fecha de resolución",t:"date"},
     {k:"coste",l:"Coste / honorarios gestoría (€)",t:"number"},{k:"nif_gestoria",l:"NIF de la gestoría",t:"text"},
     {k:"numero_factura",l:"Nº de factura",t:"text"},

@@ -156,6 +156,18 @@ def init_db():
             creado      TEXT DEFAULT (datetime('now','localtime'))
         );
 
+        CREATE TABLE IF NOT EXISTS pagos_prov (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            compra_id   INTEGER REFERENCES compras(id) ON DELETE CASCADE,
+            vehiculo_id INTEGER REFERENCES vehiculos(id) ON DELETE CASCADE,
+            fecha       TEXT,
+            importe     REAL DEFAULT 0,
+            banco       TEXT,
+            cuenta      TEXT,
+            notas       TEXT,
+            creado      TEXT DEFAULT (datetime('now','localtime'))
+        );
+
         CREATE TABLE IF NOT EXISTS compras (
             id             INTEGER PRIMARY KEY AUTOINCREMENT,
             vehiculo_id    INTEGER REFERENCES vehiculos(id) ON DELETE CASCADE,
@@ -219,6 +231,9 @@ def init_db():
             gestoria         TEXT,
             fecha_solicitud  TEXT,
             fecha_resolucion TEXT,
+            fecha_vencimiento   TEXT,
+            doc_recibida        TEXT,
+            fecha_doc_recibida  TEXT,
             notas            TEXT,
             creado           TEXT DEFAULT (datetime('now','localtime'))
         );
@@ -451,6 +466,7 @@ TABLE_AREA = {
     "extractos": "bancos", "movimientos": "bancos",
     "recepciones": "logistica", "gestorias": "gestoria",
     "facturas_emitidas": "ventas",
+    "pagos_prov": "compras",
 }
 
 
@@ -733,6 +749,9 @@ def migrate(conn):
             add("gestoria", "pagado TEXT")
             add("gestoria", "fecha_pago_est TEXT")
             add("gestoria", "nif_gestoria TEXT")
+            add("gestoria", "fecha_vencimiento TEXT")     # límite para recibir la documentación de vuelta
+            add("gestoria", "doc_recibida TEXT")           # 'Sí' cuando llega la documentación
+            add("gestoria", "fecha_doc_recibida TEXT")
         add("vehiculos", "proxima_revision TEXT")   # ITV: próxima revisión concertada (#11)
         add("vehiculos", "etiqueta TEXT")            # etiqueta medioambiental DGT
         if has_table("gestoria"):
@@ -964,6 +983,7 @@ FIELDS = {
     "agenda": ["vehiculo_id", "fecha", "tipo", "asunto", "detalle",
                "responsable_id", "cerrado", "motivo_cierre", "notas"],
     "cobros": ["venta_id", "fecha", "medio", "importe", "banco", "cuenta", "veh_cambio_id", "factura_emitida_id", "notas"],
+    "pagos_prov": ["compra_id", "vehiculo_id", "fecha", "importe", "banco", "cuenta", "notas"],
     "facturas_emitidas": ["serie", "tipo", "numero", "fecha", "cliente_id", "vehiculo_id",
                           "venta_id", "concepto", "base", "iva_pct", "irpf_pct",
                           "rectifica_numero", "notas"],
@@ -981,6 +1001,7 @@ FIELDS = {
                     "observacion_usuario", "observacion_app"],
     "gestoria": ["vehiculo_id", "tipo", "estado", "gestoria", "gestoria_id",
                  "fecha_solicitud", "fecha_resolucion",
+                 "fecha_vencimiento", "doc_recibida", "fecha_doc_recibida",
                  "coste", "numero_factura", "nif_gestoria", "factura_recibida",
                  "fecha_factura", "pagado", "fecha_pago_est", "notas"],
     "gestorias": ["nombre", "nif", "telefono", "email", "direccion", "notas"],
@@ -1187,6 +1208,34 @@ TIPO_A_SERIE = {
 }
 
 
+def _total_compra(row):
+    """Total a pagar al proveedor de una compra (base + IVA + gastos)."""
+    precio = float(row["precio"] or 0)
+    gastos = float(row["gastos"] or 0)
+    reg = (row["regimen"] or "")
+    ivp = row["iva_pct"] if "iva_pct" in row.keys() else None
+    pct = 0 if reg.upper() == "REBU" else (float(ivp) if ivp not in (None, "") else 21)
+    return precio * (1 + pct / 100.0) + gastos
+
+
+def _recalcular_pago_compra(conn, compra_id):
+    """Marca la compra como pagada (Sí/No) según la suma de pagos parciales."""
+    if not compra_id:
+        return
+    c = conn.execute("SELECT * FROM compras WHERE id=?", (compra_id,)).fetchone()
+    if not c:
+        return
+    pagado = conn.execute("SELECT COALESCE(SUM(importe),0) AS s FROM pagos_prov WHERE compra_id=?",
+                          (compra_id,)).fetchone()["s"] or 0
+    total = _total_compra(c)
+    if total > 0 and pagado >= total - 0.01:
+        ult = conn.execute("SELECT MAX(fecha) AS f FROM pagos_prov WHERE compra_id=?", (compra_id,)).fetchone()["f"]
+        conn.execute("UPDATE compras SET pagado='Sí', fecha_pago=COALESCE(NULLIF(fecha_pago,''), ?) WHERE id=?",
+                     (ult or date.today().isoformat(), compra_id))
+    else:
+        conn.execute("UPDATE compras SET pagado='No' WHERE id=?", (compra_id,))
+
+
 def insert_row(table, data):
     conn = get_db()
     try:
@@ -1291,6 +1340,10 @@ def insert_row(table, data):
             f"INSERT INTO {table} ({cols}) VALUES ({placeholders})", values)
         new_id = cur.lastrowid
 
+        # Pago parcial al proveedor: recalcular si la compra queda saldada
+        if table == "pagos_prov" and data.get("compra_id"):
+            _recalcular_pago_compra(conn, data.get("compra_id"))
+
         # Coche entregado a cambio: salda automáticamente la compra de ese coche al proveedor
         if table == "cobros" and data.get("medio") == "Coche a cambio" and data.get("veh_cambio_id"):
             conn.execute(
@@ -1378,7 +1431,13 @@ def update_row(table, row_id, data):
 
 def delete_row(table, row_id):
     conn = get_db()
+    compra_id = None
+    if table == "pagos_prov":
+        r = conn.execute("SELECT compra_id FROM pagos_prov WHERE id=?", (row_id,)).fetchone()
+        compra_id = r["compra_id"] if r else None
     conn.execute(f"DELETE FROM {table} WHERE id=?", (row_id,))
+    if table == "pagos_prov" and compra_id:
+        _recalcular_pago_compra(conn, compra_id)
     conn.commit()
     conn.close()
 
@@ -1562,6 +1621,13 @@ def list_cobros(q=None):
            LEFT JOIN vehiculos vc ON vc.id = c.veh_cambio_id
            LEFT JOIN facturas_emitidas fe ON fe.id = c.factura_emitida_id
            ORDER BY c.fecha, c.id""").fetchall()
+    conn.close()
+    return rows_to_list(rows)
+
+
+def list_pagos_prov(q=None):
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM pagos_prov ORDER BY fecha, id").fetchall()
     conn.close()
     return rows_to_list(rows)
 
@@ -3064,6 +3130,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_json(list_cobros(params.get("q", [None])[0]))
         if path == "/api/facturas_emitidas":
             return self.send_json(list_facturas_emitidas(params.get("q", [None])[0]))
+        if path == "/api/pagos_prov":
+            return self.send_json(list_pagos_prov(params.get("q", [None])[0]))
         if path == "/api/seguimientos":
             return self.send_json(list_seguimientos(params.get("q", [None])[0]))
         if path == "/api/extractos":
@@ -3406,7 +3474,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "leads", "gestoria", "documentos", "almacenes", "traspasos",
                     "garantias", "postventa", "agenda", "cobros",
                     "seguimientos", "extractos", "movimientos", "listas",
-                    "recepciones", "gestorias", "facturas_emitidas"}
+                    "recepciones", "gestorias", "facturas_emitidas", "pagos_prov"}
 
     def _table_from_path(self):
         parts = urlparse(self.path).path.strip("/").split("/")
