@@ -396,7 +396,11 @@ const NAV=[
 const SUB={panel:"Visión general de la operación",stock:"Existencias y ficha 360 de cada vehículo",compras:"Facturas y pagos a proveedor",valoracion:"Precio de compra recomendado según tu margen y el mercado",taller:"Reacondicionamiento y costes de preparación",logistica:"Transporte, entrega y coches pendientes",marketing:"Leads e interesados por vehículo",agenda:"Gestiones diarias de leads y postventa",ventas:"Operaciones cerradas y facturas",proformas:"Proformas / presupuestos (se confirman en factura)",tesoreria:"Facturas pendientes de cobro y de pago",facturas:"Facturas de proveedor: pendientes de recibir y de pagar",profesionales:"Venta a profesionales: informe de deudas (la proforma genera deuda)",bancos:"Extractos bancarios y conciliación de movimientos",gestoria:"Transferencias y exenciones de matriculación",garantias:"Garantías comerciales por vehículo",postventa:"Atenciones tras venta y agenda de reclamaciones",documentos:"Documentación aportada por vehículo",almacenes:"Ubicaciones, valoración del stock y traspasos",web:"Conciliación con minacar.es",clientes:"Directorio de clientes",proveedores:"Directorio de proveedores",comerciales:"Comerciales y cálculo de comisiones",transportistas:"Directorio de transportistas",gestorias:"Directorio de gestorías / asesorías",itv:"Control de ITV por vencimiento y revisiones concertadas",informes:"Rotación y margen por dimensión",usuarios:"Usuarios y permisos de acceso",rc_inicio:"Alquiler de vehículos (en construcción, enlazado con Compraventa)"};
 const NEWMAP={stock:"vehiculos",compras:"compras",taller:"taller",ventas:"ventas",logistica:"logistica",marketing:"leads",gestoria:"gestoria",garantias:"garantias",postventa:"postventa",almacenes:"almacenes",clientes:"clientes",proveedores:"proveedores",comerciales:"comerciales",transportistas:"transportistas",gestorias:"gestorias",proformas:"ventas",usuarios:"usuarios"};
 const AREA_LABEL=Object.fromEntries(NAV.map(n=>[n[0],n[1]]));
-const DOC_TIPOS=["Factura proforma","Factura de compra","Pago al proveedor","Hoja de transporte","Albarán de entrega","Ficha técnica","Permiso de circulación","Facturas de reparación/mantenimiento","Garantía comercial","Factura de venta","Justificante de cobro"];
+const DOC_GRUPOS=[
+  {grupo:"Expediente del coche",tipos:["Factura proforma","Factura de compra","Pago al proveedor","Hoja de transporte","Albarán de entrega","Ficha técnica","Permiso de circulación","Facturas de reparación/mantenimiento","Garantía comercial","Factura de venta","Justificante de cobro"]},
+  {grupo:"Expediente vendedor",tipos:["DNI del cliente","CIF (empresa)","Escritura de empresa","IAE (empresa)","Parte de trabajo","Contrato de compraventa firmado","Documentos de gestoría firmados","Contrato de seguro","Contrato de garantía"]},
+];
+const DOC_TIPOS=DOC_GRUPOS.reduce((a,g)=>a.concat(g.tipos),[]);
 const BANCOS=["","CaixaBank","Banco Santander","BBVA","Banco Sabadell","Bankinter","Unicaja Banco","Kutxabank","Abanca","Ibercaja","Cajamar","ING","Openbank","EVO Banco","Deutsche Bank","Santander Consumer","Cetelem","Cofidis","Sofinco","Otro"];
 let current="panel", query="", stockFilter="Todos", panelAlmacen="";
 let _saving=false;   // cerrojo global anti doble-envío (todos los guardados lo comparten)
@@ -1327,7 +1331,7 @@ function viewTesoreria(){
       <td>${esc(s.cliente||"")}</td><td class="r">${eur2(s.precio)}</td><td class="r">${eur2(cob)}</td>
       <td class="r" style="color:var(--danger);font-weight:700">${eur2(pend)}</td>
       <td><input type="date" value="${esc(s.fecha_cobro_est||"")}" onchange="setField('ventas',${s.id},'fecha_cobro_est',this.value)" style="padding:5px 7px"></td>
-      <td class="r">${docBtn(s.vehiculo_id,'Justificante de cobro')}</td></tr>`).join("");
+      <td class="r"><button class="btn accent sm" onclick="openCobroForm(${s.id},${s.vehiculo_id})">💶 Cobrar</button> ${docBtn(s.vehiculo_id,'Justificante de cobro')}</td></tr>`).join("");
   // PAGOS pendientes (compras + taller + postventa)
   const pagos=[];
   DATA.compras.filter(c=>c.pagado!=="Sí"&&pendienteCompra(c)>0.01).forEach(c=>{const pg=pagadoCompra(c);pagos.push({fuente:"Compra",tabla:"compras",id:c.id,vid:c.vehiculo_id,pf:"pagado",pv:"Sí",concepto:`${esc(c.matricula||"")} ${esc(c.marca||"")} ${esc(c.modelo||"")} · Fra ${esc(c.numero_factura||"—")}${pg>0.01?` · <span style="color:var(--muted)">pagado ${eur2(pg)}</span>`:""}`,prov:c.proveedor,imp:pendienteCompra(c),fest:c.fecha_pago_est});});
@@ -2189,7 +2193,7 @@ function gestoriaCard(v){
     <div class="card-b">${v._gestoria.length?`<div style="display:flex;flex-direction:column;gap:6px">${rows}</div>`:'<div style="color:var(--muted);font-size:12.5px">Sin trámites. Añade la <b>transferencia</b> al comprador o la <b>exención de matriculación</b>.</div>'}</div></div>`;
 }
 function docsCard(v){
-  const rows=DOC_TIPOS.map(tipo=>{
+  const fila=tipo=>{
     const docs=v._docs.filter(d=>d.tipo===tipo);const aportada=docs.length>0;const t=tipo.replace(/'/g,"\\'");
     let right;
     if(aportada){
@@ -2197,8 +2201,13 @@ function docsCard(v){
         +` <button class="btn ghost sm" style="padding:2px 8px" onclick="adjuntarDoc(${v.id},'${t}')">+ otro</button>`;
     }else right=`<button class="btn ghost sm" onclick="adjuntarDoc(${v.id},'${t}')">📎 Adjuntar</button>`;
     return `<div class="tl-row" style="align-items:center"><span>${aportada?"✅":"⬜"} ${esc(tipo)}</span><span style="display:flex;align-items:center;gap:2px">${right}</span></div>`;
+  };
+  // Secciones por grupo (Expediente del coche / Expediente vendedor)
+  const secciones=DOC_GRUPOS.map(g=>{
+    const n=g.tipos.filter(t=>v._docTipos.has(t)).length;
+    return `<div style="margin-top:10px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin-bottom:6px">${esc(g.grupo)} <span style="color:var(--muted-2)">(${n}/${g.tipos.length})</span></div>
+      <div style="display:flex;flex-direction:column;gap:6px">${g.tipos.map(fila).join("")}</div></div>`;
   }).join("");
-  let cobro="";
   const pct=Math.round(v._docN/DOC_TIPOS.length*100);
   // Otros documentos aportados desde las gestiones (tipos que no están en la lista fija)
   const otros=v._docs.filter(d=>!DOC_TIPOS.includes(d.tipo));
@@ -2209,8 +2218,8 @@ function docsCard(v){
     otrosHtml=`<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">Otros documentos aportados desde las gestiones (${otros.length})</div><div style="display:flex;flex-direction:column;gap:6px">${oRows}</div></div>`;
   }
   return `<div class="card"><div class="card-h"><h3>Documentación (${v._docN}/${DOC_TIPOS.length})</h3><span class="hint">${pct}% aportado</span></div>
-    <div class="card-b"><div class="track" style="margin-bottom:12px"><i style="width:${pct}%;background:${pct>=100?"var(--ok)":"var(--accent)"}"></i></div>
-    <div style="display:flex;flex-direction:column;gap:6px">${rows}</div>${otrosHtml}${cobro}</div></div>`;
+    <div class="card-b"><div class="track" style="margin-bottom:6px"><i style="width:${pct}%;background:${pct>=100?"var(--ok)":"var(--accent)"}"></i></div>
+    ${secciones}${otrosHtml}</div></div>`;
 }
 function adjuntarDoc(vid,tipo){
   const inp=document.createElement("input");inp.type="file";inp.accept="image/*,application/pdf";inp.multiple=true;
@@ -2511,7 +2520,7 @@ const SCHEMAS={
     {k:"numero_factura",l:"Nº factura",t:"text"},{k:"prov_id",l:"Proveedor",t:"ref-prov"},
     {k:"regimen",l:"Régimen",t:"select",opts:["General","REBU"]},{k:"fecha",l:"Fecha",t:"date",def:1},
     {k:"precio",l:"Precio compra (€)",t:"number"},{k:"gastos",l:"Gastos (€)",t:"number"},
-    {k:"iva_pct",l:"% IVA (0 si REBU)",t:"number"},
+    {k:"iva_pct",l:"% IVA (0 si REBU)",t:"number",dval:21},
     {k:"forma_pago",l:"Forma de pago",t:"select",opts:["","Efectivo","Transferencia","Financiación","Tarjeta"]},
     {k:"factura_recibida",l:"¿Factura recibida del proveedor?",t:"select",opts:["","No","Sí"]},
     {k:"pagado",l:"¿Pagada al proveedor?",t:"select",opts:["","Sí","No"]},
@@ -2554,7 +2563,7 @@ const SCHEMAS={
     {k:"prov_id",l:"Taller / Proveedor (elígelo o añádelo con ➕)",t:"ref-prov",full:1},
     {k:"nif_proveedor",l:"NIF del proveedor",t:"text"},
     {k:"numero_factura",l:"Nº de factura",t:"text"},{k:"fecha",l:"Fecha",t:"date",def:1},
-    {k:"coste",l:"Coste total con IVA (€)",t:"number"},{k:"iva_pct",l:"% IVA",t:"number"},
+    {k:"coste",l:"Coste total con IVA (€)",t:"number"},{k:"iva_pct",l:"% IVA",t:"number",dval:21},
     {k:"factura_recibida",l:"¿Factura recibida del proveedor?",t:"select",opts:["","No","Sí"]},
     {k:"pago",l:"Pago",t:"select",opts:["Pendiente","Pagado"]},
     {k:"fecha_pago_est",l:"Fecha estimada de pago",t:"date"},{k:"notas",l:"Notas",t:"textarea",full:1}]},
@@ -2609,7 +2618,7 @@ const SCHEMAS={
     {k:"prov_id",l:"Taller / Proveedor (elígelo o añádelo con ➕)",t:"ref-prov",full:1},
     {k:"nif_proveedor",l:"NIF del proveedor",t:"text"},
     {k:"numero_factura",l:"Nº de factura",t:"text"},{k:"fecha",l:"Fecha",t:"date",def:1},
-    {k:"coste",l:"Coste total con IVA (€)",t:"number"},{k:"iva_pct",l:"% IVA",t:"number"},
+    {k:"coste",l:"Coste total con IVA (€)",t:"number"},{k:"iva_pct",l:"% IVA",t:"number",dval:21},
     {k:"asume",l:"¿Quién asume el coste?",t:"select",opts:["","Empresa","Cliente","Garantía","Compartido"]},
     {k:"factura_recibida",l:"¿Factura recibida del proveedor?",t:"select",opts:["","No","Sí"]},
     {k:"pago",l:"Pago",t:"select",opts:["Pendiente","Pagado"]},
