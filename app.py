@@ -705,6 +705,8 @@ def migrate(conn):
         add("vehiculos", "recepcionado INTEGER DEFAULT 0")
         add("vehiculos", "reserva_cliente_id INTEGER")
         add("vehiculos", "reserva_fecha TEXT")
+        add("vehiculos", "carroceria TEXT")
+        add("vehiculos", "fecha_matriculacion TEXT")
         # Invariante: un coche disponible o vendido siempre esta recepcionado
         conn.execute("UPDATE vehiculos SET recepcionado=1 WHERE estado IN ('disponible','vendido')")
         if has_table("logistica"):
@@ -988,6 +990,7 @@ FIELDS = {
                   "color", "combustible", "estado", "recepcionado", "luz_motor",
                   "reserva_cliente_id", "reserva_fecha", "almacen_id", "ubicacion",
                   "itv_pasada", "itv_expira", "proxima_revision", "etiqueta",
+                  "carroceria", "fecha_matriculacion",
                   "fecha_liberacion", "ref_web", "foto", "notas"],
     "compras": ["vehiculo_id", "proveedor_id", "prov_id", "numero_factura",
                 "regimen", "fecha", "precio", "gastos", "iva_pct", "forma_pago",

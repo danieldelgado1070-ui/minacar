@@ -858,7 +858,7 @@ function viewVentas(){
       <td class="r">${eur2(s.precio)}</td>${oc?"":`<td class="r">${s.coste!=null?eur2(s.coste):"—"}</td>
       <td class="r" style="color:${margen>=0?'var(--ok)':'var(--danger)'};font-weight:700">${eur2(margen)}</td>`}
       <td>${prof?`<button class="btn accent sm" onclick="event.stopPropagation();confirmarFactura(${s.id})">✓ Confirmar factura</button>`:`<button class="btn ghost sm" onclick="event.stopPropagation();factura(${s.id})">🧾</button>`}</td>
-      <td class="r"><button class="btn ghost sm" onclick="event.stopPropagation();factura(${s.id})" title="Ver documento">🧾</button> <button class="btn ghost sm" onclick="event.stopPropagation();contratoCompraventa(${s.id})" title="Contrato de compraventa">📄</button> ${docBtn(s.vehiculo_id,'Factura de venta')}<button class="btn ghost sm" onclick="event.stopPropagation();openForm('ventas',${s.id})">✎</button> <button class="btn danger sm" onclick="event.stopPropagation();delRow('ventas',${s.id})">🗑</button></td>
+      <td class="r"><button class="btn ghost sm" onclick="event.stopPropagation();factura(${s.id})" title="Ver documento">🧾</button> <button class="btn ghost sm" onclick="event.stopPropagation();openContratoCompraventa(${s.id})" title="Contrato de compraventa">📄</button> ${docBtn(s.vehiculo_id,'Factura de venta')}<button class="btn ghost sm" onclick="event.stopPropagation();openForm('ventas',${s.id})">✎</button> <button class="btn danger sm" onclick="event.stopPropagation();delRow('ventas',${s.id})">🗑</button></td>
     </tr>`;}).join("");
   return tableWrap([{t:"Fecha"},{t:"Documento"},{t:"Vehículo"},{t:"Cliente"},{t:"Régimen"},{t:"Precio",r:1}].concat(oc?[]:[{t:"Coste",r:1},{t:"Margen",r:1}]).concat([{t:""},{t:"",r:1}]),rows);
 }
@@ -882,7 +882,7 @@ function viewProformas(){
       <td>${reservado?'<span class="minipill" style="background:var(--res-s);color:var(--res)">Reservado</span>':'<span class="minipill" style="background:var(--line-2);color:var(--muted)">Sin reservar</span>'}</td>
       <td class="r"><button class="btn ghost sm" onclick="event.stopPropagation();factura(${s.id})">🧾 Imprimir</button>
         <button class="btn gold sm" onclick="event.stopPropagation();confirmarFactura(${s.id})">✓ Confirmar</button>
-        <button class="btn ghost sm" onclick="event.stopPropagation();contratoCompraventa(${s.id})" title="Contrato de compraventa">📄</button>
+        <button class="btn ghost sm" onclick="event.stopPropagation();openContratoCompraventa(${s.id})" title="Contrato de compraventa">📄</button>
         ${docBtn(s.vehiculo_id,'Factura proforma')}<button class="btn ghost sm" onclick="event.stopPropagation();openForm('ventas',${s.id})">✎</button>
         <button class="btn danger sm" onclick="event.stopPropagation();delRow('ventas',${s.id})">🗑</button></td>
     </tr>`;}).join("");
@@ -2133,7 +2133,7 @@ function openDrawer(id){
         ${v.estado==="reservado"?`<button class="btn ghost sm" onclick="liberarReserva(${v.id})">Liberar reserva</button>`:""}
         ${!sold?`<button class="btn ghost sm" onclick="openContratoReserva(${v.id})">📄 Contrato de reserva</button>`:""}
         ${v._venta&&v._venta.estado_factura!=="factura"?`<button class="btn ghost sm" onclick="factura(${v._venta.id})">🧾 Ver proforma</button> <button class="btn gold sm" onclick="confirmarFactura(${v._venta.id})">✓ Confirmar factura</button>`:(sold?`<button class="btn gold sm" onclick="factura(${v._venta.id})">🧾 Factura</button>`:"")}
-        ${v._venta?`<button class="btn ghost sm" onclick="contratoCompraventa(${v._venta.id})">📄 Contrato compraventa</button>`:""}
+        ${v._venta?`<button class="btn ghost sm" onclick="openContratoCompraventa(${v._venta.id})">📄 Contrato compraventa</button>`:""}
         <button class="btn danger sm" onclick="delRow('vehiculos',${v.id},true)">🗑 Eliminar</button>
       </div>
     </div>
@@ -2449,7 +2449,7 @@ function openContratoReserva(vid=null,rid=null){
     <div class="field" style="flex:1 1 100%"><label>IBAN(es) de MIÑACAR para el resto del pago (uno por línea) *</label>
       <textarea id="cr-iban" rows="2" placeholder="ES00 0000 0000 0000 0000 0000" oninput="chkIbanReserva()">${r?esc(r.iban||""):""}</textarea>
       <div id="cr-iban-msg" style="font-size:12px;margin-top:4px"></div></div>
-    <div class="field" style="flex:1 1 100%"><label>Correo para derechos de protección de datos (RGPD)</label><input id="cr-email" type="text" value="${r?esc(r.email_rgpd||""):""}" placeholder="lo rellena el comercial (opcional)"></div>
+    <div class="field" style="flex:1 1 100%"><label>Correo para derechos de protección de datos (RGPD)</label><input id="cr-email" type="text" value="${r?esc(r.email_rgpd||"info@minacar.es"):"info@minacar.es"}" placeholder="info@minacar.es"></div>
     <div class="field" style="flex:1 1 100%"><label>Notas</label><textarea id="cr-notas" rows="2">${r?esc(r.notas||""):""}</textarea></div>
   </div>`;
   const act=document.querySelector(".modal .actions");
@@ -2500,7 +2500,7 @@ function generarContratoReservaDoc(d){
   const EMPRESA=EMPRESA_CONTRATO;   // membrete oficial de contratos (Avda. Juan XXIII 29)
   const cli=d.cli||{}, veh=d.veh||{};
   const ibanRows=(d.ibanes||[]).map(i=>`<div class="iban">LYRWIRS, S.L. &nbsp;·&nbsp; <b>${esc(ibanFmt(i))}</b></div>`).join("");
-  const canalRgpd=d.email_rgpd?("la dirección de correo electrónico <b>"+esc(d.email_rgpd)+"</b>"):("su domicilio social, sito en "+esc(EMPRESA.dir)+", "+esc(EMPRESA.cp)+" "+esc(EMPRESA.ciudad));
+  const canalRgpd="la dirección de correo electrónico <b>"+esc(d.email_rgpd||EMPRESA_CONTRATO.email)+"</b>";
   const tipoVeh=veh.tipo?esc(veh.tipo):"Turismo";
   const html='<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Contrato de reserva '+esc(veh.matricula||"")+'</title>'
   +'<style>'
@@ -2770,6 +2770,8 @@ const SCHEMAS={
     {k:"version",l:"Versión / acabado",t:"text",ph:"Ej.: 1.5 TSI 150 CV Style DSG"},
     {k:"anio",l:"Año",t:"number"},{k:"km",l:"Kilómetros",t:"number"},{k:"color",l:"Color",t:"text"},
     {k:"combustible",l:"Combustible",t:"select",opts:["","Gasolina","Diésel","Híbrido","Eléctrico","GLP","GNC"]},
+    {k:"carroceria",l:"Carrocería",t:"select",opts:["","Turismo","Berlina","Familiar","Monovolumen","SUV / TT","Coupé","Cabrio","Furgoneta","Minicoche","Pick-up","Otro"]},
+    {k:"fecha_matriculacion",l:"Fecha de 1ª matriculación",t:"date"},
     {k:"itv_pasada",l:"¿ITV pasada?",t:"select",opts:["","Sí","No"]},{k:"itv_expira",l:"Caducidad ITV",t:"date"},
     {k:"etiqueta",l:"Etiqueta medioambiental (DGT)",t:"select",opts:["","0 Emisiones","ECO","C","B","Sin etiqueta"]},
     {k:"fecha_liberacion",l:"Fecha de liberación (venta a profesionales, opcional)",t:"date"},
@@ -3238,7 +3240,35 @@ async function factura(id){
   w.document.write(html);w.document.close();
 }
 /* ================= CONTRATO DE COMPRAVENTA DE VEHÍCULO USADO ================= */
-function contratoCompraventa(ventaId){
+function parseOtrosConceptos(txt){
+  return String(txt||"").split(/\n+/).map(l=>l.trim()).filter(Boolean).map(l=>{
+    const i=l.lastIndexOf("=");
+    if(i<0)return {concepto:l,importe:null};
+    return {concepto:l.slice(0,i).trim(),importe:valNum(l.slice(i+1))};
+  });
+}
+function openContratoCompraventa(ventaId){
+  const s=(DATA.ventas||[]).find(v=>v.id===ventaId);
+  if(!s){toast("No se encontró la venta");return;}
+  currentForm={table:"__contrato_cv",id:ventaId};
+  $("#modal-title").textContent="Contrato de compraventa";
+  $("#modal-body").innerHTML=`<div class="row">
+    <div style="flex:1 1 100%;font-size:12px;color:var(--muted);background:var(--info-s);border-radius:8px;padding:8px 12px;margin-bottom:2px">Se autorrellena con el cliente, el coche y las condiciones de la venta (económicos y forma de pago). Puedes añadir aquí conceptos adicionales que aparecerán en el contrato.</div>
+    <div class="field" style="flex:1 1 100%"><label>Otros conceptos (uno por línea · formato: <b>Concepto = importe</b>)</label>
+      <textarea id="cv-otros" rows="3" placeholder="Cambio de nombre y preentrega = 299,99&#10;Gesto comercial cambio de nombre = -300"></textarea>
+      <div style="font-size:11px;color:var(--muted-2);margin-top:4px">Usa importe negativo para descuentos. Son conceptos incluidos en el total pactado; no lo modifican.</div></div>
+  </div>`;
+  const act=document.querySelector(".modal .actions");
+  act.innerHTML='<button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn accent" onclick="generarContratoCVdesdeForm()">📄 Generar contrato</button>';
+  $("#modal-bg").classList.add("open");
+}
+function generarContratoCVdesdeForm(){
+  const otros=parseOtrosConceptos($("#cv-otros").value);
+  const id=currentForm.id;
+  closeModal();
+  contratoCompraventa(id,otros);
+}
+function contratoCompraventa(ventaId,otros){
   const s=(DATA.ventas||[]).find(v=>v.id===ventaId);
   if(!s){toast("No se encontró la venta");return;}
   const EC=EMPRESA_CONTRATO;
@@ -3316,11 +3346,14 @@ function contratoCompraventa(ventaId){
   +'<tr><td class="k">Domicilio</td><td>'+esc(cli.direccion||"")+'</td><td class="k">C.P.</td><td>'+esc(cp)+'</td></tr></table>'
   +'<h2>Vehículo</h2><table>'
   +'<tr><td class="k">Marca</td><td>'+esc(veh.marca||s.marca||"")+'</td><td class="k">Modelo</td><td>'+esc(veh.modelo||s.modelo||"")+'</td></tr>'
-  +'<tr><td class="k">Versión / Terminación</td><td>'+esc(veh.version||"")+'</td><td class="k">Combustible</td><td>'+esc(veh.combustible||"")+'</td></tr>'
-  +'<tr><td class="k">Color</td><td>'+esc(veh.color||"")+'</td><td class="k">Año / Matriculación</td><td>'+esc(veh.anio||s.anio||"")+'</td></tr>'
-  +'<tr><td class="k">Kilometraje</td><td>'+(veh.km!=null&&veh.km!==""?esc(String(veh.km))+" km":(s.km!=null?esc(String(s.km))+" km":"—"))+'</td><td class="k">Matrícula</td><td><b>'+esc(veh.matricula||s.matricula||"")+'</b></td></tr>'
-  +'<tr><td class="k">Nº de bastidor</td><td>'+esc(veh.bastidor||s.bastidor||"")+'</td><td class="k">Garantía</td><td>Garantía legal 12 meses (RDL 7/2021)</td></tr></table>'
-  +'<h2>Datos económicos</h2><table class="eco">'+eco+'<tr class="grand"><td>TOTAL (IVA incl.)</td><td class="n">'+eur2(total)+'</td></tr></table>'
+  +'<tr><td class="k">Versión / Terminación</td><td>'+esc(veh.version||"")+'</td><td class="k">Carrocería</td><td>'+esc(veh.carroceria||"")+'</td></tr>'
+  +'<tr><td class="k">Combustible</td><td>'+esc(veh.combustible||"")+'</td><td class="k">Color</td><td>'+esc(veh.color||"")+'</td></tr>'
+  +'<tr><td class="k">Fecha 1ª matriculación</td><td>'+esc(veh.fecha_matriculacion?fdate(veh.fecha_matriculacion):(veh.anio||s.anio||""))+'</td><td class="k">Kilometraje</td><td>'+(veh.km!=null&&veh.km!==""?esc(String(veh.km))+" km":(s.km!=null?esc(String(s.km))+" km":"—"))+'</td></tr>'
+  +'<tr><td class="k">Matrícula</td><td><b>'+esc(veh.matricula||s.matricula||"")+'</b></td><td class="k">Nº de bastidor</td><td>'+esc(veh.bastidor||s.bastidor||"")+'</td></tr>'
+  +'<tr><td class="k">Garantía</td><td colspan="3">Garantía legal 12 meses (RDL 7/2021)</td></tr></table>'
+  +'<h2>Datos económicos</h2><table class="eco">'+eco
+  +(otros||[]).filter(o=>o&&o.concepto).map(o=>'<tr><td>'+esc(o.concepto)+'</td><td class="n">'+(o.importe!=null?eur2(o.importe):"—")+'</td></tr>').join("")
+  +'<tr class="grand"><td>TOTAL (IVA incl.)</td><td class="n">'+eur2(total)+'</td></tr></table>'
   +'<h2>Forma de pago</h2><table class="eco">'
   +'<tr><td>Importe financiado</td><td class="n">'+eur2(financiado)+'</td></tr>'
   +'<tr><td>Entrega a cuenta</td><td class="n">'+eur2(entregaCuenta)+'</td></tr>'
