@@ -2337,6 +2337,26 @@ def _norm(s):
     return s.strip().lower()
 
 
+# Sinónimos aceptados en los títulos de columna al importar (ya normalizados sin acentos).
+IMPORT_ALIASES = {
+    "matricula": {"matricula", "placa", "matriculas", "matricula/placa", "matr"},
+    "bastidor": {"bastidor", "vin", "chasis", "nbastidor", "nobastidor", "numbastidor",
+                 "numerodebastidor", "numerobastidor", "bastidorvin", "nchasis", "ndebastidor",
+                 "n.bastidor", "nobastidorvin"},
+    "marca": {"marca", "fabricante"},
+    "modelo": {"modelo", "version", "modelo/version"},
+    "anio": {"anio", "ano", "year", "anomatriculacion"},
+    "km": {"km", "kms", "kilometros", "kilometraje"},
+    "combustible": {"combustible", "carburante"},
+    "color": {"color", "colour"},
+    "nombre": {"nombre", "razonsocial", "nombreapellidos", "cliente", "proveedor"},
+    "nif": {"nif", "cif", "dni", "nifcif", "cifnif"},
+    "telefono": {"telefono", "tel", "movil", "telefonos"},
+    "email": {"email", "correo", "e-mail", "mail", "correoelectronico"},
+    "direccion": {"direccion", "domicilio"},
+}
+
+
 def _archivo_a_filas(data):
     """Convierte el archivo subido (xlsx / html-xls / csv, en base64 o texto) en filas."""
     b64 = data.get("archivo_b64")
@@ -2385,13 +2405,19 @@ def importar_tabla(table, data):
     type_by_field = {f: t for _, f, t in spec}
     col = {}
     for lab, field, _t in spec:
+        labn = _norm(lab)
+        alias = IMPORT_ALIASES.get(field, set())
         for j, h in enumerate(header):
-            if h == _norm(lab):
+            hn = _norm(h).replace(" ", "").replace(".", "").replace("º", "").replace("°", "")
+            if h == labn or hn == labn.replace(" ", "") or hn in alias:
                 col[field] = j
                 break
     if not col:
         raise ReglaNegocio("No reconozco las columnas. Descarga la plantilla y respeta la "
                            "primera fila de títulos.")
+    if table == "vehiculos" and "matricula" not in col and "bastidor" not in col:
+        raise ReglaNegocio("El archivo no tiene columna de «Matrícula» ni de «Bastidor». "
+                           "Añade al menos una de las dos (también valen títulos como VIN, Chasis o Placa).")
     insertados, errores = 0, []
     for i, r in enumerate(rows[1:], start=2):
         rec = {}
