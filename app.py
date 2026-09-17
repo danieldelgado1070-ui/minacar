@@ -400,6 +400,7 @@ def init_db():
             almacen_origen  INTEGER,
             almacen_destino INTEGER,
             fecha           TEXT,
+            responsable     TEXT,
             notas           TEXT,
             creado          TEXT DEFAULT (datetime('now','localtime'))
         );
@@ -483,6 +484,20 @@ def puede_escribir(user, table):
     if isinstance(p, dict):
         return p.get(area) == "w"
     if isinstance(p, list):  # formato antiguo: tener acceso = poder escribir
+        return area in p
+    return False
+
+
+def puede_area(user, area):
+    """¿El usuario tiene acceso (lectura o escritura) a un área? El admin siempre."""
+    if not user:
+        return False
+    if user.get("rol") == "admin":
+        return True
+    p = user.get("permisos")
+    if isinstance(p, dict):
+        return p.get(area) is not None
+    if isinstance(p, list):
         return area in p
     return False
 
@@ -792,6 +807,8 @@ def migrate(conn):
             add("cobros", "factura_emitida_id INTEGER")   # exceso de cobro ligado a factura garantía/gestoría
         if has_table("agenda"):
             add("agenda", "responsable_id INTEGER")   # responsable de la gestión (comercial)
+        if has_table("traspasos"):
+            add("traspasos", "responsable TEXT")       # quién realiza el traspaso (histórico completo)
         conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS gestorias (
@@ -973,7 +990,7 @@ FIELDS = {
     "almacenes": ["nombre", "direccion", "notas"],
     "recepciones": ["vehiculo_id", "fecha", "responsable", "almacen_id",
                     "ubicacion", "tiene_desperfectos", "desperfectos", "marcas", "luz_motor", "notas"],
-    "traspasos": ["vehiculo_id", "almacen_destino", "fecha", "notas"],
+    "traspasos": ["vehiculo_id", "almacen_destino", "fecha", "responsable", "notas"],
     "garantias": ["vehiculo_id", "cliente_id", "tipo", "fecha_inicio", "meses",
                   "fecha_fin", "alcance", "estado", "notas"],
     "postventa": ["vehiculo_id", "tipo", "descripcion", "proveedor", "prov_id", "fecha",
@@ -1310,9 +1327,9 @@ def insert_row(table, data):
             row = conn.execute("SELECT almacen_id FROM vehiculos WHERE id=?", (vid,)).fetchone()
             origen = row["almacen_id"] if row else None
             cur = conn.execute(
-                """INSERT INTO traspasos (vehiculo_id, almacen_origen, almacen_destino, fecha, notas)
-                   VALUES (?,?,?,?,?)""",
-                (vid, origen, dest, data.get("fecha"), data.get("notas")))
+                """INSERT INTO traspasos (vehiculo_id, almacen_origen, almacen_destino, fecha, responsable, notas)
+                   VALUES (?,?,?,?,?,?)""",
+                (vid, origen, dest, data.get("fecha"), data.get("responsable"), data.get("notas")))
             conn.execute("UPDATE vehiculos SET almacen_id=? WHERE id=?", (dest, vid))
             conn.commit()
             nid = cur.lastrowid
@@ -3258,6 +3275,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
     def serve_doc(self, path):
+        # Requiere permiso de "documentos" para VER/descargar (subir está permitido aparte)
+        if not puede_area(self.current_user(), "documentos"):
+            return self.send_json({"ok": False, "error": "Sin permiso para ver documentación."}, status=403)
         try:
             did = int(path.rstrip("/").split("/")[-1])
         except ValueError:

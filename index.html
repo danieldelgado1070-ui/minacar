@@ -1064,6 +1064,8 @@ let mktF={comercial:"",canal:"",estado:"",veh:""};
 function miComercial(){return (CURRENTUSER&&CURRENTUSER.rol!=="admin"&&CURRENTUSER.comercial_id)?String(CURRENTUSER.comercial_id):"";}
 /* Usuario comercial: se le oculta la trazabilidad económica (coste, compra, proveedor, margen) */
 function ocultaCostes(){return !!(CURRENTUSER&&CURRENTUSER.rol!=="admin"&&CURRENTUSER.comercial_id);}
+/* ¿Puede VER/descargar documentación? (subirla se permite igualmente) */
+function puedeVerDocs(){return !!(CURRENTUSER&&(CURRENTUSER.rol==="admin"||puede("documentos")));}
 function leadsFiltrados(){
   const mc=miComercial();
   return DATA.leads.filter(l=>{
@@ -1195,12 +1197,21 @@ function viewAlmacenes(){
       <td class="r">${eur(v._base)}</td>
       <td class="r"><button class="btn ghost sm" onclick="traspasar(${v.id})">🔀 Traspasar</button></td>
     </tr>`).join("");
-  const hist=DATA.traspasos.slice(0,8).map(t=>`<div class="tl-row"><span><b>${esc(t.matricula||"")}</b> · ${esc(t.origen_nombre||"—")} → ${esc(t.destino_nombre||"—")}</span><span class="t-date" style="font-family:var(--mono);color:var(--muted-2)">${fdate(t.fecha)}</span></div>`).join("");
+  // Histórico COMPLETO de traspasos (permanente, con todos los datos)
+  const histRows=DATA.traspasos.filter(t=>matchQ(t,[t.matricula,t.marca,t.modelo,t.origen_nombre,t.destino_nombre,t.responsable,t.notas]))
+    .map(t=>`<tr>
+      <td>${fdate(t.fecha)}</td>
+      <td><span class="plate">${esc(t.matricula||"")}</span> ${esc(t.marca||"")} ${esc(t.modelo||"")}</td>
+      <td>${esc(t.origen_nombre||"—")} → <b>${esc(t.destino_nombre||"—")}</b></td>
+      <td>${esc(t.responsable||"")}</td>
+      <td style="white-space:normal;color:var(--muted);font-size:12px">${esc(t.notas||"")}</td>
+    </tr>`).join("");
 
   return `<div class="kpis" style="margin-bottom:18px">${cards||'<div class="empty">Aún no hay almacenes. Pulsa «+ Nuevo».</div>'}</div>
-    <div class="card"><div class="card-h"><h3>Stock por ubicación</h3><span class="hint">${enStock.length} vehículos en stock</span></div>
+    <div class="card" style="margin-bottom:18px"><div class="card-h"><h3>Stock por ubicación</h3><span class="hint">${enStock.length} vehículos en stock</span></div>
       <div class="card-b" style="padding:0 18px 12px">${tableWrap([{t:"Vehículo"},{t:"Almacén / posición"},{t:"Valor (compra)",r:1},{t:"",r:1}],rows)}</div></div>
-    ${DATA.traspasos.length?`<div class="card"><div class="card-h"><h3>Últimos traspasos</h3></div><div class="card-b"><div style="display:flex;flex-direction:column;gap:6px">${hist}</div></div></div>`:""}`;
+    <div class="card"><div class="card-h"><h3>Histórico de traspasos (${DATA.traspasos.length})</h3><span class="hint">registro permanente de todos los movimientos</span></div>
+      <div class="card-b" style="padding:0 18px 12px">${tableWrap([{t:"Fecha"},{t:"Vehículo"},{t:"Origen → Destino"},{t:"Responsable"},{t:"Notas"}],histRows)}</div></div>`;
 }
 function traspasar(vid){
   const v=DATA.vehiculos.find(x=>x.id===vid);if(!v)return;
@@ -2193,12 +2204,15 @@ function gestoriaCard(v){
     <div class="card-b">${v._gestoria.length?`<div style="display:flex;flex-direction:column;gap:6px">${rows}</div>`:'<div style="color:var(--muted);font-size:12.5px">Sin trámites. Añade la <b>transferencia</b> al comprador o la <b>exención de matriculación</b>.</div>'}</div></div>`;
 }
 function docsCard(v){
+  const verDocs=puedeVerDocs();
   const fila=tipo=>{
     const docs=v._docs.filter(d=>d.tipo===tipo);const aportada=docs.length>0;const t=tipo.replace(/'/g,"\\'");
     let right;
     if(aportada){
-      right=docs.map(d=>`<a href="/doc/${d.id}" target="_blank" class="minipill" style="background:var(--ok-s);color:var(--ok);text-decoration:none" title="${esc(d.nombre_original||"")}">👁 ver</a><button class="btn danger sm" style="padding:2px 6px;margin-left:4px" onclick="quitarDoc(${d.id},${v.id})">✕</button>`).join(" ")
-        +` <button class="btn ghost sm" style="padding:2px 8px" onclick="adjuntarDoc(${v.id},'${t}')">+ otro</button>`;
+      if(verDocs){
+        right=docs.map(d=>`<a href="/doc/${d.id}" target="_blank" class="minipill" style="background:var(--ok-s);color:var(--ok);text-decoration:none" title="${esc(d.nombre_original||"")}">👁 ver</a><button class="btn danger sm" style="padding:2px 6px;margin-left:4px" onclick="quitarDoc(${d.id},${v.id})">✕</button>`).join(" ")
+          +` <button class="btn ghost sm" style="padding:2px 8px" onclick="adjuntarDoc(${v.id},'${t}')">+ otro</button>`;
+      }else right=`<span class="minipill" style="background:var(--ok-s);color:var(--ok)">✔ aportada</span> <button class="btn ghost sm" style="padding:2px 8px" onclick="adjuntarDoc(${v.id},'${t}')">+ otro</button>`;
     }else right=`<button class="btn ghost sm" onclick="adjuntarDoc(${v.id},'${t}')">📎 Adjuntar</button>`;
     return `<div class="tl-row" style="align-items:center"><span>${aportada?"✅":"⬜"} ${esc(tipo)}</span><span style="display:flex;align-items:center;gap:2px">${right}</span></div>`;
   };
@@ -2212,7 +2226,7 @@ function docsCard(v){
   // Otros documentos aportados desde las gestiones (tipos que no están en la lista fija)
   const otros=v._docs.filter(d=>!DOC_TIPOS.includes(d.tipo));
   let otrosHtml="";
-  if(otros.length){
+  if(otros.length&&verDocs){
     const oRows=otros.map(d=>`<div class="tl-row" style="align-items:center"><span>📄 ${esc(d.tipo||"Documento")}${d.nombre_original?' · <span style="color:var(--muted-2)">'+esc(d.nombre_original)+"</span>":""}</span>
       <span style="display:flex;align-items:center;gap:2px"><a href="/doc/${d.id}" target="_blank" class="minipill" style="background:var(--ok-s);color:var(--ok);text-decoration:none">👁 ver</a><button class="btn danger sm" style="padding:2px 6px;margin-left:4px" onclick="quitarDoc(${d.id},${v.id})">✕</button></span></div>`).join("");
     otrosHtml=`<div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px"><div style="font-size:12px;color:var(--muted);margin-bottom:6px">Otros documentos aportados desde las gestiones (${otros.length})</div><div style="display:flex;flex-direction:column;gap:6px">${oRows}</div></div>`;
@@ -2602,6 +2616,7 @@ const SCHEMAS={
     {k:"vehiculo_id",l:"Vehículo",t:"ref-veh",req:1,full:1},
     {k:"almacen_destino",l:"Almacén de destino",t:"ref-almacen",req:1,full:1},
     {k:"fecha",l:"Fecha del traspaso",t:"date",def:1},
+    {k:"responsable",l:"Responsable del traspaso",t:"text"},
     {k:"notas",l:"Notas",t:"textarea",full:1}]},
   garantias:{title:"garantía comercial",fields:[
     {k:"vehiculo_id",l:"Vehículo",t:"ref-veh",req:1,full:1},
@@ -2658,7 +2673,7 @@ const REF_KINDS={
 };
 function refSelect(kind,key,val){
   const k=REF_KINDS[kind];const v=String(val==null?"":val);
-  const opts=k.arr().map(c=>`<option value="${c.id}" ${String(c.id)===v?"selected":""}>${esc(c.nombre)}</option>`).join("");
+  const opts=k.arr().map(c=>{const extra=[c.nif,c.telefono].filter(Boolean).join(" · ");return `<option value="${c.id}" ${String(c.id)===v?"selected":""}>${esc(c.nombre)}${extra?" · "+esc(extra):""}</option>`;}).join("");
   return `<select id="f-${key}" onchange="onRefAdd(this,'${kind}')"><option value="">${k.empty}</option>${opts}<option value="__new__">➕ Añadir nuevo…</option></select>`;
 }
 function refRebuild(sel,kind,val){const k=REF_KINDS[kind];
@@ -2667,13 +2682,20 @@ function refRebuild(sel,kind,val){const k=REF_KINDS[kind];
 let formReturn=null;
 function grabForm(){const o={};document.querySelectorAll('#modal-body [id^="f-"]').forEach(e=>{o[e.id]=e.value;});return o;}
 function onRefAdd(sel,kind){
-  if(sel.value!=="__new__")return;
+  if(sel.value!=="__new__"){autorrellenarRef(kind,sel.value);return;}
   const k=REF_KINDS[kind];
   sel.value="";
   // Guarda el formulario actual y abre la FICHA COMPLETA de la nueva entidad;
   // al guardarla se vuelve al formulario anterior con la nueva ya seleccionada.
   formReturn={table:currentForm.table,id:currentForm.id,values:grabForm(),field:sel.id,kind,entity:k.api};
   openForm(k.api);
+}
+/* Al elegir un proveedor/gestoría, autorrellena sus datos (NIF) en el formulario actual */
+function autorrellenarRef(kind,id){
+  if(!id)return;
+  const k=REF_KINDS[kind];const ent=(k.arr()||[]).find(x=>String(x.id)===String(id));if(!ent)return;
+  const nifEl=document.getElementById("f-nif_proveedor")||document.getElementById("f-nif_gestoria");
+  if(nifEl&&!nifEl.value&&ent.nif)nifEl.value=ent.nif;
 }
 
 async function openForm(table,id=null,prefill=null){
@@ -3089,11 +3111,12 @@ async function actualizarWeb(){
 }
 function renderWeb(){
   if(!webData)return;const d=webData,r=d.resumen;const q=(($("#q-web")||{}).value||"").toLowerCase().trim();
-  const optsVeh='<option value="">— elegir coche —</option>'+d.vehiculos.map(v=>`<option value="${v.id}">${esc(v.matricula||"(s/m)")} · ${esc(v.marca||"")} ${esc(v.modelo||"")}</option>`).join("");
+  // Buscador de coche por CUALQUIER campo (matrícula, bastidor, marca, modelo, versión), parcial o total
+  const dlVeh='<datalist id="dl-veh-app">'+DATA.vehiculos.map(v=>`<option value="${esc((v.matricula||"(s/m)")+" · "+(v.marca||"")+" "+(v.modelo||"")+(v.version?" "+v.version:"")+(v.bastidor?" · "+v.bastidor:"")+" · #"+v.id)}">`).join("")+'</datalist>';
   let pub=d.publicados;if(q)pub=pub.filter(w=>((w.marca+" "+w.modelo+" "+w.titulo+" "+(w.ref||"")).toLowerCase().includes(q)));
   const LIM=80,total=pub.length,shown=pub.slice(0,LIM),sinPub=d.sin_publicar;
   const kpi=(l,v)=>`<div class="kpi"><div class="k-lab">${l}</div><div class="k-val">${v}</div></div>`;
-  $("#web-content").innerHTML=`
+  $("#web-content").innerHTML=dlVeh+`
     <div class="kpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px">${kpi("Publicados en la web",num(r.web))}${kpi("En stock (app)",num(r.stock))}${kpi("Vinculados",num(r.vinculados))}</div>
     <div class="card" style="margin-bottom:16px"><div class="card-h"><h3>⚠️ En stock, sin publicar en la web (${sinPub.length})</h3></div><div class="card-b">
       ${sinPub.length?`<div class="tbl-wrap"><table><thead><tr><th>Matrícula</th><th>Marca</th><th>Modelo</th><th>Ubicación</th></tr></thead><tbody>${sinPub.map(v=>`<tr><td><span class="plate">${esc(v.matricula)}</span></td><td>${esc(v.marca)}</td><td>${esc(v.modelo)}</td><td>${esc(v.ubicacion)}</td></tr>`).join("")}</tbody></table></div>`:'<div class="empty">Todos tus coches en stock están vinculados. 👍</div>'}
@@ -3101,12 +3124,23 @@ function renderWeb(){
     <div class="card"><div class="card-h"><h3>Catálogo publicado en la web ${q?`(${total} coinciden)`:`(${total})`}</h3></div><div class="card-b">
       <div class="tbl-wrap"><table><thead><tr><th>Ref.</th><th>Coche</th><th>Actualizado</th><th>Ficha</th><th>En la app</th></tr></thead><tbody>
       ${shown.map(w=>{const nombre=w.marca?`${esc(w.marca)} ${esc(w.modelo)}`:esc(w.titulo);
-        const enApp=w.app_matricula?`<span class="minipill" style="background:var(--ok-s);color:var(--ok)">✓ ${esc(w.app_matricula)}</span>`:`<select id="lnk-${w.ref}" style="max-width:200px">${optsVeh}</select> <button class="btn accent sm" onclick="vincularWeb('${esc(w.url)}','${w.ref}')">Vincular</button>`;
+        const enApp=w.app_matricula?`<span class="minipill" style="background:var(--ok-s);color:var(--ok)">✓ ${esc(w.app_matricula)}</span>`:`<input id="lnk-${w.ref}" list="dl-veh-app" placeholder="Buscar coche (matrícula, bastidor, marca…)" style="max-width:240px"> <button class="btn accent sm" onclick="vincularWeb('${esc(w.url)}','${w.ref}')">Vincular</button>`;
         return `<tr><td><b>${esc(w.ref||"")}</b></td><td>${nombre}</td><td>${esc(w.lastmod||"")}</td><td><a href="${esc(w.url)}" target="_blank" rel="noopener">🌐 abrir</a></td><td>${enApp}</td></tr>`;}).join("")}
       </tbody></table></div>${total>LIM?`<div class="empty">Mostrando ${LIM} de ${total}. Usa el buscador para acotar.</div>`:""}
     </div></div>`;
 }
-async function vincularWeb(url,ref){const sel=$("#lnk-"+ref);const vid=sel?sel.value:"";if(!vid){toast("Elige primero un coche de la app");return;}
+async function vincularWeb(url,ref){
+  const sel=$("#lnk-"+ref);const txt=(sel?sel.value:"").trim();
+  let vid=null;
+  const m=txt.match(/#(\d+)\s*$/);            // el desplegable deja "… · #ID"
+  if(m)vid=Number(m[1]);
+  else if(txt){                                 // si escribió a mano, localizar por matrícula o bastidor (parcial)
+    const q=_norm(txt);
+    const cand=DATA.vehiculos.filter(v=>_norm(v.matricula||"").includes(q)||_norm(v.bastidor||"").includes(q));
+    if(cand.length===1)vid=cand[0].id;
+    else if(cand.length>1){toast("Hay varios coches que coinciden; elige uno de la lista");return;}
+  }
+  if(!vid){toast("Elige un coche de la lista (busca por matrícula, bastidor, marca…)");return;}
   const res=await api("/api/vehiculos/"+vid,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({ref_web:url})});
   if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo vincular"));return;}
   toast("Vinculado ✔");await loadAll();await actualizarWeb();}
