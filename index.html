@@ -858,7 +858,7 @@ function viewVentas(){
       <td class="r">${eur2(s.precio)}</td>${oc?"":`<td class="r">${s.coste!=null?eur2(s.coste):"—"}</td>
       <td class="r" style="color:${margen>=0?'var(--ok)':'var(--danger)'};font-weight:700">${eur2(margen)}</td>`}
       <td>${prof?`<button class="btn accent sm" onclick="event.stopPropagation();confirmarFactura(${s.id})">✓ Confirmar factura</button>`:`<button class="btn ghost sm" onclick="event.stopPropagation();factura(${s.id})">🧾</button>`}</td>
-      <td class="r"><button class="btn ghost sm" onclick="event.stopPropagation();factura(${s.id})" title="Ver documento">🧾</button> ${docBtn(s.vehiculo_id,'Factura de venta')}<button class="btn ghost sm" onclick="event.stopPropagation();openForm('ventas',${s.id})">✎</button> <button class="btn danger sm" onclick="event.stopPropagation();delRow('ventas',${s.id})">🗑</button></td>
+      <td class="r"><button class="btn ghost sm" onclick="event.stopPropagation();factura(${s.id})" title="Ver documento">🧾</button> <button class="btn ghost sm" onclick="event.stopPropagation();contratoCompraventa(${s.id})" title="Contrato de compraventa">📄</button> ${docBtn(s.vehiculo_id,'Factura de venta')}<button class="btn ghost sm" onclick="event.stopPropagation();openForm('ventas',${s.id})">✎</button> <button class="btn danger sm" onclick="event.stopPropagation();delRow('ventas',${s.id})">🗑</button></td>
     </tr>`;}).join("");
   return tableWrap([{t:"Fecha"},{t:"Documento"},{t:"Vehículo"},{t:"Cliente"},{t:"Régimen"},{t:"Precio",r:1}].concat(oc?[]:[{t:"Coste",r:1},{t:"Margen",r:1}]).concat([{t:""},{t:"",r:1}]),rows);
 }
@@ -882,6 +882,7 @@ function viewProformas(){
       <td>${reservado?'<span class="minipill" style="background:var(--res-s);color:var(--res)">Reservado</span>':'<span class="minipill" style="background:var(--line-2);color:var(--muted)">Sin reservar</span>'}</td>
       <td class="r"><button class="btn ghost sm" onclick="event.stopPropagation();factura(${s.id})">🧾 Imprimir</button>
         <button class="btn gold sm" onclick="event.stopPropagation();confirmarFactura(${s.id})">✓ Confirmar</button>
+        <button class="btn ghost sm" onclick="event.stopPropagation();contratoCompraventa(${s.id})" title="Contrato de compraventa">📄</button>
         ${docBtn(s.vehiculo_id,'Factura proforma')}<button class="btn ghost sm" onclick="event.stopPropagation();openForm('ventas',${s.id})">✎</button>
         <button class="btn danger sm" onclick="event.stopPropagation();delRow('ventas',${s.id})">🗑</button></td>
     </tr>`;}).join("");
@@ -2132,6 +2133,7 @@ function openDrawer(id){
         ${v.estado==="reservado"?`<button class="btn ghost sm" onclick="liberarReserva(${v.id})">Liberar reserva</button>`:""}
         ${!sold?`<button class="btn ghost sm" onclick="openContratoReserva(${v.id})">📄 Contrato de reserva</button>`:""}
         ${v._venta&&v._venta.estado_factura!=="factura"?`<button class="btn ghost sm" onclick="factura(${v._venta.id})">🧾 Ver proforma</button> <button class="btn gold sm" onclick="confirmarFactura(${v._venta.id})">✓ Confirmar factura</button>`:(sold?`<button class="btn gold sm" onclick="factura(${v._venta.id})">🧾 Factura</button>`:"")}
+        ${v._venta?`<button class="btn ghost sm" onclick="contratoCompraventa(${v._venta.id})">📄 Contrato compraventa</button>`:""}
         <button class="btn danger sm" onclick="delRow('vehiculos',${v.id},true)">🗑 Eliminar</button>
       </div>
     </div>
@@ -2731,6 +2733,8 @@ function verFoto(src){$("#lightbox-img").src=src;$("#lightbox").classList.add("o
 
 /* ================= FORMULARIOS (CRUD) ================= */
 const EMPRESA={comercial:"MIÑACAR",razon:"LYRWIRS, S.L.",cif:"B29441938",dir:"C/ Genalguacil, 3",cp:"29004",ciudad:"Málaga",prov:"Málaga",registro:"Inscrita en el Registro Mercantil de Málaga, Tomo 1.171, Libro 84, Hoja MA-3788"};
+// Membrete oficial para los CONTRATOS (según el modelo de compraventa de MIÑACAR)
+const EMPRESA_CONTRATO={comercial:"MIÑACAR",razon:"LYRWIRS, S.L.",cif:"B29441938",dir:"Avda. Juan XXIII, nº 29",cp:"29006",ciudad:"Málaga",prov:"Málaga",tel:"655 85 28 28",email:"info@minacar.es",web:"https://minacar.es",taller_dir:"C/ Genalguacil, 3, Málaga",taller_tel:"695 54 44 83",registro:"Inscrita en el Registro Mercantil de Málaga, Tomo 1.171, Libro 84, Hoja MA-3788"};
 const SCHEMAS={
   clientes:{title:"cliente",nota:"El cliente (comprador) debe estar completo: nombre/razón social, CIF/DNI, dirección completa y datos de cobro.",fields:[
     {k:"nombre",l:"Nombre completo / Razón social",t:"text",req:1,full:1},
@@ -3230,6 +3234,107 @@ async function factura(id){
   ${rebu?`<div class="legal"><b>Régimen especial de bienes usados (REBU).</b> Operación acogida al régimen especial de bienes usados (arts. 135-139 Ley 37/1992 del IVA). IVA incluido en el precio, sin desglose y sin derecho a deducción por parte del adquirente.</div>`:""}
   <div class="foot">${EMPRESA.comercial} · ${EMPRESA.razon} · CIF ${EMPRESA.cif} — Factura generada por la aplicación de gestión.</div></body></html>`;
   const w=window.open("","_blank");if(!w){toast("Permite las ventanas emergentes para ver la factura");return;}
+  w.document.write(html);w.document.close();
+}
+/* ================= CONTRATO DE COMPRAVENTA DE VEHÍCULO USADO ================= */
+function contratoCompraventa(ventaId){
+  const s=(DATA.ventas||[]).find(v=>v.id===ventaId);
+  if(!s){toast("No se encontró la venta");return;}
+  const EC=EMPRESA_CONTRATO;
+  const veh=DATA.vehiculos.find(x=>x.id===s.vehiculo_id)||{};
+  const cli=DATA.clientes.find(x=>x.id===s.cliente_id)||{nombre:s.cliente,nif:s.cliente_nif,direccion:s.cliente_direccion,telefono:s.cliente_telefono,email:s.cliente_email};
+  const com=DATA.comerciales.find(x=>x.id===s.comercial_id)||null;
+  const total=Number(s.precio)||0, rebu=(s.regimen==="REBU"), base=rebu?total:total/1.21, iva=rebu?0:total-base;
+  // Forma de pago a partir de los cobros registrados
+  const cobrosV=(DATA.cobros||[]).filter(c=>c.venta_id===s.id);
+  const cobrado=cobrosV.reduce((a,c)=>a+(Number(c.importe)||0),0);
+  const financiado=cobrosV.filter(c=>/financ/i.test(c.medio||"")).reduce((a,c)=>a+(Number(c.importe)||0),0);
+  const tasacion=cobrosV.filter(c=>c.veh_cambio_id||/cambio/i.test(c.medio||"")).reduce((a,c)=>a+(Number(c.importe)||0),0);
+  const entregaCuenta=Math.max(0,cobrado-financiado-tasacion);
+  const pendiente=Math.max(0,total-cobrado);
+  const cpm=String(cli.direccion||"").match(/\b(\d{5})\b/); const cp=cpm?cpm[1]:"";
+  const fechaContrato=fdate(s.fecha||s.fecha_proforma||todayISO());
+  const numPres=s.numero_factura||s.numero_proforma||("V-"+s.id);
+  const asesor=com?com.nombre:"Ventas Miñacar";
+  const asesorTel=com&&com.telefono?com.telefono:EC.tel;
+  const asesorMail=com&&com.email?com.email:EC.email;
+  const kv=(k,v)=>`<tr><td class="k">${k}</td><td>${v||"—"}</td></tr>`;
+  const eco=rebu
+    ?`<tr><td>Total (IVA incluido · REBU, sin desglose)</td><td class="n"><b>${eur2(total)}</b></td></tr>`
+    :`<tr><td>Base imponible</td><td class="n">${eur2(base)}</td></tr><tr><td>IVA (21%)</td><td class="n">${eur2(iva)}</td></tr>`;
+  const clausulas=[
+    "El vendedor vende y entrega en este acto al comprador el vehículo identificado con sus características en el cuadro anterior, y declara que éste es de su legítima propiedad.",
+    "El precio de la compraventa, teniendo en cuenta las características del vehículo, su naturaleza de bien usado y el estado en que se encuentra —que el comprador conoce y acepta—, se pacta de común acuerdo en la cantidad de <b>"+eur2(total)+"</b> ("+esc(eurosEnLetras(total))+"), I.V.A. incluido.",
+    "El vendedor manifiesta que sobre el vehículo no pesa ningún gravamen, arbitrio, impuesto ni débito de clase alguna pendiente de liquidación a la fecha de este contrato, obligándose a resolver y a gestionar a favor del comprador cualquier reclamación que le corresponda.",
+    "El comprador acepta el vehículo y se hace cargo del mismo desde este momento, asumiendo cuantas responsabilidades puedan derivarse de su uso o posesión como consecuencia de su adquisición.",
+    "El vendedor manifiesta que el vehículo se entrega debidamente verificado, con la ITV vigente y en perfecto estado de funcionamiento de todos sus elementos, habiendo dado al comprador la oportunidad de probarlo por sí mismo o por profesional de su confianza; el comprador manifiesta que lo recibe a su entera satisfacción y debidamente informado de su estado, antigüedad y kilómetros recorridos.",
+    "El vehículo se entrega garantizado conforme al RDL 7/2021, actuando el vendedor además en su condición de garante. Las partes pactan una garantía de <b>12 meses</b>, cuyo cómputo se inicia en la fecha de entrega indicada en este contrato. Conforme a la Ley 23/2003, dicha garantía cubre motor y caja de cambios. El vehículo deberá pasar las revisiones cada 10.000 km, conservando el comprador la justificación documental de las mismas para mantener los derechos de garantía; dichas revisiones de mantenimiento deben realizarse en nuestros talleres, sitos en "+esc(EC.taller_dir)+", teléfono "+esc(EC.taller_tel)+".",
+    "Las condiciones y el alcance de la garantía se aplican exclusivamente a esta operación de compraventa y serán válidos siempre que el comprador destine el vehículo a su uso privado, para la circulación por vías urbanas e interurbanas, realizando un uso normal, diligente y adecuado a sus características, conforme a las instrucciones del fabricante.",
+    "Las reparaciones por falta de conformidad deberán efectuarse en el establecimiento del vendedor o en los talleres específicamente autorizados por éste en el momento de la avería, mediante autorización expresa.",
+    "Las piezas de repuesto a utilizar en la reparación deberán ser adecuadas al vehículo, atendiendo a su naturaleza. Cuando ello sea posible y se obtenga el mismo rendimiento, podrán utilizarse piezas de recambio reacondicionadas, reconstruidas o usadas.",
+    "De acuerdo con el art. 118 del RDL 7/2021, si el bien no fuera conforme con el contrato, el consumidor tendrá derecho a elegir entre la reparación o la sustitución, salvo que una de ellas resulte imposible o, en comparación con la otra, suponga costes desproporcionados para el empresario, atendidas todas las circunstancias.",
+    "No procederá la reclamación por falta de conformidad en los siguientes casos:<ul style='margin:4px 0 0 0;padding-left:16px'>"
+      +"<li>Daños conocidos por el comprador en el momento de la compraventa y que dieron origen a su precio, incluidos los relativos al aspecto interior y exterior y cuantos hayan sido susceptibles de observación en la comprobación estática y dinámica del vehículo y no se hayan reflejado en el apartado de observaciones.</li>"
+      +"<li>Elementos de mantenimiento y consumo cuyo desgaste esté relacionado con el uso normal y la antigüedad (a título enunciativo: filtros, aceites, fluidos, pastillas, zapatas, embrague, discos de freno, bujías, escobillas, etc.).</li>"
+      +"<li>Daños mecánicos por desgaste normal o por mal uso, utilización anormal, sobrecarga, trato inadecuado, doloso o negligente del comprador, así como por inobservancia de las normas de mantenimiento del fabricante.</li>"
+      +"<li>Daños por falta o uso indebido de líquidos de refrigeración o lubricantes en radiador, motor, cambio, diferencial u otros componentes.</li>"
+      +"<li>Reparaciones realizadas fuera de los talleres del vendedor sin autorización expresa.</li>"
+      +"<li>Daños por fuerza mayor, heladas, robo o tentativa de robo, accidente de circulación, guerra, terrorismo u otras circunstancias sobrevenidas no imputables al vendedor.</li>"
+      +"<li>Daños causados por acción intencionada o dolosa del comprador o de terceros, o por participación del vehículo en competiciones oficiales o privadas.</li>"
+      +"<li>Cuando el vehículo haya sido transformado o modificado tras la compra, siempre que dichas transformaciones guarden relación con la avería.</li></ul>",
+    "En el supuesto de que alguna cláusula de este contrato fuera inválida o no ejecutable por motivos jurídicos o de hecho, el resto de las cláusulas conservará su validez. El comprador asume la responsabilidad del seguro obligatorio del vehículo.",
+    "<b>Protección de datos.</b> Conforme a la normativa vigente de protección de datos (Reglamento (UE) 2016/679 y L.O. 3/2018), los datos personales facilitados por el comprador serán tratados por "+esc(EC.razon)+", como responsable del tratamiento, con la finalidad de la gestión y el control de la relación contractual. El comprador podrá ejercer los derechos de acceso, rectificación, supresión, oposición, limitación y portabilidad dirigiéndose a "+esc(EC.email)+". Sus datos podrán tratarse para el envío de comunicaciones comerciales salvo que marque la casilla: ☐ NO CONSIENTO.",
+    "Los Juzgados y Tribunales de Málaga resolverán las controversias que puedan surgir en relación con el cumplimiento del presente contrato, de conformidad con las leyes comunes españolas."
+  ];
+  const cabecera=
+    '<div class="hd"><div class="emisor"><b>'+esc(EC.razon)+'</b> · CIF '+esc(EC.cif)+'<br>'+esc(EC.dir)+' · '+esc(EC.cp)+' '+esc(EC.ciudad)+'<br>Tel. '+esc(EC.tel)+' · '+esc(EC.email)+' · '+esc(EC.web)+'</div>'
+    +'<div class="brand"><svg width="30" height="30" viewBox="0 0 44 44"><g fill="none" stroke="#1c1c1c" stroke-width="2.2" stroke-linejoin="round"><path d="M7 37 L16 18 L25 37"/><path d="M14 37 L23 12 L32 37"/><path d="M22 37 L30 22 L38 37"/></g></svg><span class="nm">MIÑA<span class="c">CAR</span></span></div></div>';
+  const firmas='<div class="firmas"><div class="f">EL COMPRADOR<br><span style="color:#888">'+esc(cli.nombre||"")+'</span></div><div class="f">POR EL VENDEDOR<br><span style="color:#888">'+esc(EC.razon)+' · '+esc(asesor)+'</span></div></div>';
+  const html='<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Contrato compraventa '+esc(veh.matricula||s.matricula||"")+'</title>'
+  +'<style>*{box-sizing:border-box}body{font-family:"Trebuchet MS","Segoe UI",Arial,sans-serif;color:#1e1e1e;margin:0;padding:30px 40px;font-size:12px;line-height:1.5}'
+  +'.hd{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid #c9d400;padding-bottom:10px;margin-bottom:14px}'
+  +'.emisor{font-size:10.5px;color:#333;line-height:1.5}.brand{display:flex;align-items:center;gap:8px}.brand .nm{font-size:22px;font-weight:800;letter-spacing:2px}.brand .nm .c{color:#a9b400}'
+  +'h1{font-size:15px;letter-spacing:.8px;text-transform:uppercase;margin:2px 0 12px}'
+  +'h2{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#5a6100;margin:14px 0 6px;border-bottom:1px solid #e7ea9a;padding-bottom:2px}'
+  +'table{width:100%;border-collapse:collapse}td{padding:5px 8px;border:1px solid #e3e3d5;vertical-align:top}td.k{background:#f7f8e6;font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:#77800a;width:22%}td.n{text-align:right}'
+  +'.eco{width:60%;margin-left:auto}.eco td{border:none;padding:3px 8px}.eco .grand{font-weight:800;border-top:2px solid #1a1a1a;font-size:14px}'
+  +'.obs{background:#fbfbea;border:1px solid #e6ea9a;border-radius:6px;padding:8px 12px;margin-top:8px;font-size:11px}'
+  +'ol.cl{margin:0;padding-left:18px}ol.cl li{margin-bottom:6px;text-align:justify}'
+  +'.firmas{display:flex;justify-content:space-between;gap:40px;margin-top:36px}.firmas .f{flex:1;text-align:center;border-top:1px solid #333;padding-top:6px;font-size:11px}'
+  +'.foot{margin-top:16px;font-size:9px;color:#999;text-align:center}'
+  +'.pagebreak{page-break-before:always}@media print{.noprint{display:none}body{padding:12mm 14mm}}'
+  +'.btn{background:#d6e021;border:none;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer}</style></head><body>'
+  +'<div class="noprint" style="margin-bottom:14px"><button class="btn" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button></div>'
+  +cabecera
+  +'<h1>Contrato de compraventa de vehículo usado</h1>'
+  +'<table style="margin-bottom:6px"><tr><td class="k">Fecha del contrato</td><td>'+esc(fechaContrato)+'</td><td class="k">Nº presupuesto</td><td>'+esc(numPres)+'</td></tr>'
+  +'<tr><td class="k">Asesor</td><td>'+esc(asesor)+'</td><td class="k">Contacto</td><td>'+esc(asesorTel)+' · '+esc(asesorMail)+'</td></tr></table>'
+  +'<h2>Datos del cliente</h2><table>'
+  +kv("Nombre / Razón social","<b>"+esc(cli.nombre||"")+"</b>")
+  +'<tr><td class="k">DNI / CIF</td><td>'+esc(cli.nif||"")+'</td><td class="k">Teléfono</td><td>'+esc(cli.telefono||"")+'</td></tr>'
+  +'<tr><td class="k">Domicilio</td><td>'+esc(cli.direccion||"")+'</td><td class="k">C.P.</td><td>'+esc(cp)+'</td></tr></table>'
+  +'<h2>Vehículo</h2><table>'
+  +'<tr><td class="k">Marca</td><td>'+esc(veh.marca||s.marca||"")+'</td><td class="k">Modelo</td><td>'+esc(veh.modelo||s.modelo||"")+'</td></tr>'
+  +'<tr><td class="k">Versión / Terminación</td><td>'+esc(veh.version||"")+'</td><td class="k">Combustible</td><td>'+esc(veh.combustible||"")+'</td></tr>'
+  +'<tr><td class="k">Color</td><td>'+esc(veh.color||"")+'</td><td class="k">Año / Matriculación</td><td>'+esc(veh.anio||s.anio||"")+'</td></tr>'
+  +'<tr><td class="k">Kilometraje</td><td>'+(veh.km!=null&&veh.km!==""?esc(String(veh.km))+" km":(s.km!=null?esc(String(s.km))+" km":"—"))+'</td><td class="k">Matrícula</td><td><b>'+esc(veh.matricula||s.matricula||"")+'</b></td></tr>'
+  +'<tr><td class="k">Nº de bastidor</td><td>'+esc(veh.bastidor||s.bastidor||"")+'</td><td class="k">Garantía</td><td>Garantía legal 12 meses (RDL 7/2021)</td></tr></table>'
+  +'<h2>Datos económicos</h2><table class="eco">'+eco+'<tr class="grand"><td>TOTAL (IVA incl.)</td><td class="n">'+eur2(total)+'</td></tr></table>'
+  +'<h2>Forma de pago</h2><table class="eco">'
+  +'<tr><td>Importe financiado</td><td class="n">'+eur2(financiado)+'</td></tr>'
+  +'<tr><td>Entrega a cuenta</td><td class="n">'+eur2(entregaCuenta)+'</td></tr>'
+  +'<tr><td>Tasación de vehículo usado (a cambio)</td><td class="n">'+eur2(tasacion)+'</td></tr>'
+  +'<tr class="grand"><td>Pendiente de pagar</td><td class="n">'+eur2(pendiente)+'</td></tr></table>'
+  +'<div class="obs"><b>Observaciones.</b> La entrega del vehículo no se hará efectiva hasta que se encuentre satisfecho el precio total indicado en este contrato, impuestos incluidos.'+(s.notas?" "+esc(s.notas):"")+'</div>'
+  +firmas
+  +'<div class="pagebreak"></div>'+cabecera
+  +'<h2>Estipulaciones del contrato de compraventa de un vehículo usado</h2>'
+  +'<p style="text-align:justify;margin:0 0 8px">Ambas partes actúan en su propio nombre, se reconocen mutuamente la capacidad legal para celebrar el presente contrato y, habiendo sido informado el comprador de los derechos que tiene atribuidos, acuerdan formalizar la compraventa conforme a las siguientes cláusulas:</p>'
+  +'<ol class="cl">'+clausulas.map(c=>"<li>"+c+"</li>").join("")+'</ol>'
+  +firmas
+  +'<div class="foot">'+esc(EC.razon)+' · CIF '+esc(EC.cif)+' · '+esc(EC.dir)+', '+esc(EC.cp)+' '+esc(EC.ciudad)+' · '+esc(EC.registro)+'</div>'
+  +'</body></html>';
+  const w=window.open("","_blank");if(!w){toast("Permite las ventanas emergentes para ver el contrato");return;}
   w.document.write(html);w.document.close();
 }
 /* ---------- FACTURAS EMITIDAS (gestoría, garantía, arrendamiento, rectificativas) ---------- */
