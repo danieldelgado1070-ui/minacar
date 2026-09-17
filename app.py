@@ -2342,11 +2342,24 @@ IMPORT_SPECS = {
                     ("Email", "email", "t"), ("Fecha incorporación", "fecha_incorporacion", "d"),
                     ("% Comisión", "comision_pct", "n"), ("Franquicia", "franquicia", "n"), ("Notas", "notas", "t")],
     "vehiculos": [("Matrícula", "matricula", "t"), ("Bastidor", "bastidor", "t"), ("Marca", "marca", "t"),
-                  ("Modelo", "modelo", "t"), ("Año", "anio", "n"), ("Kilómetros", "km", "n"),
+                  ("Modelo", "modelo", "t"), ("Versión", "version", "t"), ("Año", "anio", "n"), ("Kilómetros", "km", "n"),
                   ("Color", "color", "t"), ("Combustible", "combustible", "t"), ("Estado", "estado", "t"),
+                  ("Etiqueta", "etiqueta", "t"), ("Ubicación", "ubicacion", "t"), ("Referencia web", "ref_web", "t"),
+                  ("Recepcionado", "recepcionado", "t"),
                   ("ITV pasada", "itv_pasada", "t"), ("Caducidad ITV", "itv_expira", "d"),
                   ("Próxima revisión", "proxima_revision", "d"), ("Notas", "notas", "t")],
 }
+
+# Columnas EXTRA de la importación de vehículos que no son del coche sino de su COMPRA
+VEH_IMPORT_COMPRA = [
+    ("Precio compra (sin IVA)", "precio", {"preciocompra", "preciocompsiniva", "base", "preciocompravehiculo", "preciodecompra"}),
+    ("Régimen", "regimen", {"regimen", "regimenfiscal"}),
+    ("Nº factura compra", "numero_factura", {"nfacturacompra", "nfactura", "nofactura", "numfactura", "nfra", "nofra", "factura"}),
+    ("Fecha factura", "fecha_factura", {"fechafactura", "fechacompra", "fechafra", "fechadefactura"}),
+    ("Proveedor", "proveedor", {"proveedor"}),
+    ("NIF proveedor", "nif_prov", {"nifproveedor", "nifprov", "nif"}),
+    ("Gastos", "gastos", {"gastos", "sumadegastos"}),
+]
 
 
 def _norm(s):
@@ -2361,7 +2374,12 @@ IMPORT_ALIASES = {
                  "numerodebastidor", "numerobastidor", "bastidorvin", "nchasis", "ndebastidor",
                  "n.bastidor", "nobastidorvin"},
     "marca": {"marca", "fabricante"},
-    "modelo": {"modelo", "version", "modelo/version"},
+    "modelo": {"modelo", "modelo/version"},
+    "version": {"version", "acabado"},
+    "etiqueta": {"etiqueta", "etiquetaecologica", "etiquetadgt", "etiquetamedioambiental", "distintivo"},
+    "ubicacion": {"ubicacion", "localizacion", "posicion"},
+    "ref_web": {"referenciaweb", "refweb", "referencia", "ref"},
+    "recepcionado": {"recepcionado", "recibido"},
     "anio": {"anio", "ano", "year", "anomatriculacion"},
     "km": {"km", "kms", "kilometros", "kilometraje"},
     "combustible": {"combustible", "carburante"},
@@ -2435,6 +2453,37 @@ def importar_tabla(table, data):
     if table == "vehiculos" and "matricula" not in col and "bastidor" not in col:
         raise ReglaNegocio("El archivo no tiene columna de «Matrícula» ni de «Bastidor». "
                            "Añade al menos una de las dos (también valen títulos como VIN, Chasis o Placa).")
+    # Columnas EXTRA de compra (solo vehículos): precio, régimen, nº/fecha factura, proveedor…
+    xcol = {}
+    if table == "vehiculos":
+        for lab, key, alias in VEH_IMPORT_COMPRA:
+            labn = _norm(lab)
+            for j, h in enumerate(header):
+                hn = _norm(h).replace(" ", "").replace(".", "").replace("º", "").replace("°", "")
+                if hn == labn.replace(" ", "") or hn in alias:
+                    xcol[key] = j
+                    break
+    _prov_cache = {}
+
+    def _prov_id(nombre, nif):
+        nombre = (nombre or "").strip()
+        if not nombre:
+            return None
+        k = _norm(nombre)
+        if k in _prov_cache:
+            return _prov_cache[k]
+        conn = get_db()
+        row = conn.execute("SELECT id FROM proveedores WHERE lower(nombre)=lower(?)", (nombre,)).fetchone()
+        if row:
+            pid = row["id"]
+        else:
+            cur = conn.execute("INSERT INTO proveedores (nombre, nif) VALUES (?,?)", (nombre, (nif or "").strip() or None))
+            pid = cur.lastrowid
+            conn.commit()
+        conn.close()
+        _prov_cache[k] = pid
+        return pid
+
     insertados, errores = 0, []
     for i, r in enumerate(rows[1:], start=2):
         rec = {}
@@ -2452,7 +2501,14 @@ def importar_tabla(table, data):
                     rec[field] = _fecha_es(str(val))
                 else:
                     rec[field] = val
-        if not rec:
+        # valor de las columnas extra de compra
+        def xget(key):
+            j = xcol.get(key)
+            if j is None or j >= len(r):
+                return None
+            v = r[j]
+            return v.strip() if isinstance(v, str) else v
+        if not rec and not any(xget(k[1]) for k in VEH_IMPORT_COMPRA):
             continue
         # requisito mínimo: nombre / matrícula
         if table != "vehiculos" and not (rec.get("nombre") or "").strip():
@@ -2462,8 +2518,41 @@ def importar_tabla(table, data):
             errores.append(f"Fila {i}: falta matrícula o bastidor.")
             continue
         try:
-            insert_row(table, rec)
-            insertados += 1
+            if table == "vehiculos":
+                # Recepcionado (importación inicial): entra en stock
+                recep = str(rec.pop("recepcionado", "") or "").strip().lower() in ("si", "sí", "1", "x", "true", "verdadero")
+                if recep:
+                    rec["recepcionado"] = 1
+                    if not (rec.get("estado") or "").strip():
+                        rec["estado"] = "disponible"
+                vid = insert_row("vehiculos", rec)
+                # Compra (precio de compra sin IVA, régimen, factura, proveedor)
+                precio = xget("precio")
+                precio = _num_es(precio) if isinstance(precio, str) else precio
+                if precio not in (None, "") and vid:
+                    reg = str(xget("regimen") or "").strip().upper()
+                    regimen = "REBU" if reg == "REBU" else "General"
+                    ivap = 0 if reg in ("REBU", "EXENTO", "EXENTA", "EXENTO IVA") else 21
+                    gastos = xget("gastos"); gastos = _num_es(gastos) if isinstance(gastos, str) else (gastos or 0)
+                    comp = {"vehiculo_id": vid, "precio": precio, "gastos": gastos or 0,
+                            "regimen": regimen, "iva_pct": ivap, "factura_recibida": "Sí"}
+                    nf = xget("numero_factura")
+                    if nf not in (None, ""):
+                        comp["numero_factura"] = str(nf)
+                    ff = xget("fecha_factura")
+                    if ff not in (None, ""):
+                        comp["fecha"] = _fecha_es(str(ff))
+                    pid = _prov_id(xget("proveedor"), xget("nif_prov"))
+                    if pid:
+                        comp["prov_id"] = pid
+                    try:
+                        insert_row("compras", comp)
+                    except Exception:
+                        pass
+                insertados += 1
+            else:
+                insert_row(table, rec)
+                insertados += 1
         except Exception as e:
             errores.append(f"Fila {i}: {e}")
     return {"ok": True, "insertados": insertados, "errores": errores, "total": len(rows) - 1}
