@@ -2497,6 +2497,7 @@ async function guardarContratoReserva(generar){
   finally{_saving=false;}
 }
 function generarContratoReservaDoc(d){
+  const EMPRESA=EMPRESA_CONTRATO;   // membrete oficial de contratos (Avda. Juan XXIII 29)
   const cli=d.cli||{}, veh=d.veh||{};
   const ibanRows=(d.ibanes||[]).map(i=>`<div class="iban">LYRWIRS, S.L. &nbsp;·&nbsp; <b>${esc(ibanFmt(i))}</b></div>`).join("");
   const canalRgpd=d.email_rgpd?("la dirección de correo electrónico <b>"+esc(d.email_rgpd)+"</b>"):("su domicilio social, sito en "+esc(EMPRESA.dir)+", "+esc(EMPRESA.cp)+" "+esc(EMPRESA.ciudad));
