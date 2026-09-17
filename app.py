@@ -405,6 +405,22 @@ def init_db():
             creado          TEXT DEFAULT (datetime('now','localtime'))
         );
 
+        CREATE TABLE IF NOT EXISTS reservas (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            vehiculo_id     INTEGER REFERENCES vehiculos(id) ON DELETE SET NULL,
+            cliente_id      INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+            comercial_id    INTEGER,
+            fecha           TEXT,
+            importe         REAL DEFAULT 0,
+            forma_cobro     TEXT,
+            iban            TEXT,
+            email_rgpd      TEXT,
+            plazo_dias      INTEGER DEFAULT 14,
+            estado          TEXT DEFAULT 'vigente',
+            notas           TEXT,
+            creado          TEXT DEFAULT (datetime('now','localtime'))
+        );
+
         CREATE TABLE IF NOT EXISTS logistica (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             vehiculo_id     INTEGER REFERENCES vehiculos(id) ON DELETE CASCADE,
@@ -468,6 +484,7 @@ TABLE_AREA = {
     "recepciones": "logistica", "gestorias": "gestoria",
     "facturas_emitidas": "ventas",
     "pagos_prov": "compras",
+    "reservas": "reservas",
 }
 
 
@@ -991,6 +1008,8 @@ FIELDS = {
     "recepciones": ["vehiculo_id", "fecha", "responsable", "almacen_id",
                     "ubicacion", "tiene_desperfectos", "desperfectos", "marcas", "luz_motor", "notas"],
     "traspasos": ["vehiculo_id", "almacen_destino", "fecha", "responsable", "notas"],
+    "reservas": ["vehiculo_id", "cliente_id", "comercial_id", "fecha", "importe",
+                 "forma_cobro", "iban", "email_rgpd", "plazo_dias", "estado", "notas"],
     "garantias": ["vehiculo_id", "cliente_id", "tipo", "fecha_inicio", "meses",
                   "fecha_fin", "alcance", "estado", "notas"],
     "postventa": ["vehiculo_id", "tipo", "descripcion", "proveedor", "prov_id", "fecha",
@@ -1377,6 +1396,15 @@ def insert_row(table, data):
                              (data.get("vehiculo_id"),))
         if table == "logistica":
             _aplicar_entrega(conn, data)
+        # Reserva de vehículo: deja el coche marcado como reservado para ese cliente
+        if table == "reservas" and data.get("vehiculo_id"):
+            conn.execute(
+                """UPDATE vehiculos SET estado='reservado',
+                       reserva_cliente_id=?, reserva_fecha=?
+                   WHERE id=? AND estado!='vendido'""",
+                (data.get("cliente_id"),
+                 data.get("fecha") or date.today().isoformat(),
+                 data.get("vehiculo_id")))
         conn.commit()
         return new_id
     finally:
@@ -1903,6 +1931,29 @@ def list_traspasos(q=None):
            ORDER BY t.fecha DESC, t.id DESC""").fetchall()
     conn.close()
     return rows_to_list(rows)
+
+
+def list_reservas(q=None):
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT r.*, v.matricula, v.marca, v.modelo, v.version, v.bastidor,
+                  cl.nombre AS cliente, cl.nif AS cliente_nif,
+                  cl.telefono AS cliente_telefono, cl.email AS cliente_email,
+                  cl.direccion AS cliente_direccion,
+                  co.nombre AS comercial
+           FROM reservas r
+           LEFT JOIN vehiculos v ON v.id = r.vehiculo_id
+           LEFT JOIN clientes cl ON cl.id = r.cliente_id
+           LEFT JOIN comerciales co ON co.id = r.comercial_id
+           ORDER BY r.fecha DESC, r.id DESC""").fetchall()
+    conn.close()
+    out = rows_to_list(rows)
+    if q:
+        ql = q.lower()
+        out = [r for r in out if any(ql in str(r.get(k) or "").lower()
+               for k in ("cliente", "cliente_nif", "matricula", "marca",
+                         "modelo", "bastidor", "forma_cobro", "estado"))]
+    return out
 
 
 def list_gestoria(q=None):
@@ -3301,6 +3352,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_json(list_gestorias(params.get("q", [None])[0]))
         if path == "/api/traspasos":
             return self.send_json(list_traspasos(params.get("q", [None])[0]))
+        if path == "/api/reservas":
+            return self.send_json(list_reservas(params.get("q", [None])[0]))
         if path == "/api/documentos":
             vid = params.get("vehiculo_id", [None])[0]
             return self.send_json(list_documentos(int(vid) if vid else None))
@@ -3609,7 +3662,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "leads", "gestoria", "documentos", "almacenes", "traspasos",
                     "garantias", "postventa", "agenda", "cobros",
                     "seguimientos", "extractos", "movimientos", "listas",
-                    "recepciones", "gestorias", "facturas_emitidas", "pagos_prov"}
+                    "recepciones", "gestorias", "facturas_emitidas", "pagos_prov",
+                    "reservas"}
 
     def _table_from_path(self):
         parts = urlparse(self.path).path.strip("/").split("/")

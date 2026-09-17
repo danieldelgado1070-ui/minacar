@@ -388,12 +388,12 @@ const svg=(p,cls="")=>`<svg class="${cls}" viewBox="0 0 24 24" fill="none" strok
 const NAV=[
   ["panel","Panel",IC.panel,"op"],["stock","Stock",IC.car,"op"],["compras","Compras",IC.cart,"op"],["valoracion","Valoración",IC.chart,"op"],
   ["taller","Taller",IC.wrench,"op"],["logistica","Logística",IC.truck,"op"],["marketing","Marketing",IC.mega,"op"],["agenda","Agenda",IC.book,"op"],
-  ["ventas","Ventas",IC.tag,"op"],["proformas","Proformas",IC.stamp,"op"],["facturas_emitidas","Facturas emitidas",IC.stamp,"op"],["tesoreria","Cobros y pagos",IC.euro,"op"],["facturas","Facturas prov.",IC.supplier,"op"],["profesionales","Venta a Profesionales",IC.book,"op"],["bancos","Bancos",IC.bank,"op"],["gestoria","Gestoría",IC.stamp,"op"],["garantias","Garantías",IC.shield,"op"],["postventa","Postventa",IC.support,"op"],["documentos","Documentos",IC.folder,"op"],["almacenes","Almacenes",IC.box,"op"],["web","Web",IC.globe,"op"],
+  ["ventas","Ventas",IC.tag,"op"],["reservas","Reservas",IC.stamp,"op"],["proformas","Proformas",IC.stamp,"op"],["facturas_emitidas","Facturas emitidas",IC.stamp,"op"],["tesoreria","Cobros y pagos",IC.euro,"op"],["facturas","Facturas prov.",IC.supplier,"op"],["profesionales","Venta a Profesionales",IC.book,"op"],["bancos","Bancos",IC.bank,"op"],["gestoria","Gestoría",IC.stamp,"op"],["garantias","Garantías",IC.shield,"op"],["postventa","Postventa",IC.support,"op"],["documentos","Documentos",IC.folder,"op"],["almacenes","Almacenes",IC.box,"op"],["web","Web",IC.globe,"op"],
   ["clientes","Clientes",IC.users,"dir"],["proveedores","Proveedores",IC.supplier,"dir"],["comerciales","Comerciales",IC.users,"dir"],["transportistas","Transportistas",IC.wheel,"dir"],["gestorias","Gestorías",IC.stamp,"dir"],
   ["itv","ITV",IC.clock,"an"],["informes","Informes",IC.chart,"an"],
   ["usuarios","Usuarios",IC.users,"adm"],
 ];
-const SUB={panel:"Visión general de la operación",stock:"Existencias y ficha 360 de cada vehículo",compras:"Facturas y pagos a proveedor",valoracion:"Precio de compra recomendado según tu margen y el mercado",taller:"Reacondicionamiento y costes de preparación",logistica:"Transporte, entrega y coches pendientes",marketing:"Leads e interesados por vehículo",agenda:"Gestiones diarias de leads y postventa",ventas:"Operaciones cerradas y facturas",proformas:"Proformas / presupuestos (se confirman en factura)",tesoreria:"Facturas pendientes de cobro y de pago",facturas:"Facturas de proveedor: pendientes de recibir y de pagar",profesionales:"Venta a profesionales: informe de deudas (la proforma genera deuda)",bancos:"Extractos bancarios y conciliación de movimientos",gestoria:"Transferencias y exenciones de matriculación",garantias:"Garantías comerciales por vehículo",postventa:"Atenciones tras venta y agenda de reclamaciones",documentos:"Documentación aportada por vehículo",almacenes:"Ubicaciones, valoración del stock y traspasos",web:"Conciliación con minacar.es",clientes:"Directorio de clientes",proveedores:"Directorio de proveedores",comerciales:"Comerciales y cálculo de comisiones",transportistas:"Directorio de transportistas",gestorias:"Directorio de gestorías / asesorías",itv:"Control de ITV por vencimiento y revisiones concertadas",informes:"Rotación y margen por dimensión",usuarios:"Usuarios y permisos de acceso",rc_inicio:"Alquiler de vehículos (en construcción, enlazado con Compraventa)"};
+const SUB={panel:"Visión general de la operación",stock:"Existencias y ficha 360 de cada vehículo",compras:"Facturas y pagos a proveedor",valoracion:"Precio de compra recomendado según tu margen y el mercado",taller:"Reacondicionamiento y costes de preparación",logistica:"Transporte, entrega y coches pendientes",marketing:"Leads e interesados por vehículo",agenda:"Gestiones diarias de leads y postventa",ventas:"Operaciones cerradas y facturas",reservas:"Reservas de vehículo y contrato de reserva (arras)",proformas:"Proformas / presupuestos (se confirman en factura)",tesoreria:"Facturas pendientes de cobro y de pago",facturas:"Facturas de proveedor: pendientes de recibir y de pagar",profesionales:"Venta a profesionales: informe de deudas (la proforma genera deuda)",bancos:"Extractos bancarios y conciliación de movimientos",gestoria:"Transferencias y exenciones de matriculación",garantias:"Garantías comerciales por vehículo",postventa:"Atenciones tras venta y agenda de reclamaciones",documentos:"Documentación aportada por vehículo",almacenes:"Ubicaciones, valoración del stock y traspasos",web:"Conciliación con minacar.es",clientes:"Directorio de clientes",proveedores:"Directorio de proveedores",comerciales:"Comerciales y cálculo de comisiones",transportistas:"Directorio de transportistas",gestorias:"Directorio de gestorías / asesorías",itv:"Control de ITV por vencimiento y revisiones concertadas",informes:"Rotación y margen por dimensión",usuarios:"Usuarios y permisos de acceso",rc_inicio:"Alquiler de vehículos (en construcción, enlazado con Compraventa)"};
 const NEWMAP={stock:"vehiculos",compras:"compras",taller:"taller",ventas:"ventas",logistica:"logistica",marketing:"leads",gestoria:"gestoria",garantias:"garantias",postventa:"postventa",almacenes:"almacenes",clientes:"clientes",proveedores:"proveedores",comerciales:"comerciales",transportistas:"transportistas",gestorias:"gestorias",proformas:"ventas",usuarios:"usuarios"};
 const AREA_LABEL=Object.fromEntries(NAV.map(n=>[n[0],n[1]]));
 const DOC_GRUPOS=[
@@ -409,7 +409,7 @@ function ordenarStock(campo){if(stockSort.campo===campo)stockSort.dir*=-1;else s
 
 let CURRENTUSER=null;
 // Qué área controla la escritura de cada tabla/módulo (frontend, espejo del backend)
-const TAREA={vehiculos:"stock",compras:"compras",ventas:"ventas",cobros:"ventas",logistica:"logistica",traspasos:"logistica",taller:"taller",leads:"marketing",gestoria:"gestoria",garantias:"garantias",postventa:"postventa",almacenes:"almacenes",clientes:"clientes",proveedores:"proveedores",comerciales:"comerciales",transportistas:"transportistas",extractos:"bancos",movimientos:"bancos",recepciones:"logistica",gestorias:"gestoria"};
+const TAREA={vehiculos:"stock",compras:"compras",ventas:"ventas",reservas:"reservas",cobros:"ventas",logistica:"logistica",traspasos:"logistica",taller:"taller",leads:"marketing",gestoria:"gestoria",garantias:"garantias",postventa:"postventa",almacenes:"almacenes",clientes:"clientes",proveedores:"proveedores",comerciales:"comerciales",transportistas:"transportistas",extractos:"bancos",movimientos:"bancos",recepciones:"logistica",gestorias:"gestoria"};
 function nivel(area){ // "w" | "r" | null
   if(!CURRENTUSER)return null;
   if(CURRENTUSER.rol==="admin")return "w";
@@ -435,7 +435,7 @@ const DEPTS={
     {dept:"Compras y preparación",items:["compras","valoracion","taller","facturas"]},
     {dept:"Logística",items:["logistica","almacenes"]},
     {dept:"Marketing",items:["marketing","agenda","web"]},
-    {dept:"Comercial / Ventas",items:["ventas","proformas","profesionales","tesoreria","facturas_emitidas"]},
+    {dept:"Comercial / Ventas",items:["ventas","reservas","proformas","profesionales","tesoreria","facturas_emitidas"]},
     {dept:"Postventa y gestoría",items:["garantias","postventa","gestoria"]},
     {dept:"Análisis y documentación",items:["informes","itv","bancos","documentos"]},
     {dept:"Directorio",items:["clientes","proveedores","comerciales","transportistas","gestorias"]},
@@ -497,16 +497,16 @@ function go(v){
 const IMPORT_VIEWS={clientes:"clientes",proveedores:"proveedores",transportistas:"transportistas",gestorias:"gestorias",comerciales:"comerciales",stock:"vehiculos"};
 
 /* ---------- datos ---------- */
-let DATA={vehiculos:[],clientes:[],transportistas:[],proveedores:[],comerciales:[],compras:[],ventas:[],logistica:[],taller:[],leads:[],gestoria:[],documentos:[],almacenes:[],traspasos:[],garantias:[],postventa:[],agenda:[],cobros:[],seguimientos:[],extractos:[],movimientos:[],recepciones:[],gestorias:[],facturas_emitidas:[],pagos_prov:[]};
+let DATA={vehiculos:[],clientes:[],transportistas:[],proveedores:[],comerciales:[],compras:[],ventas:[],logistica:[],taller:[],leads:[],gestoria:[],documentos:[],almacenes:[],traspasos:[],garantias:[],postventa:[],agenda:[],cobros:[],seguimientos:[],extractos:[],movimientos:[],recepciones:[],gestorias:[],facturas_emitidas:[],pagos_prov:[],reservas:[]};
 let listasCache={marca:[],ciudad:[],ubicacion:[]}, modelosActuales=[];
 async function loadAll(){
-  const [veh,cli,tra,prv,com,ven,log,tal,led,ges,doc,alm,tsp,gar,pos,age,cob,cme,seg,ext,mov,rec,gst,fem,ppr]=await Promise.all([
+  const [veh,cli,tra,prv,com,ven,log,tal,led,ges,doc,alm,tsp,gar,pos,age,cob,cme,seg,ext,mov,rec,gst,fem,ppr,rsv]=await Promise.all([
     api("/api/vehiculos"),api("/api/clientes"),api("/api/transportistas"),api("/api/proveedores"),
     api("/api/compras"),api("/api/ventas"),api("/api/logistica"),
     api("/api/taller"),api("/api/leads"),api("/api/gestoria"),api("/api/documentos"),
     api("/api/almacenes"),api("/api/traspasos"),
-    api("/api/garantias"),api("/api/postventa"),api("/api/agenda"),api("/api/cobros"),api("/api/comerciales"),api("/api/seguimientos"),api("/api/extractos"),api("/api/movimientos"),api("/api/recepciones"),api("/api/gestorias"),api("/api/facturas_emitidas"),api("/api/pagos_prov")]);
-  DATA={vehiculos:veh,clientes:cli,transportistas:tra,proveedores:prv,compras:com,ventas:ven,logistica:log,taller:tal,leads:led,gestoria:ges,documentos:doc,almacenes:alm,traspasos:tsp,garantias:gar,postventa:pos,agenda:age,cobros:cob,comerciales:cme,seguimientos:seg,extractos:ext,movimientos:mov,recepciones:rec,gestorias:gst||[],facturas_emitidas:fem||[],pagos_prov:ppr||[],usuarios:[]};
+    api("/api/garantias"),api("/api/postventa"),api("/api/agenda"),api("/api/cobros"),api("/api/comerciales"),api("/api/seguimientos"),api("/api/extractos"),api("/api/movimientos"),api("/api/recepciones"),api("/api/gestorias"),api("/api/facturas_emitidas"),api("/api/pagos_prov"),api("/api/reservas")]);
+  DATA={vehiculos:veh,clientes:cli,transportistas:tra,proveedores:prv,compras:com,ventas:ven,logistica:log,taller:tal,leads:led,gestoria:ges,documentos:doc,almacenes:alm,traspasos:tsp,garantias:gar,postventa:pos,agenda:age,cobros:cob,comerciales:cme,seguimientos:seg,extractos:ext,movimientos:mov,recepciones:rec,gestorias:gst||[],facturas_emitidas:fem||[],pagos_prov:ppr||[],reservas:rsv||[],usuarios:[]};
   if(CURRENTUSER&&CURRENTUSER.rol==="admin"){try{DATA.usuarios=await api("/api/usuarios")||[];}catch(e){}}
   await cargarListas();
   enrich();
@@ -625,6 +625,7 @@ function render(){
   else if(current==="marketing")views.innerHTML=viewMarketing();
   else if(current==="agenda")views.innerHTML=viewAgenda();
   else if(current==="ventas")views.innerHTML=viewVentas();
+  else if(current==="reservas")views.innerHTML=viewReservas();
   else if(current==="proformas")views.innerHTML=viewProformas();
   else if(current==="facturas_emitidas")views.innerHTML=viewFacturasEmitidas();
   else if(current==="tesoreria")views.innerHTML=viewTesoreria();
@@ -2129,6 +2130,7 @@ function openDrawer(id){
         <button class="btn ghost sm" onclick="enviarFicha(${v.id})">📤 Enviar ficha</button>
         ${!sold&&v.estado!=="reservado"?`<button class="btn ghost sm" onclick="reservar(${v.id})">🔖 Reservar</button>`:""}
         ${v.estado==="reservado"?`<button class="btn ghost sm" onclick="liberarReserva(${v.id})">Liberar reserva</button>`:""}
+        ${!sold?`<button class="btn ghost sm" onclick="openContratoReserva(${v.id})">📄 Contrato de reserva</button>`:""}
         ${v._venta&&v._venta.estado_factura!=="factura"?`<button class="btn ghost sm" onclick="factura(${v._venta.id})">🧾 Ver proforma</button> <button class="btn gold sm" onclick="confirmarFactura(${v._venta.id})">✓ Confirmar factura</button>`:(sold?`<button class="btn gold sm" onclick="factura(${v._venta.id})">🧾 Factura</button>`:"")}
         <button class="btn danger sm" onclick="delRow('vehiculos',${v.id},true)">🗑 Eliminar</button>
       </div>
@@ -2222,9 +2224,17 @@ function gestoriaCard(v){
   return `<div class="card"><div class="card-h"><h3>Gestoría</h3><button class="btn ghost sm" onclick="openForm('gestoria',null,{vehiculo_id:${v.id}})">+ Trámite</button></div>
     <div class="card-b">${v._gestoria.length?`<div style="display:flex;flex-direction:column;gap:6px">${rows}</div>`:'<div style="color:var(--muted);font-size:12.5px">Sin trámites. Añade la <b>transferencia</b> al comprador o la <b>exención de matriculación</b>.</div>'}</div></div>`;
 }
+// Documentos del "Expediente vendedor" que solo aplican a empresas (persona jurídica)
+const DOCS_SOLO_EMPRESA=["CIF (empresa)","Escritura de empresa","IAE (empresa)"];
+function clienteDeVehiculo(v){
+  const cid=(v._venta&&v._venta.cliente_id)||v.reserva_cliente_id||null;
+  return cid?DATA.clientes.find(c=>c.id===cid):null;
+}
+// Empresa (jurídica) si el NIF es un CIF: empieza por letra que no sea NIE (X/Y/Z)
+function esEmpresaNif(nif){return /^[ABCDEFGHJNPQRSUVW]/i.test(String(nif||"").trim());}
 function docsCard(v){
   const verDocs=puedeVerDocs();
-  const fila=tipo=>{
+  const fila=(tipo,oblig=false)=>{
     const docs=v._docs.filter(d=>d.tipo===tipo);const aportada=docs.length>0;const t=tipo.replace(/'/g,"\\'");
     let right;
     if(aportada){
@@ -2232,14 +2242,31 @@ function docsCard(v){
         right=docs.map(d=>`<a href="/doc/${d.id}" target="_blank" class="minipill" style="background:var(--ok-s);color:var(--ok);text-decoration:none" title="${esc(d.nombre_original||"")}">👁 ver</a><button class="btn danger sm" style="padding:2px 6px;margin-left:4px" onclick="quitarDoc(${d.id},${v.id})">✕</button>`).join(" ")
           +` <button class="btn ghost sm" style="padding:2px 8px" onclick="adjuntarDoc(${v.id},'${t}')">+ otro</button>`;
       }else right=`<span class="minipill" style="background:var(--ok-s);color:var(--ok)">✔ aportada</span> <button class="btn ghost sm" style="padding:2px 8px" onclick="adjuntarDoc(${v.id},'${t}')">+ otro</button>`;
-    }else right=`<button class="btn ghost sm" onclick="adjuntarDoc(${v.id},'${t}')">📎 Adjuntar</button>`;
-    return `<div class="tl-row" style="align-items:center"><span>${aportada?"✅":"⬜"} ${esc(tipo)}</span><span style="display:flex;align-items:center;gap:2px">${right}</span></div>`;
+    }else right=`<button class="btn ${oblig?"gold":"ghost"} sm" onclick="adjuntarDoc(${v.id},'${t}')">📎 Adjuntar</button>`;
+    const marca=aportada?"✅":(oblig?"🟥":"⬜");
+    const obligTxt=(!aportada&&oblig)?' <span style="color:var(--danger);font-size:11px">· obligatorio</span>':"";
+    return `<div class="tl-row" style="align-items:center"><span>${marca} ${esc(tipo)}${obligTxt}</span><span style="display:flex;align-items:center;gap:2px">${right}</span></div>`;
   };
+  const cli=clienteDeVehiculo(v);
+  const cliEmp=cli?esEmpresaNif(cli.nif):null;   // true empresa, false física, null desconocido
   // Secciones por grupo (Expediente del coche / Expediente vendedor)
   const secciones=DOC_GRUPOS.map(g=>{
+    if(g.grupo==="Expediente vendedor"){
+      let tipos,sub;
+      if(cliEmp===true){tipos=g.tipos;sub=`Cliente <b>empresa</b> (${esc(cli.nombre||"")}) · todos obligatorios`;}
+      else if(cliEmp===false){tipos=g.tipos.filter(t=>!DOCS_SOLO_EMPRESA.includes(t));sub=`Cliente <b>persona física</b> (${esc(cli.nombre||"")}) · todos obligatorios`;}
+      else{tipos=g.tipos.filter(t=>!DOCS_SOLO_EMPRESA.includes(t));sub=`Asigna el cliente (en la venta o la reserva) para marcar los documentos obligatorios`;}
+      const oblig=cliEmp!=null;
+      const n=tipos.filter(t=>v._docTipos.has(t)).length;
+      const faltan=oblig?tipos.filter(t=>!v._docTipos.has(t)).length:0;
+      const badge=oblig?(faltan>0?`<span style="color:var(--danger)">faltan ${faltan}</span>`:`<span style="color:var(--ok)">completo ✓</span>`):`<span style="color:var(--muted-2)">(${n}/${tipos.length})</span>`;
+      return `<div style="margin-top:10px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin-bottom:2px">${esc(g.grupo)} ${badge}</div>
+        <div style="font-size:11px;color:var(--muted-2);margin-bottom:6px">${sub}</div>
+        <div style="display:flex;flex-direction:column;gap:6px">${tipos.map(t=>fila(t,oblig)).join("")}</div></div>`;
+    }
     const n=g.tipos.filter(t=>v._docTipos.has(t)).length;
     return `<div style="margin-top:10px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin-bottom:6px">${esc(g.grupo)} <span style="color:var(--muted-2)">(${n}/${g.tipos.length})</span></div>
-      <div style="display:flex;flex-direction:column;gap:6px">${g.tipos.map(fila).join("")}</div></div>`;
+      <div style="display:flex;flex-direction:column;gap:6px">${g.tipos.map(t=>fila(t)).join("")}</div></div>`;
   }).join("");
   const pct=Math.round(v._docN/DOC_TIPOS.length*100);
   // Otros documentos aportados desde las gestiones (tipos que no están en la lista fija)
@@ -2348,6 +2375,214 @@ async function liberarReserva(vid){
   const nuevo=v.recepcionado?"disponible":"pendiente";
   await api("/api/vehiculos/"+vid,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({estado:nuevo,reserva_cliente_id:null,reserva_fecha:null})});
   toast("Reserva liberada");await reloadAll();openDrawer(vid);
+}
+
+/* ================= CONTRATO DE RESERVA (arras) ================= */
+const RESERVA_FORMAS=["Tarjeta","Efectivo","Transferencia","Cheque nominativo","Bizum"];
+// --- Validación de IBAN (norma ISO 13616, dígitos de control mód. 97) ---
+function ibanNorm(s){return String(s||"").toUpperCase().replace(/[^0-9A-Z]/g,"");}
+function ibanFmt(s){return ibanNorm(s).replace(/(.{4})/g,"$1 ").trim();}
+function ibanValido(s){
+  const v=ibanNorm(s);
+  if(v.length<15||v.length>34)return false;
+  if(!/^[A-Z]{2}[0-9]{2}[0-9A-Z]+$/.test(v))return false;
+  const re=v.slice(4)+v.slice(0,4);
+  let rem=0;
+  for(const ch of re){const d=(ch>="0"&&ch<="9")?ch:String(ch.charCodeAt(0)-55);for(const dd of d)rem=(rem*10+(+dd))%97;}
+  return rem===1;
+}
+function ibanLineas(txt){return String(txt||"").split(/[\n,;]+/).map(s=>s.trim()).filter(Boolean);}
+// --- Número a letras (euros) ---
+function numALetras(num){
+  num=Math.floor(Math.abs(Number(num)||0));
+  if(num===0)return "CERO";
+  const U=["","UNO","DOS","TRES","CUATRO","CINCO","SEIS","SIETE","OCHO","NUEVE","DIEZ","ONCE","DOCE","TRECE","CATORCE","QUINCE","DIECISÉIS","DIECISIETE","DIECIOCHO","DIECINUEVE","VEINTE","VEINTIUNO","VEINTIDÓS","VEINTITRÉS","VEINTICUATRO","VEINTICINCO","VEINTISÉIS","VEINTISIETE","VEINTIOCHO","VEINTINUEVE"];
+  const D=["","","","TREINTA","CUARENTA","CINCUENTA","SESENTA","SETENTA","OCHENTA","NOVENTA"];
+  const C=["","CIENTO","DOSCIENTOS","TRESCIENTOS","CUATROCIENTOS","QUINIENTOS","SEISCIENTOS","SETECIENTOS","OCHOCIENTOS","NOVECIENTOS"];
+  const sec=n=>{if(n===100)return "CIEN";const c=Math.floor(n/100),r=n%100;let t=c?C[c]+(r?" ":""):"";if(r<30)t+=U[r];else{const d=Math.floor(r/10),u=r%10;t+=D[d]+(u?" Y "+U[u]:"");}return t.trim();};
+  const miles=n=>{const m=Math.floor(n/1000),r=n%1000;let t="";if(m===1)t="MIL";else if(m>1)t=sec(m)+" MIL";if(r)t+=(t?" ":"")+sec(r);return t;};
+  const mill=Math.floor(num/1000000),resto=num%1000000;let t="";
+  if(mill===1)t="UN MILLÓN";else if(mill>1)t=sec(mill)+" MILLONES";
+  if(resto)t+=(t?" ":"")+miles(resto);
+  return t.trim();
+}
+function eurosEnLetras(n){
+  n=Number(n)||0;const ent=Math.floor(n),cent=Math.round((n-ent)*100);
+  const ap=s=>s.replace(/VEINTIUNO$/,"VEINTIÚN").replace(/(^|\s)UNO$/,"$1UN");
+  let t=ap(numALetras(ent))+" "+(ent===1?"EURO":"EUROS");
+  if(cent>0)t+=" CON "+ap(numALetras(cent))+" "+(cent===1?"CÉNTIMO":"CÉNTIMOS");
+  return t;
+}
+function fechaLarga(iso){
+  const m=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+  const d=iso&&/^\d{4}-\d{2}-\d{2}$/.test(iso)?new Date(iso+"T00:00:00"):new Date();
+  return d.getDate()+" de "+m[d.getMonth()]+" de "+d.getFullYear();
+}
+function _idDe(val){const m=String(val||"").match(/#(\d+)\s*$/);return m?Number(m[1]):null;}
+
+// Abre el formulario del contrato de reserva. vid opcional (desde ficha); rid opcional (editar).
+function openContratoReserva(vid=null,rid=null){
+  if(bloqueadoRO("reservas"))return;
+  const r=rid?DATA.reservas.find(x=>x.id===rid):null;
+  if(r&&!vid)vid=r.vehiculo_id;
+  const v=vid?DATA.vehiculos.find(x=>x.id===vid):null;
+  currentForm={table:"__reserva_contrato",id:rid,vid:vid};
+  const cliSel=r?r.cliente_id:(v?v.reserva_cliente_id:null);
+  const dlCli=`<datalist id="dl-cr-cli">${DATA.clientes.map(c=>`<option value="${esc([c.nombre,c.nif].filter(Boolean).join(" · "))} #${c.id}"></option>`).join("")}</datalist>`;
+  const cliVal=cliSel?(()=>{const c=DATA.clientes.find(x=>x.id===cliSel);return c?esc([c.nombre,c.nif].filter(Boolean).join(" · "))+" #"+c.id:"";})():"";
+  const dlVeh=`<datalist id="dl-cr-veh">${DATA.vehiculos.map(x=>`<option value="${esc([x.matricula,[x.marca,x.modelo].filter(Boolean).join(" ")].filter(Boolean).join(" · "))} #${x.id}"></option>`).join("")}</datalist>`;
+  const vehVal=v?esc([v.matricula,[v.marca,v.modelo].filter(Boolean).join(" ")].filter(Boolean).join(" · "))+" #"+v.id:"";
+  const forma=r?r.forma_cobro:"Tarjeta";
+  $("#modal-title").textContent=rid?"Contrato de reserva":"Nueva reserva / contrato";
+  $("#modal-body").innerHTML=`<div class="row">
+    <div style="flex:1 1 100%;font-size:12px;color:var(--muted);background:var(--info-s);border-radius:8px;padding:8px 12px;margin-bottom:2px">Rellena los datos: al generar el contrato se autocompleta con el cliente, el coche, el importe de la reserva y la forma de cobro. El/los IBAN de MIÑACAR se validan; si alguno es incorrecto no se podrá emitir el contrato.</div>
+    <div class="field" style="flex:1 1 100%"><label>Cliente (busca por nombre o NIF) *</label>
+      <input id="cr-cli" list="dl-cr-cli" value="${cliVal}" placeholder="Escribe para buscar…" autocomplete="off">${dlCli}</div>
+    <div class="field" style="flex:1 1 100%"><label>Vehículo a reservar *</label>
+      <input id="cr-veh" list="dl-cr-veh" value="${vehVal}" placeholder="Matrícula, marca o modelo…" autocomplete="off">${dlVeh}</div>
+    <div class="field" style="flex:1 1 45%"><label>Importe de la reserva (€) *</label><input id="cr-imp" type="number" min="0" step="0.01" value="${r?esc(String(r.importe||"")):""}" placeholder="p. ej. 500"></div>
+    <div class="field" style="flex:1 1 45%"><label>Forma de cobro de la reserva *</label><select id="cr-forma">${RESERVA_FORMAS.map(f=>`<option ${f===forma?"selected":""}>${f}</option>`).join("")}</select></div>
+    <div class="field" style="flex:1 1 45%"><label>Fecha</label><input id="cr-fecha" type="date" value="${esc(r?r.fecha:todayISO())}"></div>
+    <div class="field" style="flex:1 1 45%"><label>Plazo de la reserva (días naturales)</label><input id="cr-plazo" type="number" min="1" value="${r?esc(String(r.plazo_dias||14)):"14"}"></div>
+    <div class="field" style="flex:1 1 100%"><label>IBAN(es) de MIÑACAR para el resto del pago (uno por línea) *</label>
+      <textarea id="cr-iban" rows="2" placeholder="ES00 0000 0000 0000 0000 0000" oninput="chkIbanReserva()">${r?esc(r.iban||""):""}</textarea>
+      <div id="cr-iban-msg" style="font-size:12px;margin-top:4px"></div></div>
+    <div class="field" style="flex:1 1 100%"><label>Correo para derechos de protección de datos (RGPD)</label><input id="cr-email" type="text" value="${r?esc(r.email_rgpd||""):""}" placeholder="lo rellena el comercial (opcional)"></div>
+    <div class="field" style="flex:1 1 100%"><label>Notas</label><textarea id="cr-notas" rows="2">${r?esc(r.notas||""):""}</textarea></div>
+  </div>`;
+  const act=document.querySelector(".modal .actions");
+  act.innerHTML='<button class="btn ghost" onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn ghost" onclick="guardarContratoReserva(false)">💾 Guardar</button>'
+    +'<button class="btn accent" onclick="guardarContratoReserva(true)">📄 Guardar y generar contrato</button>';
+  $("#modal-bg").classList.add("open");
+  chkIbanReserva();
+}
+function chkIbanReserva(){
+  const el=$("#cr-iban"),msg=$("#cr-iban-msg");if(!el||!msg)return true;
+  const ls=ibanLineas(el.value);
+  if(!ls.length){msg.innerHTML='<span style="color:var(--muted)">Introduce al menos un IBAN de MIÑACAR.</span>';return false;}
+  const parts=ls.map(l=>ibanValido(l)?`<span style="color:var(--ok)">✔ ${esc(ibanFmt(l))}</span>`:`<span style="color:var(--danger)">✗ ${esc(l)} — IBAN no válido</span>`);
+  const todos=ls.every(ibanValido);
+  msg.innerHTML=parts.join("<br>")+(todos?"":'<br><b style="color:var(--danger)">Corrige el/los IBAN para poder generar el contrato.</b>');
+  return todos;
+}
+async function guardarContratoReserva(generar){
+  if(_saving)return;_saving=true;
+  try{
+    const cid=_idDe($("#cr-cli").value), vid=_idDe($("#cr-veh").value);
+    const cli=DATA.clientes.find(x=>x.id===cid), veh=DATA.vehiculos.find(x=>x.id===vid);
+    const imp=Number($("#cr-imp").value)||0;
+    const forma=$("#cr-forma").value, fecha=$("#cr-fecha").value||todayISO();
+    const plazo=Number($("#cr-plazo").value)||14;
+    const ibanTxt=$("#cr-iban").value.trim(), email=$("#cr-email").value.trim(), notas=$("#cr-notas").value.trim();
+    if(!cli){toast("Elige un cliente de la lista");return;}
+    if(!veh){toast("Elige el vehículo de la lista");return;}
+    if(imp<=0){toast("Indica el importe de la reserva");return;}
+    const ibs=ibanLineas(ibanTxt);
+    if(generar){
+      if(!ibs.length){toast("Introduce el IBAN de MIÑACAR para el resto del pago");chkIbanReserva();return;}
+      if(!ibs.every(ibanValido)){toast("Hay un IBAN incorrecto: no se puede generar el contrato");chkIbanReserva();return;}
+    }
+    const payload={vehiculo_id:vid,cliente_id:cid,comercial_id:(CURRENTUSER&&CURRENTUSER.comercial_id)||null,
+      fecha,importe:imp,forma_cobro:forma,iban:ibanTxt,email_rgpd:email||null,plazo_dias:plazo,estado:"vigente",notas:notas||null};
+    const rid=currentForm.id;
+    if(rid)await api("/api/reservas/"+rid,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    else await api("/api/reservas",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    closeModal();await reloadAll();
+    if(generar){generarContratoReservaDoc({cli,veh,importe:imp,forma_cobro:forma,fecha,plazo_dias:plazo,ibanes:ibs,email_rgpd:email});toast("Reserva guardada · contrato generado ✔");}
+    else toast("Reserva guardada ✔");
+  }catch(e){toast("Error al guardar la reserva");}
+  finally{_saving=false;}
+}
+function generarContratoReservaDoc(d){
+  const cli=d.cli||{}, veh=d.veh||{};
+  const ibanRows=(d.ibanes||[]).map(i=>`<div class="iban">LYRWIRS, S.L. &nbsp;·&nbsp; <b>${esc(ibanFmt(i))}</b></div>`).join("");
+  const canalRgpd=d.email_rgpd?("la dirección de correo electrónico <b>"+esc(d.email_rgpd)+"</b>"):("su domicilio social, sito en "+esc(EMPRESA.dir)+", "+esc(EMPRESA.cp)+" "+esc(EMPRESA.ciudad));
+  const tipoVeh=veh.tipo?esc(veh.tipo):"Turismo";
+  const html='<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Contrato de reserva '+esc(veh.matricula||"")+'</title>'
+  +'<style>'
+  +'*{box-sizing:border-box}'
+  +'body{font-family:Georgia,Cambria,"Times New Roman",serif;color:#1e1e1e;margin:0;padding:38px 46px;font-size:12.6px;line-height:1.6}'
+  +'.hd{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid #c9d400;padding-bottom:14px;margin-bottom:20px}'
+  +'.brand{display:flex;align-items:center;gap:11px}'
+  +'.brand .sq{width:44px;height:44px;background:#d6e021;border-radius:4px;display:flex;align-items:center;justify-content:center}'
+  +'.brand .nm{font-family:"Trebuchet MS","Segoe UI",sans-serif;font-size:24px;font-weight:800;letter-spacing:2px}.brand .nm .c{color:#a9b400}'
+  +'.emisor{text-align:right;font-size:10.5px;color:#444;line-height:1.5;font-family:"Trebuchet MS","Segoe UI",sans-serif}'
+  +'h1{font-family:"Trebuchet MS","Segoe UI",sans-serif;font-size:16px;letter-spacing:1.2px;text-transform:uppercase;text-align:center;margin:6px 0 2px}'
+  +'.sub{text-align:center;color:#666;font-size:11px;margin-bottom:18px;font-family:"Trebuchet MS","Segoe UI",sans-serif}'
+  +'h2{font-family:"Trebuchet MS","Segoe UI",sans-serif;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#5a6100;border-bottom:1px solid #e7ea9a;padding-bottom:3px;margin:18px 0 8px}'
+  +'p{margin:0 0 9px;text-align:justify}'
+  +'.parte{background:#fafbe8;border:1px solid #eceeb0;border-radius:8px;padding:10px 14px;margin-bottom:8px}'
+  +'.veh{width:100%;border-collapse:collapse;margin:4px 0 6px}'
+  +'.veh td{border:1px solid #e2e2d0;padding:6px 10px}.veh td.k{background:#f7f8e6;font-family:"Trebuchet MS","Segoe UI",sans-serif;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:#77800a;width:26%}'
+  +'.arras{background:#f4f6d8;border-left:4px solid #c9d400;padding:10px 14px;border-radius:0 8px 8px 0;margin:6px 0 10px}'
+  +'.iban{font-family:"Trebuchet MS","Segoe UI",sans-serif;font-size:12px;margin:2px 0}'
+  +'ol{margin:0 0 9px 4px;padding-left:18px}ol li{margin-bottom:4px;text-align:justify}'
+  +'.firmas{display:flex;justify-content:space-between;gap:40px;margin-top:44px}'
+  +'.firmas .f{flex:1;text-align:center;border-top:1px solid #333;padding-top:6px;font-family:"Trebuchet MS","Segoe UI",sans-serif;font-size:11px}'
+  +'.foot{margin-top:26px;font-size:9.5px;color:#999;text-align:center;font-family:"Trebuchet MS","Segoe UI",sans-serif}'
+  +'@media print{.noprint{display:none}body{padding:14mm 16mm}}'
+  +'.btn{background:#d6e021;border:none;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer;font-family:"Trebuchet MS","Segoe UI",sans-serif}'
+  +'</style></head><body>'
+  +'<div class="noprint" style="margin-bottom:16px"><button class="btn" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button></div>'
+  +'<div class="hd"><div class="brand"><div class="sq"><svg width="30" height="30" viewBox="0 0 44 44"><g fill="none" stroke="#1c1c1c" stroke-width="2.2" stroke-linejoin="round"><path d="M7 37 L16 18 L25 37"/><path d="M14 37 L23 12 L32 37"/><path d="M22 37 L30 22 L38 37"/></g></svg></div>'
+  +'<div class="nm">MIÑA<span class="c">CAR</span></div></div>'
+  +'<div class="emisor"><b>'+esc(EMPRESA.razon)+'</b><br>'+esc(EMPRESA.dir)+'<br>'+esc(EMPRESA.cp)+' '+esc(EMPRESA.ciudad)+' ('+esc(EMPRESA.prov)+')<br>CIF: '+esc(EMPRESA.cif)+'</div></div>'
+  +'<h1>Contrato de reserva de vehículo</h1>'
+  +'<div class="sub">Arras penitenciales — artículo 1454 del Código Civil</div>'
+  +'<p>En Málaga, a '+esc(fechaLarga(d.fecha))+'.</p>'
+  +'<h2>Reunidos</h2>'
+  +'<div class="parte"><b>De una parte</b>, la mercantil <b>'+esc(EMPRESA.razon)+'</b>, que opera comercialmente bajo la marca <b>MIÑACAR</b> (en adelante, «el Vendedor»), con C.I.F. <b>'+esc(EMPRESA.cif)+'</b> y domicilio en '+esc(EMPRESA.dir)+', '+esc(EMPRESA.cp)+' '+esc(EMPRESA.ciudad)+'.</div>'
+  +'<div class="parte"><b>Y de otra parte</b>, D./Dª <b>'+esc(cli.nombre||"")+'</b>, con DNI/NIF <b>'+esc(cli.nif||"")+'</b>'+(cli.direccion?', con domicilio en '+esc(cli.direccion):'')+(cli.telefono?', teléfono '+esc(cli.telefono):'')+(cli.email?' y correo electrónico '+esc(cli.email):'')+' (en adelante, «el Comprador»).</div>'
+  +'<p>Ambas partes se reconocen mutuamente la capacidad legal necesaria para contratar y obligarse y, a tal efecto, libremente</p>'
+  +'<h2>Exponen y estipulan</h2>'
+  +'<p><b>PRIMERA. Objeto.</b> El Vendedor es titular y ofrece en reserva al Comprador el vehículo que se identifica a continuación, que aquél declara <b>libre de cargas y gravámenes</b>:</p>'
+  +'<table class="veh"><tr><td class="k">Tipo</td><td>'+tipoVeh+'</td><td class="k">Matrícula</td><td><b>'+esc(veh.matricula||"—")+'</b></td></tr>'
+  +'<tr><td class="k">Marca</td><td>'+esc(veh.marca||"—")+'</td><td class="k">Modelo</td><td>'+esc([veh.modelo,veh.version].filter(Boolean).join(" "))+'</td></tr>'
+  +'<tr><td class="k">Bastidor</td><td colspan="3">'+esc(veh.bastidor||"—")+'</td></tr></table>'
+  +'<p>El Comprador declara haber recibido toda la información del vehículo que ha solicitado y haber tenido la oportunidad de examinarlo y probarlo. La fecha de entrega no queda garantizada en este acto: se fijará por el equipo comercial de MIÑACAR en función del tiempo de preparación del vehículo y, a petición del Comprador, podrá recogerse en documento independiente.</p>'
+  +'<p><b>SEGUNDA. Reserva y arras.</b> En este acto el Comprador entrega al Vendedor, mediante <b>'+esc(d.forma_cobro)+'</b>, la cantidad de <b>'+eur2(d.importe)+'</b> (<b>'+esc(eurosEnLetras(d.importe))+'</b>) en concepto de <b>reserva</b>. Dicha suma tiene la consideración de <b>arras penitenciales</b> conforme al artículo 1454 del Código Civil.</p>'
+  +'<div class="arras"><b>TERCERA. Plazo.</b> Las partes disponen de un plazo de <b>'+esc(String(d.plazo_dias))+' días naturales</b>, a contar desde la fecha de este documento, para formalizar la compraventa del vehículo. Transcurrido dicho plazo sin haberse formalizado por causa imputable al Comprador, éste <b>perderá la cantidad entregada</b>, que quedará en poder del Vendedor en concepto de arras penitenciales, resarciendo los gastos y perjuicios ocasionados.</div>'
+  +'<p><b>CUARTA. Desistimiento del Vendedor.</b> Si la compraventa no llegara a materializarse por causa imputable al Vendedor —entendiéndose por tal, únicamente, la venta del mismo vehículo a un tercero o su desaparición—, el Vendedor vendrá obligado a <b>devolver por duplicado</b> la cantidad recibida en concepto de reserva, de conformidad con el citado artículo 1454 del Código Civil.</p>'
+  +'<p><b>QUINTA. Financiación.</b> La obtención de la financiación que, en su caso, precise el Comprador para el pago del vehículo es de su exclusiva responsabilidad. No se considerará causa imputable al Vendedor que el Comprador no obtenga financiación, o que ésta le sea concedida en condiciones distintas a las inicialmente previstas.</p>'
+  +'<p><b>SEXTA. Forma de pago del precio restante.</b> El resto del precio únicamente se tendrá por válidamente abonado cuando el pago se realice por alguna de las siguientes vías:</p>'
+  +'<ol><li>Pago con tarjeta de débito o crédito, mediante datáfono, en las instalaciones de MIÑACAR.</li>'
+  +'<li>Cheque <b>nominativo</b> a favor de '+esc(EMPRESA.razon)+'. No se admitirá el cheque al portador.</li>'
+  +'<li>Transferencia bancaria a favor de '+esc(EMPRESA.razon)+', a la/s siguiente/s cuenta/s:'+(ibanRows?'<div style="margin-top:5px">'+ibanRows+'</div>':'')+'</li></ol>'
+  +'<p>El Comprador acepta que cualquier otra forma de pago distinta de las anteriores se tendrá por no efectuada, sin efecto liberatorio alguno respecto del pago del vehículo ni como parte del mismo.</p>'
+  +'<p><b>SÉPTIMA. Protección de datos.</b> En cumplimiento de la Ley Orgánica 3/2018, de 5 de diciembre, de Protección de Datos Personales y garantía de los derechos digitales, y del Reglamento (UE) 2016/679, '+esc(EMPRESA.razon)+', como responsable del tratamiento, tratará los datos del Comprador con la exclusiva finalidad de prestar el servicio objeto de este contrato, comprometiéndose a guardar la debida confidencialidad y a aplicar las medidas de seguridad exigibles. El Comprador podrá ejercer los derechos de acceso, rectificación, supresión, oposición, limitación y portabilidad dirigiéndose a '+canalRgpd+'.</p>'
+  +'<p><b>OCTAVA.</b> Y en prueba de conformidad, las partes firman el presente documento por duplicado y a un solo efecto, en el lugar y fecha indicados en el encabezamiento.</p>'
+  +'<div class="firmas"><div class="f">EL VENDEDOR<br><span style="color:#888">'+esc(EMPRESA.razon)+' (MIÑACAR)</span></div><div class="f">EL COMPRADOR<br><span style="color:#888">'+esc(cli.nombre||"")+'</span></div></div>'
+  +'<div class="foot">'+esc(EMPRESA.razon)+' · CIF '+esc(EMPRESA.cif)+' · '+esc(EMPRESA.dir)+', '+esc(EMPRESA.cp)+' '+esc(EMPRESA.ciudad)+' — Documento generado por la aplicación de gestión MIÑACAR.</div>'
+  +'</body></html>';
+  const w=window.open("","_blank");if(!w){toast("Permite las ventanas emergentes para ver el contrato");return;}
+  w.document.write(html);w.document.close();
+}
+function viewReservas(){
+  const puedeW=puedeEscribirTabla("reservas");
+  const arr=DATA.reservas.filter(r=>matchQ(r,[r.cliente,r.cliente_nif,r.matricula,r.marca,r.modelo,r.bastidor,r.forma_cobro,r.estado]));
+  const nueva=puedeW?`<button class="btn accent" onclick="openContratoReserva()"><span>+ Nueva reserva</span></button>`:"";
+  const rows=arr.map(r=>{
+    const veh=[r.matricula,[r.marca,r.modelo].filter(Boolean).join(" ")].filter(Boolean).join(" · ");
+    return `<tr>
+      <td>${fdate(r.fecha)}</td>
+      <td><b>${esc(r.cliente||"—")}</b>${r.cliente_nif?`<br><span style="color:var(--muted-2);font-size:11px">${esc(r.cliente_nif)}</span>`:""}</td>
+      <td>${r.matricula?`<span class="plate">${esc(r.matricula)}</span> `:""}${esc([r.marca,r.modelo].filter(Boolean).join(" "))}</td>
+      <td class="r">${eur2(r.importe)}</td>
+      <td>${esc(r.forma_cobro||"—")}</td>
+      <td>${esc(r.estado||"vigente")}</td>
+      <td class="r"><button class="btn gold sm" onclick="contratoDeReserva(${r.id})" title="Generar contrato">📄</button> ${puedeW?`<button class="btn ghost sm" onclick="openContratoReserva(null,${r.id})">✎</button> <button class="btn danger sm" onclick="delRow('reservas',${r.id})">🗑</button>`:""}</td>
+    </tr>`;}).join("");
+  return `<div class="toolbar" style="margin-bottom:14px"><p style="margin:0;color:var(--muted);font-size:13px;flex:1">Reservas de vehículo con <b>contrato de reserva (arras del art. 1454 CC)</b>. El contrato se autorrellena con el cliente, el coche, el importe y la forma de cobro; el IBAN de MIÑACAR se valida antes de emitirlo.</p>${nueva}</div>`
+    +tableWrap([{t:"Fecha"},{t:"Cliente"},{t:"Vehículo"},{t:"Importe",r:1},{t:"Forma cobro"},{t:"Estado"},{t:"",r:1}],rows);
+}
+function contratoDeReserva(rid){
+  const r=DATA.reservas.find(x=>x.id===rid);if(!r){toast("No se encontró la reserva");return;}
+  const cli=DATA.clientes.find(x=>x.id===r.cliente_id)||{nombre:r.cliente,nif:r.cliente_nif,direccion:r.cliente_direccion,telefono:r.cliente_telefono,email:r.cliente_email};
+  const veh=DATA.vehiculos.find(x=>x.id===r.vehiculo_id)||{matricula:r.matricula,marca:r.marca,modelo:r.modelo,version:r.version,bastidor:r.bastidor};
+  const ibs=ibanLineas(r.iban);
+  if(!ibs.length||!ibs.every(ibanValido)){toast("Esta reserva no tiene un IBAN válido: edítala antes de generar el contrato");openContratoReserva(null,rid);return;}
+  generarContratoReservaDoc({cli,veh,importe:r.importe,forma_cobro:r.forma_cobro,fecha:r.fecha,plazo_dias:r.plazo_dias||14,ibanes:ibs,email_rgpd:r.email_rgpd});
 }
 function cobrosCard(v){
   if(!v._venta)return "";
@@ -2593,13 +2828,15 @@ const SCHEMAS={
     {k:"vehiculo_id",l:"Vehículo",t:"ref-veh",req:1,full:1},
     {k:"tipo",l:"Tipo",t:"select",opts:["Mecánica","Chapa","Pintura","Limpieza","Neumáticos","Electricidad","Otros"]},
     {k:"descripcion",l:"Descripción de la intervención",t:"text",full:1},
-    {k:"prov_id",l:"Taller / Proveedor (elígelo o añádelo con ➕)",t:"ref-prov",full:1},
+    {k:"prov_id",l:"Taller / Proveedor (busca por nombre, NIF o teléfono)",t:"prov-search",full:1},
     {k:"nif_proveedor",l:"NIF del proveedor",t:"text"},
     {k:"numero_factura",l:"Nº de factura",t:"text"},{k:"fecha",l:"Fecha",t:"date",def:1},
     {k:"coste",l:"Coste total con IVA (€)",t:"number"},{k:"iva_pct",l:"% IVA",t:"number",dval:21},
     {k:"factura_recibida",l:"¿Factura recibida del proveedor?",t:"select",opts:["","No","Sí"]},
     {k:"pago",l:"Pago",t:"select",opts:["Pendiente","Pagado"]},
-    {k:"fecha_pago_est",l:"Fecha estimada de pago",t:"date"},{k:"notas",l:"Notas",t:"textarea",full:1}]},
+    {k:"fecha_pago_est",l:"Fecha estimada de pago",t:"date"},
+    {k:"__factura",l:"Adjuntar factura escaneada (PDF o foto) — se guarda en el expediente del coche",t:"file-doc",full:1},
+    {k:"notas",l:"Notas",t:"textarea",full:1}]},
   leads:{title:"lead / contacto",nota:"Contacto (interesado): obligatorio el nombre y un email y/o teléfono. Los demás datos son opcionales — puedes rellenar la ficha completa aunque todavía no sea cliente; luego, si compra, conviértelo en cliente con un clic.",fields:[
     {k:"vehiculo_id",l:"Vehículo de interés",t:"ref-veh",req:1,full:1},
     {k:"comercial_id",l:"Comercial que atiende",t:"ref-comercial"},
@@ -2649,14 +2886,16 @@ const SCHEMAS={
     {k:"vehiculo_id",l:"Vehículo",t:"ref-veh",req:1,full:1},
     {k:"tipo",l:"Tipo",t:"select",opts:["Mecánica","Chapa","Pintura","Electricidad","Garantía","Cortesía","Otros"]},
     {k:"descripcion",l:"Actuación realizada",t:"text",full:1},
-    {k:"prov_id",l:"Taller / Proveedor (elígelo o añádelo con ➕)",t:"ref-prov",full:1},
+    {k:"prov_id",l:"Taller / Proveedor (busca por nombre, NIF o teléfono)",t:"prov-search",full:1},
     {k:"nif_proveedor",l:"NIF del proveedor",t:"text"},
     {k:"numero_factura",l:"Nº de factura",t:"text"},{k:"fecha",l:"Fecha",t:"date",def:1},
     {k:"coste",l:"Coste total con IVA (€)",t:"number"},{k:"iva_pct",l:"% IVA",t:"number",dval:21},
     {k:"asume",l:"¿Quién asume el coste?",t:"select",opts:["","Empresa","Cliente","Garantía","Compartido"]},
     {k:"factura_recibida",l:"¿Factura recibida del proveedor?",t:"select",opts:["","No","Sí"]},
     {k:"pago",l:"Pago",t:"select",opts:["Pendiente","Pagado"]},
-    {k:"fecha_pago_est",l:"Fecha estimada de pago",t:"date"},{k:"notas",l:"Notas",t:"textarea",full:1}]},
+    {k:"fecha_pago_est",l:"Fecha estimada de pago",t:"date"},
+    {k:"__factura",l:"Adjuntar factura escaneada (PDF o foto) — se guarda en el expediente del coche",t:"file-doc",full:1},
+    {k:"notas",l:"Notas",t:"textarea",full:1}]},
   agenda:{title:"anotación de agenda",fields:[
     {k:"vehiculo_id",l:"Vehículo",t:"ref-veh",req:1,full:1},
     {k:"fecha",l:"Fecha",t:"date",def:1},
@@ -2716,9 +2955,38 @@ function autorrellenarRef(kind,id){
   const nifEl=document.getElementById("f-nif_proveedor")||document.getElementById("f-nif_gestoria");
   if(nifEl&&!nifEl.value&&ent.nif)nifEl.value=ent.nif;
 }
+/* --- Proveedor BUSCABLE por cualquier campo (input+datalist) con autorrelleno --- */
+function provOptText(p){return [p.nombre,p.nif,p.telefono].filter(Boolean).join(" · ")+" #"+p.id;}
+function provSearchInput(key,val){
+  const cur=val?DATA.proveedores.find(p=>String(p.id)===String(val)):null;
+  const dl=`<datalist id="dl-${key}">`+DATA.proveedores.map(p=>`<option value="${esc(provOptText(p))}"></option>`).join("")+`</datalist>`;
+  return `<input id="f-${key}" list="dl-${key}" value="${cur?esc(provOptText(cur)):""}" placeholder="Busca por nombre, NIF, teléfono…" autocomplete="off" oninput="onProvSearch('${key}')">`+dl
+    +`<div style="margin-top:5px"><button type="button" class="btn ghost sm" onclick="nuevoProvDesde('${key}')">➕ Nuevo proveedor</button></div>`;
+}
+function onProvSearch(key){
+  const el=document.getElementById("f-"+key);if(!el)return;
+  const id=_idDe(el.value);if(!id)return;
+  const p=DATA.proveedores.find(x=>x.id===id);if(!p)return;
+  const nifEl=document.getElementById("f-nif_proveedor");if(nifEl)nifEl.value=p.nif||nifEl.value||"";
+}
+function nuevoProvDesde(key){
+  formReturn={table:currentForm.table,id:currentForm.id,values:grabForm(),field:"f-"+key,provsearch:true,entity:"proveedores"};
+  openForm("proveedores");
+}
+/* --- Adjuntar factura escaneada (imagen o PDF) desde el formulario --- */
+let _docFilePick=null;
+function onDocFilePick(input){
+  const file=input.files&&input.files[0];const nm=document.getElementById(input.id+"-name");
+  if(!file){_docFilePick=null;if(nm)nm.textContent="";return;}
+  if(file.size>20*1024*1024){toast("El archivo supera los 20 MB");input.value="";_docFilePick=null;if(nm)nm.textContent="";return;}
+  const rd=new FileReader();
+  rd.onload=e=>{_docFilePick={dataurl:e.target.result,filename:file.name};if(nm)nm.textContent="📎 "+file.name+" — se adjuntará al guardar";};
+  rd.readAsDataURL(file);
+}
 
 async function openForm(table,id=null,prefill=null){
   if(bloqueadoRO(table))return;
+  _docFilePick=null;
   currentForm={table,id};const sc=SCHEMAS[table];let record={};
   if(id){record=(DATA[table]||[]).find(r=>r.id===id)||await (async()=>{const all=await api("/api/"+table);return all.find(r=>r.id===id)||{};})();}
   else if(prefill){record={...prefill};}
@@ -2739,6 +3007,8 @@ async function openForm(table,id=null,prefill=null){
     else if(f.t==="ref-prov")inner=refSelect("prov",f.k,val);
     else if(f.t==="ref-comercial")inner=refSelect("comercial",f.k,val);
     else if(f.t==="ref-gestoria")inner=refSelect("gestoria",f.k,val);
+    else if(f.t==="prov-search")inner=provSearchInput(f.k,val);
+    else if(f.t==="file-doc")inner=`<input id="f-${f.k}" type="file" accept="image/*,application/pdf" onchange="onDocFilePick(this)"><div id="f-${f.k}-name" style="font-size:12px;color:var(--muted);margin-top:4px"></div>`;
     else if(f.t==="ref-veh")inner=`<select id="f-${f.k}"><option value="">— seleccionar —</option>`+DATA.vehiculos.map(v=>`<option value="${v.id}" ${String(v.id)===val?"selected":""}>${esc(v.matricula||"")} · ${esc(v.marca||"")} ${esc(v.modelo||"")}</option>`).join("")+`</select>`;
     else if(f.t==="veh-stock"){const st=DATA.vehiculos.filter(v=>["disponible","reservado"].includes(v.estado)||String(v.id)===val);inner=`<select id="f-${f.k}"><option value="">— seleccionar —</option>`+st.map(v=>`<option value="${v.id}" ${String(v.id)===val?"selected":""}>${esc(v.matricula||"")} · ${esc(v.marca||"")} ${esc(v.modelo||"")}</option>`).join("")+`</select>`;}
     else if(f.t==="veh-transporte"){const st=DATA.vehiculos.filter(v=>(v.estado!=="disponible"&&v.estado!=="vendido")||String(v.id)===val);inner=`<select id="f-${f.k}"><option value="">— seleccionar —</option>`+st.map(v=>`<option value="${v.id}" ${String(v.id)===val?"selected":""}>${esc(v.matricula||"")} · ${esc(v.marca||"")} ${esc(v.modelo||"")}</option>`).join("")+`</select>`;}
@@ -2771,6 +3041,9 @@ async function volverAlFormulario(fr,nuevoId){
     const nuevo=nuevoId?DATA.clientes.find(c=>c.id===nuevoId):null;
     fsel.innerHTML=`<option>MIÑACAR</option>`+DATA.clientes.map(c=>`<option>${esc(c.nombre)}</option>`).join("")+`<option value="__newcli__">➕ Añadir nuevo cliente…</option>`;
     fsel.value=nuevo?nuevo.nombre:"MIÑACAR";
+  }else if(fr.provsearch){   // proveedor buscable (input+datalist)
+    const p=nuevoId?DATA.proveedores.find(x=>x.id===nuevoId):null;
+    if(p){fsel.value=provOptText(p);onProvSearch(fr.field.replace(/^f-/,""));}
   }else if(nuevoId){refRebuild(fsel,fr.kind,nuevoId);}
   else{fsel.value="";}
 }
@@ -2781,8 +3054,12 @@ async function saveForm(){
   _saving=true;
   try{
   const {table,id}=currentForm,sc=SCHEMAS[table],data={};
-  for(const f of sc.fields){const el=$("#f-"+f.k);if(!el)continue;let v=(f.t==="check")?(el.checked?1:0):el.value;
-    if(f.t==="number"||f.t==="veh-stock"||f.t==="veh-transporte"||f.t.startsWith("ref-"))v=v===""?null:Number(v);if(v==="__add__"||v==="__new__"||v==="__newcli__")v="";data[f.k]=v;}
+  for(const f of sc.fields){const el=$("#f-"+f.k);if(!el)continue;
+    if(f.t==="file-doc")continue;   // adjunto: no es columna, se sube aparte tras guardar
+    let v=(f.t==="check")?(el.checked?1:0):el.value;
+    if(f.t==="prov-search")v=_idDe(el.value);
+    else if(f.t==="number"||f.t==="veh-stock"||f.t==="veh-transporte"||f.t.startsWith("ref-"))v=v===""?null:Number(v);
+    if(v==="__add__"||v==="__new__"||v==="__newcli__")v="";data[f.k]=v;}
   const miss=sc.fields.filter(f=>f.req&&(data[f.k]==null||data[f.k]===""));
   if(miss.length){toast("Falta: "+miss.map(f=>f.l).join(", "));return;}
   if(table==="leads"&&!(String(data.telefono||"").trim())&&!(String(data.email||"").trim())){toast("Indica al menos un email o un teléfono del contacto");return;}
@@ -2806,6 +3083,16 @@ async function saveForm(){
     res=await api(url,{method:id?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
   }
   if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo guardar"));return;}
+  // Adjuntar factura escaneada al expediente del coche (taller/postventa)
+  if((table==="taller"||table==="postventa")&&_docFilePick&&data.vehiculo_id){
+    try{
+      await api("/api/documentos",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({vehiculo_id:data.vehiculo_id,tipo:"Facturas de reparación/mantenimiento",
+          filename:_docFilePick.filename,data:_docFilePick.dataurl,fecha:data.fecha||todayISO()})});
+      toast("Factura adjuntada al expediente ✔");
+    }catch(e){toast("Guardado, pero no se pudo adjuntar la factura");}
+    _docFilePick=null;
+  }
   // Alta desde un desplegable: volver al formulario anterior con la nueva entidad ya seleccionada
   if(formReturn&&!id&&res&&res.id&&table===formReturn.entity){
     const fr=formReturn;formReturn=null;
