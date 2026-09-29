@@ -3178,6 +3178,17 @@ function dniValido(s){
   m=s.match(/^([XYZ])([0-9]{7})([A-Z])$/);if(m){const n=({X:"0",Y:"1",Z:"2"}[m[1]])+m[2];return L[parseInt(n,10)%23]===m[3];}
   return null;
 }
+const OCR_VIA=/(CALLE|C\/|AVDA|AVENIDA|\bAV\b|PLAZA|PLZA|PZA|CTRA|CARRETERA|PASEO|CAMINO|URBANIZACI[OÓ]N|URB|RONDA|TRAVES[IÍ]A|GLORIETA|PARAJE|BARRIO|POL[IÍ]GONO|PJE)/;
+const OCR_NBAD=/AGENCIA|TRIBUTAR|DELEGACI|OFICINA|GESTION|IDENTIFICAC|FISCAL|TARJETA|MINISTERIO|ECONOMIA|HACIENDA|DENOMINAC|ANAGRAMA|COMERCIAL|DOMICILIO|ADMINISTRAC|REMESA|CERTIFICAD|DOCUMENTO|COMUNICAC|CODIGO|ELECTRONIC|DEFINITIVO|IDENTITY|REGISTRO|MERCANTIL|WWW|APELLID|\bNOMBRE\b|NACIONAL|NACIMIENTO|VALIDEZ|SOPORTE|IDESP/;
+function ocrEsNombreLinea(l){
+  const c=l.replace(/[^A-ZÑÁÉÍÓÚ0-9&.\-\/ ]/g," ").replace(/\s{2,}/g," ").trim();
+  if(c.length<6||c.length>60)return false;
+  if(/^\d/.test(c)||OCR_NBAD.test(c)||OCR_VIA.test(c))return false;
+  if(c.split(/\s+/).filter(w=>/[A-ZÑÁÉÍÓÚ]{2,}/.test(w)).length<2)return false;
+  if((c.match(/\d/g)||[]).length>c.length*0.4)return false;
+  return true;
+}
+function ocrGrabVia(l){return l.slice(l.search(OCR_VIA)).replace(/[^A-ZÑÁÉÍÓÚ0-9 .,ºª\/-]/g," ").replace(/\s{2,}/g," ").trim();}
 function ocrParse(t){
   const T=String(t||"").replace(/ /g," ");
   const up=T.toUpperCase();
@@ -3202,40 +3213,35 @@ function ocrParse(t){
   const mk=T.match(/(?:tel[eé]fono|tel\.?|tfno|m[oó]vil|movil|whatsapp|fax)\D{0,6}((?:\+?34[ .\-]?)?[6-9]\d{2}[ .\-]?\d{2}[ .\-]?\d{2}[ .\-]?\d{2})/i);
   if(mk)tel=mk[1];else{const mm=T.match(/(?<!\d)([67]\d{2})[ .\-]?(\d{2})[ .\-]?(\d{2})[ .\-]?(\d{2})(?!\d)/);if(mm)tel=mm[0];}
   if(tel)out.telefono=tel.replace(/[ .\-+]/g,"").replace(/^34(?=\d{9}$)/,"");
-  const mcp=up.match(/\b(0[1-9]|[1-4]\d|5[0-2])\d{3}\b/);
-  if(mcp)out.cp=mcp[0];
-  // Nombre: zona MRZ del DNI (APELLIDOS<<NOMBRES) cuando es legible
+  // Nombre: MRZ del DNI, etiqueta de razón social, línea del destinatario o APELLIDOS/NOMBRE
   const mrz=lines.find(l=>{const c=l.replace(/\s/g,"");return /^[A-ZÑ<]{10,}$/.test(c)&&(c.match(/</g)||[]).length>=2&&!/\d/.test(c);});
   if(mrz){const parts=mrz.replace(/\s/g,"").split(/<<+/);if(parts.length>=2){const ap=parts[0].replace(/</g," ").trim(),no=parts[1].replace(/</g," ").trim();if(ap&&no)out.nombre=(no+" "+ap).replace(/\s{2,}/g," ").trim();}}
-  if(!out.nombre){
-    const mnom=up.match(/(?:RAZ[OÓ]N\s+SOCIAL|DENOMINACI[OÓ]N)\s*[:\-]?\s*\n?\s*([A-ZÑÁÉÍÓÚ0-9 .,&-]{4,60})/);
-    if(mnom)out.nombre=mnom[1].trim().replace(/\s{2,}/g," ");
-    else{
-      const ap=up.match(/APELLIDOS?\s*[:\-]?\s*\n\s*([A-ZÑÁÉÍÓÚ]{2,20}(?:\s+[A-ZÑÁÉÍÓÚ]{2,20})?)/);
-      const no=up.match(/NOMBRE\s*[:\-]?\s*\n\s*([A-ZÑÁÉÍÓÚ]{2,20})/);
-      if(ap||no)out.nombre=[(no?no[1].trim():""),(ap?ap[1].trim():"")].filter(Boolean).join(" ").replace(/\s{2,}/g," ").trim();
-    }
-  }
-  const md=up.match(/(?:DOMICILIO|DIRECCI[OÓ]N)\s*[:\-]?\s*\n?\s*([A-ZÑÁÉÍÓÚ0-9 .,ºª\/-]{6,60})/);
-  if(md)out.direccion=md[1].trim().replace(/\s{2,}/g," ");
-  if(!out.direccion){
-    const vias=/(PLAZA|PLZA|PZA|CALLE|C\/|AVDA|AVENIDA|\bAV\b|CTRA|CARRETERA|PASEO|CAMINO|URBANIZACI[OÓ]N|URB|RONDA|TRAVES[IÍ]A|GLORIETA|PARAJE|BARRIO|POL[IÍ]GONO|PJE|CAMÍNO)/;
-    for(const l of lines){const m=l.match(vias);if(m&&l.length<=70){let d=l.slice(l.indexOf(m[0])).replace(/[^A-ZÑÁÉÍÓÚ0-9 .,ºª\/-]/g," ").replace(/\s{2,}/g," ").trim();if(d.replace(/\s/g,"").length>=6){out.direccion=d;break;}}}
-  }
+  if(!out.nombre){const mnom=up.match(/(?:RAZ[OÓ]N\s+SOCIAL|DENOMINACI[OÓ]N)\s*[:\-]?\s*\n\s*([A-ZÑÁÉÍÓÚ0-9 .,&\-]{4,60})/);if(mnom){const v=mnom[1].trim().replace(/\s{2,}/g," ");if(!OCR_NBAD.test(v))out.nombre=v;}}
+  let nomIdx=-1;
+  for(let i=0;i<lines.length;i++){if(ocrEsNombreLinea(lines[i])){nomIdx=i;if(!out.nombre)out.nombre=lines[i].replace(/[^A-ZÑÁÉÍÓÚ0-9&.\-\/ ]/g," ").replace(/\s{2,}/g," ").trim();break;}}
+  if(!out.nombre){const ap=up.match(/APELLIDOS?\s*[:\-]?\s*\n\s*([A-ZÑÁÉÍÓÚ]{2,20}(?:\s+[A-ZÑÁÉÍÓÚ]{2,20})?)/);const no=up.match(/NOMBRE\s*[:\-]?\s*\n\s*([A-ZÑÁÉÍÓÚ]{2,20})/);if(ap||no)out.nombre=[(no?no[1].trim():""),(ap?ap[1].trim():"")].filter(Boolean).join(" ").replace(/\s{2,}/g," ").trim();}
+  // DIRECCIÓN: la vía que sigue al nombre (destinatario); si no, la primera vía que no sea la oficina AEAT
+  let dirIdx=-1;
+  if(nomIdx>=0){for(let i=nomIdx+1;i<Math.min(lines.length,nomIdx+4);i++){if(OCR_VIA.test(lines[i])){out.direccion=ocrGrabVia(lines[i]);dirIdx=i;break;}}}
+  if(!out.direccion){for(let i=0;i<lines.length;i++){if(OCR_VIA.test(lines[i])&&lines[i].length<=70){const ctx=(lines[i-1]||"")+" "+lines[i];if(/OFICINA|DELEGACI|GESTION|TRIBUTAR|ADMINISTRAC|AEAT/.test(ctx))continue;out.direccion=ocrGrabVia(lines[i]);dirIdx=i;break;}}}
+  const md=up.match(/(?:DOMICILIO|DIRECCI[OÓ]N)\s*[:\-]?\s*\n\s*([A-ZÑÁÉÍÓÚ0-9 .,ºª\/-]{6,60})/);
+  if(!out.direccion&&md){const v=md[1].trim().replace(/\s{2,}/g," ");if(!OCR_NBAD.test(v)&&/\d/.test(v))out.direccion=v;}
   // DNI: el domicilio suele venir sin "CALLE/AVDA" (solo el nombre de la vía + número). Tómalo del reverso.
   if(!out.direccion&&esDNI){
     const bad=/DOCUMENTO|NACIONAL|IDENTIDAD|APELLIDOS|NOMBRE|SEXO|NACIONALIDAD|NACIMIENTO|VALIDEZ|EMISI[OÓ]N|SOPORTE|IDESP|LUGAR|HIJO|EQUIPO|ESPA[NÑ]A|\bESP\b|IDENTITY|CARD|VALIDITY/;
     const dl=lines.find(l=>{const c=l.replace(/[^A-ZÑÁÉÍÓÚ0-9 ]/g," ").replace(/\s{2,}/g," ").trim();
-      if(c.length<8||c.length>50)return false;
-      if(bad.test(c))return false;
-      if((c.match(/</g)||[]).length)return false;
-      if(/\b\d{2}\s+\d{2}\s+(19|20)\d{2}\b/.test(c))return false;   // línea de fecha
-      if(!/[A-ZÑÁÉÍÓÚ]{4,}/.test(c))return false;                    // nombre de vía (palabra larga)
-      if(!/\b\d{1,4}\b/.test(c))return false;                        // número de portal
-      return true;});
-    if(dl)out.direccion=dl.replace(/[^A-ZÑÁÉÍÓÚ0-9 .,ºª\/-]/g," ").replace(/\s{2,}/g," ").trim();
+      if(c.length<8||c.length>50||bad.test(c)||(c.match(/</g)||[]).length)return false;
+      if(/\b\d{2}\s+\d{2}\s+(19|20)\d{2}\b/.test(c))return false;
+      return /[A-ZÑÁÉÍÓÚ]{4,}/.test(c)&&/\b\d{1,4}\b/.test(c);});
+    if(dl){out.direccion=dl.replace(/[^A-ZÑÁÉÍÓÚ0-9 .,ºª\/-]/g," ").replace(/\s{2,}/g," ").trim();dirIdx=lines.indexOf(dl);}
   }
+  // CP: preferir el que va junto a la dirección; si no, el primero del documento
+  let cp=null;
+  if(dirIdx>=0){for(let i=dirIdx;i<Math.min(lines.length,dirIdx+3);i++){const mm=lines[i].match(/\b(0[1-9]|[1-4]\d|5[0-2])\d{3}\b/);if(mm){cp=mm[0];break;}}}
+  if(!cp){const mcp=up.match(/\b(0[1-9]|[1-4]\d|5[0-2])\d{3}\b/);if(mcp)cp=mcp[0];}
+  if(cp)out.cp=cp;
   if(out.direccion)out.direccion=out.direccion.replace(/^[^0-9A-ZÑÁÉÍÓÚ]+/,"").replace(/\s{2,}/g," ").trim();
+  if(out.nombre)out.nombre=out.nombre.replace(/^[^0-9A-ZÑÁÉÍÓÚ]+/,"").trim();
   return out;
 }
 function ocrAplicar(c){
@@ -3245,6 +3251,12 @@ function ocrAplicar(c){
   if(dir&&c.direccion&&!String(dir.value||"").trim()){dir.value=c.direccion;dir.style.background="var(--ok-s)";}
   if(dir&&c.cp&&!/\b\d{5}\b/.test(String(dir.value||"")))dir.value=(String(dir.value||"").trim()?dir.value+", ":"")+c.cp;
   const nifEl=document.getElementById("f-nif");if(nifEl&&typeof chkNif==="function")chkNif(nifEl.value);
+}
+function reconstruirLineasPDF(tc){
+  const rows={};
+  (tc.items||[]).forEach(it=>{if(!it.str||!it.str.trim())return;const y=Math.round((it.transform?it.transform[5]:0)/3)*3;(rows[y]=rows[y]||[]).push(it);});
+  const ys=Object.keys(rows).map(Number).sort((a,b)=>b-a);
+  return ys.map(y=>rows[y].sort((a,b)=>(a.transform?a.transform[4]:0)-(b.transform?b.transform[4]:0)).map(i=>i.str).join(" ").replace(/\s{2,}/g," ").trim()).filter(Boolean).join("\n");
 }
 async function pdfEnsure(){
   if(!window.pdfjsLib){
@@ -3268,7 +3280,7 @@ async function ocrDePDF(file){
     const cv=document.createElement("canvas");cv.width=vp.width;cv.height=vp.height;
     await page.render({canvasContext:cv.getContext("2d"),viewport:vp}).promise;
     // Si la página ya trae texto embebido, úsalo (más preciso que el OCR)
-    let emb="";try{const tc=await page.getTextContent();emb=tc.items.map(i=>i.str).join(" ");}catch(e){}
+    let emb="";try{const tc=await page.getTextContent();emb=reconstruirLineasPDF(tc);}catch(e){}
     if(emb&&emb.replace(/\s/g,"").length>40){texto+="\n"+emb;}
     else{const {data}=await w.recognize(cv);texto+="\n"+(data&&data.text||"");}
   }
