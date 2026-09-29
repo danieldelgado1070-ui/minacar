@@ -372,6 +372,16 @@ def init_db():
             creado              TEXT DEFAULT (datetime('now','localtime'))
         );
 
+        CREATE TABLE IF NOT EXISTS conciliaciones (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            movimiento_id INTEGER REFERENCES movimientos(id) ON DELETE CASCADE,
+            ref_tipo      TEXT,
+            ref_id        INTEGER,
+            importe       REAL DEFAULT 0,
+            concepto      TEXT,
+            creado        TEXT DEFAULT (datetime('now','localtime'))
+        );
+
         CREATE TABLE IF NOT EXISTS recepciones (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
             vehiculo_id  INTEGER REFERENCES vehiculos(id) ON DELETE CASCADE,
@@ -480,7 +490,7 @@ TABLE_AREA = {
     "garantias": "garantias", "postventa": "postventa", "almacenes": "almacenes",
     "clientes": "clientes", "proveedores": "proveedores",
     "comerciales": "comerciales", "transportistas": "transportistas",
-    "extractos": "bancos", "movimientos": "bancos",
+    "extractos": "bancos", "movimientos": "bancos", "conciliaciones": "bancos",
     "recepciones": "logistica", "gestorias": "gestoria",
     "facturas_emitidas": "ventas",
     "pagos_prov": "compras",
@@ -707,6 +717,8 @@ def migrate(conn):
         add("vehiculos", "reserva_fecha TEXT")
         add("vehiculos", "carroceria TEXT")
         add("vehiculos", "fecha_matriculacion TEXT")
+        if has_table("extractos"):
+            add("extractos", "archivo_b64 TEXT")
         # Invariante: un coche disponible o vendido siempre esta recepcionado
         conn.execute("UPDATE vehiculos SET recepcionado=1 WHERE estado IN ('disponible','vendido')")
         if has_table("logistica"):
@@ -1038,6 +1050,7 @@ FIELDS = {
     "extractos": ["fecha", "cuenta", "nombre_archivo", "notas"],
     "movimientos": ["categoria", "ref_tipo", "ref_id", "conciliado",
                     "observacion_usuario", "observacion_app"],
+    "conciliaciones": ["movimiento_id", "ref_tipo", "ref_id", "importe", "concepto"],
     "gestoria": ["vehiculo_id", "tipo", "estado", "gestoria", "gestoria_id",
                  "fecha_solicitud", "fecha_resolucion",
                  "fecha_vencimiento", "doc_recibida", "fecha_doc_recibida",
@@ -1383,6 +1396,10 @@ def insert_row(table, data):
         if table == "pagos_prov" and data.get("compra_id"):
             _recalcular_pago_compra(conn, data.get("compra_id"))
 
+        # Conciliación bancaria: recalcular si el movimiento queda cuadrado
+        if table == "conciliaciones" and data.get("movimiento_id"):
+            _recalcular_conciliacion(conn, data.get("movimiento_id"))
+
         # Coche entregado a cambio: salda automáticamente la compra de ese coche al proveedor
         if table == "cobros" and data.get("medio") == "Coche a cambio" and data.get("veh_cambio_id"):
             conn.execute(
@@ -1480,12 +1497,18 @@ def update_row(table, row_id, data):
 def delete_row(table, row_id):
     conn = get_db()
     compra_id = None
+    mov_id = None
     if table == "pagos_prov":
         r = conn.execute("SELECT compra_id FROM pagos_prov WHERE id=?", (row_id,)).fetchone()
         compra_id = r["compra_id"] if r else None
+    if table == "conciliaciones":
+        r = conn.execute("SELECT movimiento_id FROM conciliaciones WHERE id=?", (row_id,)).fetchone()
+        mov_id = r["movimiento_id"] if r else None
     conn.execute(f"DELETE FROM {table} WHERE id=?", (row_id,))
     if table == "pagos_prov" and compra_id:
         _recalcular_pago_compra(conn, compra_id)
+    if table == "conciliaciones" and mov_id:
+        _recalcular_conciliacion(conn, mov_id)
     conn.commit()
     conn.close()
 
@@ -2906,6 +2929,27 @@ def _obs(*parts):
     out = " ".join(str(p).strip() for p in parts if p and str(p).strip())
     return out or ""
 
+def _recalcular_conciliacion(conn, mov_id):
+    """Marca el movimiento como conciliado cuando la suma de sus líneas cuadra con su importe."""
+    row = conn.execute("SELECT importe FROM movimientos WHERE id=?", (mov_id,)).fetchone()
+    if not row:
+        return
+    imp = abs(row["importe"] or 0)
+    s = conn.execute(
+        "SELECT COALESCE(SUM(importe),0) AS s, COUNT(*) AS n FROM conciliaciones WHERE movimiento_id=?",
+        (mov_id,)).fetchone()
+    aplicado = abs(s["s"] or 0)
+    conciliado = 1 if (s["n"] > 0 and abs(aplicado - imp) <= 0.02) else 0
+    conn.execute("UPDATE movimientos SET conciliado=? WHERE id=?", (conciliado, mov_id))
+
+
+def list_conciliaciones(q=None):
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM conciliaciones ORDER BY id").fetchall()
+    conn.close()
+    return rows_to_list(rows)
+
+
 def conciliar_uno(conn, mov):
     """Devuelve (categoria, ref_tipo, ref_id, observacion_app) o (None,...)."""
     imp = mov["importe"]
@@ -2996,18 +3040,24 @@ def guardar_extracto(data):
                            "Si tu banco da un .xls antiguo, ábrelo en Excel y «Guardar como» .xlsx o .csv.")
     conn = get_db()
     cur = conn.execute(
-        "INSERT INTO extractos (fecha, cuenta, nombre_archivo, notas) VALUES (?,?,?,?)",
+        "INSERT INTO extractos (fecha, cuenta, nombre_archivo, notas, archivo_b64) VALUES (?,?,?,?,?)",
         (data.get("fecha") or date.today().isoformat(), data.get("cuenta"),
-         data.get("nombre_archivo"), data.get("notas")))
+         data.get("nombre_archivo"), data.get("notas"), data.get("archivo_b64")))
     eid = cur.lastrowid
     for m in movs:
         cat, rt, ri, obs = conciliar_uno(conn, m)
-        conn.execute(
+        mcur = conn.execute(
             """INSERT INTO movimientos
                (extracto_id, fecha, concepto, importe, saldo, categoria, ref_tipo, ref_id, conciliado, observacion_app)
                VALUES (?,?,?,?,?,?,?,?,?,?)""",
             (eid, m["fecha"], m["concepto"], m["importe"], m.get("saldo"),
              cat or "Desconocido", rt, ri, 1 if cat else 0, obs or ""))
+        # Si el automático encontró un documento, deja registrada la línea de conciliación
+        if cat and rt and ri:
+            conn.execute(
+                """INSERT INTO conciliaciones (movimiento_id, ref_tipo, ref_id, importe, concepto)
+                   VALUES (?,?,?,?,?)""",
+                (mcur.lastrowid, rt, ri, abs(m["importe"] or 0), obs or cat))
     conn.commit()
     conn.close()
     return eid
@@ -3339,6 +3389,31 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == "/api/movimientos":
             vid = params.get("extracto_id", [None])[0]
             return self.send_json(list_movimientos(int(vid) if vid else None))
+        if path == "/api/conciliaciones":
+            return self.send_json(list_conciliaciones())
+        if path == "/api/extracto_archivo":
+            eid = params.get("id", [None])[0]
+            if not eid:
+                return self.send_json({"ok": False, "error": "falta id"}, status=400)
+            conn = get_db()
+            row = conn.execute("SELECT nombre_archivo, archivo_b64 FROM extractos WHERE id=?", (int(eid),)).fetchone()
+            conn.close()
+            if not row or not row["archivo_b64"]:
+                return self.send_json({"ok": False, "error": "sin archivo guardado"}, status=404)
+            try:
+                raw = base64.b64decode(str(row["archivo_b64"]).split(",")[-1])
+            except Exception:
+                return self.send_json({"ok": False, "error": "archivo ilegible"}, status=500)
+            fn = row["nombre_archivo"] or f"extracto_{eid}.xlsx"
+            self.close_connection = True
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Disposition", f'attachment; filename="{fn}"')
+            self.send_header("Content-Length", str(len(raw)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(raw)
+            return
         if path == "/api/vehiculos":
             rows = list_vehiculos(params.get("q", [None])[0])
             if es_comercial(user):
@@ -3680,7 +3755,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "garantias", "postventa", "agenda", "cobros",
                     "seguimientos", "extractos", "movimientos", "listas",
                     "recepciones", "gestorias", "facturas_emitidas", "pagos_prov",
-                    "reservas"}
+                    "reservas", "conciliaciones"}
 
     def _table_from_path(self):
         parts = urlparse(self.path).path.strip("/").split("/")

@@ -409,7 +409,7 @@ function ordenarStock(campo){if(stockSort.campo===campo)stockSort.dir*=-1;else s
 
 let CURRENTUSER=null;
 // Qué área controla la escritura de cada tabla/módulo (frontend, espejo del backend)
-const TAREA={vehiculos:"stock",compras:"compras",ventas:"ventas",reservas:"reservas",cobros:"ventas",logistica:"logistica",traspasos:"logistica",taller:"taller",leads:"marketing",gestoria:"gestoria",garantias:"garantias",postventa:"postventa",almacenes:"almacenes",clientes:"clientes",proveedores:"proveedores",comerciales:"comerciales",transportistas:"transportistas",extractos:"bancos",movimientos:"bancos",recepciones:"logistica",gestorias:"gestoria"};
+const TAREA={vehiculos:"stock",compras:"compras",ventas:"ventas",reservas:"reservas",cobros:"ventas",logistica:"logistica",traspasos:"logistica",taller:"taller",leads:"marketing",gestoria:"gestoria",garantias:"garantias",postventa:"postventa",almacenes:"almacenes",clientes:"clientes",proveedores:"proveedores",comerciales:"comerciales",transportistas:"transportistas",extractos:"bancos",movimientos:"bancos",conciliaciones:"bancos",recepciones:"logistica",gestorias:"gestoria"};
 function nivel(area){ // "w" | "r" | null
   if(!CURRENTUSER)return null;
   if(CURRENTUSER.rol==="admin")return "w";
@@ -497,16 +497,16 @@ function go(v){
 const IMPORT_VIEWS={clientes:"clientes",proveedores:"proveedores",transportistas:"transportistas",gestorias:"gestorias",comerciales:"comerciales",stock:"vehiculos"};
 
 /* ---------- datos ---------- */
-let DATA={vehiculos:[],clientes:[],transportistas:[],proveedores:[],comerciales:[],compras:[],ventas:[],logistica:[],taller:[],leads:[],gestoria:[],documentos:[],almacenes:[],traspasos:[],garantias:[],postventa:[],agenda:[],cobros:[],seguimientos:[],extractos:[],movimientos:[],recepciones:[],gestorias:[],facturas_emitidas:[],pagos_prov:[],reservas:[]};
+let DATA={vehiculos:[],clientes:[],transportistas:[],proveedores:[],comerciales:[],compras:[],ventas:[],logistica:[],taller:[],leads:[],gestoria:[],documentos:[],almacenes:[],traspasos:[],garantias:[],postventa:[],agenda:[],cobros:[],seguimientos:[],extractos:[],movimientos:[],recepciones:[],gestorias:[],facturas_emitidas:[],pagos_prov:[],reservas:[],conciliaciones:[]};
 let listasCache={marca:[],ciudad:[],ubicacion:[]}, modelosActuales=[];
 async function loadAll(){
-  const [veh,cli,tra,prv,com,ven,log,tal,led,ges,doc,alm,tsp,gar,pos,age,cob,cme,seg,ext,mov,rec,gst,fem,ppr,rsv]=await Promise.all([
+  const [veh,cli,tra,prv,com,ven,log,tal,led,ges,doc,alm,tsp,gar,pos,age,cob,cme,seg,ext,mov,rec,gst,fem,ppr,rsv,cnc]=await Promise.all([
     api("/api/vehiculos"),api("/api/clientes"),api("/api/transportistas"),api("/api/proveedores"),
     api("/api/compras"),api("/api/ventas"),api("/api/logistica"),
     api("/api/taller"),api("/api/leads"),api("/api/gestoria"),api("/api/documentos"),
     api("/api/almacenes"),api("/api/traspasos"),
-    api("/api/garantias"),api("/api/postventa"),api("/api/agenda"),api("/api/cobros"),api("/api/comerciales"),api("/api/seguimientos"),api("/api/extractos"),api("/api/movimientos"),api("/api/recepciones"),api("/api/gestorias"),api("/api/facturas_emitidas"),api("/api/pagos_prov"),api("/api/reservas")]);
-  DATA={vehiculos:veh,clientes:cli,transportistas:tra,proveedores:prv,compras:com,ventas:ven,logistica:log,taller:tal,leads:led,gestoria:ges,documentos:doc,almacenes:alm,traspasos:tsp,garantias:gar,postventa:pos,agenda:age,cobros:cob,comerciales:cme,seguimientos:seg,extractos:ext,movimientos:mov,recepciones:rec,gestorias:gst||[],facturas_emitidas:fem||[],pagos_prov:ppr||[],reservas:rsv||[],usuarios:[]};
+    api("/api/garantias"),api("/api/postventa"),api("/api/agenda"),api("/api/cobros"),api("/api/comerciales"),api("/api/seguimientos"),api("/api/extractos"),api("/api/movimientos"),api("/api/recepciones"),api("/api/gestorias"),api("/api/facturas_emitidas"),api("/api/pagos_prov"),api("/api/reservas"),api("/api/conciliaciones")]);
+  DATA={vehiculos:veh,clientes:cli,transportistas:tra,proveedores:prv,compras:com,ventas:ven,logistica:log,taller:tal,leads:led,gestoria:ges,documentos:doc,almacenes:alm,traspasos:tsp,garantias:gar,postventa:pos,agenda:age,cobros:cob,comerciales:cme,seguimientos:seg,extractos:ext,movimientos:mov,recepciones:rec,gestorias:gst||[],facturas_emitidas:fem||[],pagos_prov:ppr||[],reservas:rsv||[],conciliaciones:cnc||[],usuarios:[]};
   if(CURRENTUSER&&CURRENTUSER.rol==="admin"){try{DATA.usuarios=await api("/api/usuarios")||[];}catch(e){}}
   await cargarListas();
   enrich();
@@ -1671,17 +1671,56 @@ function recalcVal(){
     <div class="tot" style="border-top:2px solid var(--ink);padding-top:8px;margin-top:6px"><span><b>Precio máximo de compra</b></span><b style="font-size:19px;color:${maxCompra>0?'var(--ok)':'var(--danger)'}">${eur2(maxCompra)}</b></div>
     <div style="font-size:11.5px;color:var(--muted-2);margin-top:6px">Comprando por <b>${eur2(maxCompra)}</b> o menos conservas tu margen objetivo. Cálculo orientativo con importes IVA incluido (en REBU el IVA recae sobre el margen).</div>`;
 }
+let bancoFiltro={cuenta:"",fecha:""};
+function bancosCuentas(){return [...new Set(DATA.extractos.map(e=>e.cuenta||"(sin nombre)"))].filter(Boolean);}
+function movBanco(m){const e=DATA.extractos.find(x=>x.id===m.extracto_id)||{};return e.cuenta||"(sin nombre)";}
 function viewBancos(){
   const puedeW=puedeEscribirTabla("extractos");
   if(bancoExtracto){const e=DATA.extractos.find(x=>x.id===bancoExtracto);if(e)return viewExtracto(e,puedeW);bancoExtracto=null;}
-  const up=puedeW?`<button class="btn accent" onclick="subirExtracto()">⬆ Subir extracto (CSV o Excel)</button>`:"";
-  const rows=DATA.extractos.map(e=>`<tr style="cursor:pointer" onclick="bancoExtracto=${e.id};render()">
+  const up=puedeW?`<button class="btn accent" onclick="subirExtracto()">⬆ Subir extracto diario (Excel o CSV)</button>`:"";
+  const cuentas=bancosCuentas();
+  const selCuenta=`<select onchange="bancoFiltro.cuenta=this.value;render()" style="padding:6px 8px"><option value="">Todos los bancos</option>${cuentas.map(c=>`<option value="${esc(c)}" ${bancoFiltro.cuenta===c?"selected":""}>${esc(c)}</option>`).join("")}</select>`;
+  const selFecha=`<input type="date" value="${esc(bancoFiltro.fecha||"")}" onchange="bancoFiltro.fecha=this.value;render()" style="padding:6px 8px">`;
+  const limpia=(bancoFiltro.cuenta||bancoFiltro.fecha)?`<button class="btn ghost sm" onclick="bancoFiltro={cuenta:'',fecha:''};render()">✕ Quitar filtros</button>`:"";
+  // Pendientes de conciliar por banco
+  const pend=DATA.movimientos.filter(m=>!m.conciliado);
+  const pendPorBanco={};pend.forEach(m=>{const k=movBanco(m);(pendPorBanco[k]=pendPorBanco[k]||{n:0,imp:0});pendPorBanco[k].n++;pendPorBanco[k].imp+=Math.abs(Number(m.importe)||0);});
+  const pendChips=Object.keys(pendPorBanco).length?Object.entries(pendPorBanco).map(([k,v])=>`<span class="minipill" style="background:var(--danger-s);color:var(--danger);cursor:pointer" onclick="bancoFiltro.cuenta='${k.replace(/'/g,"\\'")}';render()">🔴 ${esc(k)}: ${v.n} sin conciliar · ${eur(v.imp)}</span>`).join(" "):'<span class="minipill" style="background:var(--ok-s);color:var(--ok)">✓ Todo conciliado</span>';
+  // Extractos (filtrados por banco)
+  let exs=DATA.extractos.slice();
+  if(bancoFiltro.cuenta)exs=exs.filter(e=>(e.cuenta||"(sin nombre)")===bancoFiltro.cuenta);
+  const rows=exs.map(e=>{const full=e.n_conc>=e.n_mov;return `<tr style="cursor:pointer" onclick="bancoExtracto=${e.id};render()">
     <td>${fdate(e.fecha)}</td><td><b>${esc(e.cuenta||"")}</b></td><td>${esc(e.nombre_archivo||"")}</td>
     <td class="r">${e.n_mov}</td>
-    <td>${e.n_conc<e.n_mov?`<span class="minipill" style="background:var(--warn-s);color:var(--warn)">${e.n_mov-e.n_conc} sin conciliar</span>`:'<span class="minipill" style="background:var(--ok-s);color:var(--ok)">✓ conciliado</span>'}</td>
-    <td class="r" onclick="event.stopPropagation()">${puedeW?`<button class="btn danger sm" onclick="delRow('extractos',${e.id})">🗑</button>`:""}</td></tr>`).join("");
-  return `<div class="toolbar">${up}<span style="font-size:12px;color:var(--muted);margin-left:auto;max-width:420px">Descarga el extracto del día desde tu banca electrónica en <b>CSV o Excel</b> y súbelo. La app concilia cada movimiento con tus ventas, compras, taller y postventa.</span></div>`
-    +(DATA.extractos.length?tableWrap([{t:"Fecha"},{t:"Cuenta"},{t:"Archivo"},{t:"Movs",r:1},{t:"Estado"},{t:"",r:1}],rows):'<div class="empty">Aún no hay extractos. Pulsa «Subir extracto (CSV)».</div>');
+    <td>${full?'<span class="minipill" style="background:var(--ok-s);color:var(--ok)">🟢 conciliado</span>':`<span class="minipill" style="background:var(--danger-s);color:var(--danger)">🔴 ${e.n_mov-e.n_conc} sin conciliar</span>`}</td>
+    <td class="r" onclick="event.stopPropagation()">${e.archivo_b64?`<a class="btn ghost sm" href="/api/extracto_archivo?id=${e.id}" title="Descargar el Excel original">⬇ Excel</a> `:""}${puedeW?`<button class="btn danger sm" onclick="delRow('extractos',${e.id})">🗑</button>`:""}</td></tr>`;}).join("");
+  let out=`<div class="toolbar">${up} ${selCuenta} ${selFecha} ${limpia}<span style="font-size:12px;color:var(--muted);margin-left:auto;max-width:360px">Sube el extracto diario. Cada movimiento se propone conciliar con facturas/recibos; verde = conciliado, rojo = pendiente.</span></div>
+    <div class="card" style="margin-bottom:14px"><div class="card-b" style="padding:12px 16px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin-bottom:6px">Pendientes de conciliar por banco</div><div style="display:flex;gap:8px;flex-wrap:wrap">${pendChips}</div></div></div>`;
+  if(bancoFiltro.fecha){out+=viewBancosDia(puedeW);}
+  out+=(exs.length?tableWrap([{t:"Fecha"},{t:"Cuenta"},{t:"Archivo"},{t:"Movs",r:1},{t:"Estado"},{t:"",r:1}],rows):'<div class="empty">Aún no hay extractos. Pulsa «Subir extracto diario».</div>');
+  return out;
+}
+function viewBancosDia(puedeW){
+  const f=bancoFiltro.fecha;
+  let movs=DATA.movimientos.filter(m=>(m.fecha||"").slice(0,10)===f);
+  if(bancoFiltro.cuenta)movs=movs.filter(m=>movBanco(m)===bancoFiltro.cuenta);
+  const pend=movs.filter(m=>!m.conciliado).length;
+  const estado=movs.length?(pend?`<span class="minipill" style="background:var(--danger-s);color:var(--danger)">🔴 ${pend} sin conciliar</span>`:'<span class="minipill" style="background:var(--ok-s);color:var(--ok)">🟢 día conciliado</span>'):'<span style="color:var(--muted)">sin movimientos ese día</span>';
+  const rows=movs.map(m=>movRow(m,puedeW)).join("");
+  return `<div class="card" style="margin-bottom:14px"><div class="card-b">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><b>Movimientos del ${fdate(f)}${bancoFiltro.cuenta?" · "+esc(bancoFiltro.cuenta):""}</b> ${estado}</div>
+    ${movs.length?tableWrap([{t:"Fecha"},{t:"Concepto"},{t:"Importe",r:1},{t:"Estado"},{t:"Documentos conciliados"},{t:"",r:1}],rows):'<div class="empty">No hay movimientos ese día para el filtro elegido.</div>'}</div></div>`;
+}
+function movRow(m,puedeW){
+  const lineas=concilLineasDe(m.id);
+  const docs=lineas.map(l=>`<span class="minipill" style="background:var(--ok-s);color:var(--ok)">${esc(concilRefLabel(l))} · ${eur2(Math.abs(Number(l.importe)||0))}</span>`).join(" ")||(m.observacion_app?`<span style="color:var(--muted);font-size:12px">${esc(m.observacion_app)}</span>`:"");
+  return `<tr>
+    <td>${fdate(m.fecha)}</td><td style="max-width:240px;white-space:normal">${esc(m.concepto||"")}</td>
+    <td class="r" style="color:${m.importe<0?"var(--danger)":"var(--ok)"};font-weight:600">${eur2(m.importe)}</td>
+    <td>${m.conciliado?'<span class="minipill" style="background:var(--ok-s);color:var(--ok)">🟢 conciliado</span>':'<span class="minipill" style="background:var(--danger-s);color:var(--danger)">🔴 pendiente</span>'}</td>
+    <td style="max-width:280px;white-space:normal">${docs}</td>
+    <td class="r">${puedeW?`<button class="btn accent sm" onclick="openConciliar(${m.id})">🔗 Conciliar</button>`:""}</td>
+  </tr>`;
 }
 function viewExtracto(e,puedeW){
   const movs=DATA.movimientos.filter(m=>m.extracto_id===e.id);
@@ -1689,24 +1728,112 @@ function viewExtracto(e,puedeW){
   const gas=movs.filter(m=>m.importe<0).reduce((s,m)=>s+(m.importe||0),0);
   const pend=movs.filter(m=>!m.conciliado).length;
   const kpi=(l,v,c)=>`<div class="kpi"><div class="k-lab">${l}</div><div class="k-val" style="color:${c||"var(--ink)"}">${v}</div></div>`;
-  const rows=movs.map(m=>`<tr>
-      <td>${fdate(m.fecha)}</td><td style="max-width:240px;white-space:normal">${esc(m.concepto||"")}</td>
-      <td class="r" style="color:${m.importe<0?"var(--danger)":"var(--ok)"};font-weight:600">${eur2(m.importe)}</td>
-      <td>${m.conciliado?`<span class="minipill" style="background:var(--ok-s);color:var(--ok)">${esc(m.categoria||"Conciliado")}</span>`:'<span class="minipill" style="background:var(--danger-s);color:var(--danger)">Sin conciliar</span>'}</td>
-      <td style="font-size:12px;color:var(--muted);max-width:220px;white-space:normal">${esc(m.observacion_app||"")}</td>
-      <td>${puedeW?`<input value="${esc(m.observacion_usuario||"")}" placeholder="¿A qué corresponde?" onchange="anotarMov(${m.id},this.value)" style="padding:5px 7px;width:100%">`:esc(m.observacion_usuario||"")}</td>
-    </tr>`).join("");
-  return `<div class="toolbar"><button class="btn ghost" onclick="bancoExtracto=null;render()">← Extractos</button><b style="margin-left:8px">${esc(e.cuenta||"Extracto")} · ${fdate(e.fecha)}</b></div>
-    <div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">${kpi("Ingresos",eur(ing),"var(--ok)")}${kpi("Gastos",eur(gas),"var(--danger)")}${kpi("Movimientos",movs.length)}${kpi("Sin conciliar",pend,pend?"var(--warn)":"var(--ok)")}</div>
-    ${tableWrap([{t:"Fecha"},{t:"Concepto"},{t:"Importe",r:1},{t:"Conciliación"},{t:"Observación (app)"},{t:"Tu observación / a qué corresponde"}],rows)}
+  const rows=movs.map(m=>movRow(m,puedeW)).join("");
+  const dl=e.archivo_b64?`<a class="btn ghost sm" href="/api/extracto_archivo?id=${e.id}" style="margin-left:8px">⬇ Excel original</a>`:"";
+  return `<div class="toolbar"><button class="btn ghost" onclick="bancoExtracto=null;render()">← Extractos</button><b style="margin-left:8px">${esc(e.cuenta||"Extracto")} · ${fdate(e.fecha)}</b>${dl}</div>
+    <div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">${kpi("Ingresos",eur(ing),"var(--ok)")}${kpi("Gastos",eur(gas),"var(--danger)")}${kpi("Movimientos",movs.length)}${kpi("Sin conciliar",pend,pend?"var(--danger)":"var(--ok)")}</div>
+    ${tableWrap([{t:"Fecha"},{t:"Concepto"},{t:"Importe",r:1},{t:"Estado"},{t:"Documentos conciliados"},{t:"",r:1}],rows)}
     <div class="card" style="margin-top:16px"><div class="card-b"><label style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase">Notas del extracto</label>
       <textarea ${puedeW?"":"disabled"} onchange="setField('extractos',${e.id},'notas',this.value)" style="width:100%;margin-top:6px">${esc(e.notas||"")}</textarea></div></div>`;
 }
-async function anotarMov(id,val){
-  if(bloqueadoRO("movimientos"))return;
-  const res=await api("/api/movimientos/"+id,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({observacion_usuario:val,conciliado:val.trim()?1:0})});
-  if(res&&res.ok===false){toast("⚠ "+res.error);return;}
-  toast("Anotado ✔");await loadAll();render();
+/* ===== Conciliación bancaria: proponer documentos y conciliar 1..n ===== */
+const CONCIL_SRC_PAGO=[
+  {t:"compras",lbl:"Compra",arr:()=>DATA.compras,name:c=>c.proveedor,con:c=>`${c.numero_factura?("Fra "+c.numero_factura+" · "):""}${c.matricula||""} ${c.marca||""} ${c.modelo||""}`.trim(),imp:c=>totalCompra(c),fecha:c=>c.fecha},
+  {t:"taller",lbl:"Taller",arr:()=>DATA.taller,name:t=>t.proveedor,con:t=>`${t.numero_factura?("Fra "+t.numero_factura+" · "):""}${t.matricula||""} ${t.tipo||""}`.trim(),imp:t=>Number(t.coste)||0,fecha:t=>t.fecha},
+  {t:"postventa",lbl:"Postventa",arr:()=>DATA.postventa,name:p=>p.proveedor,con:p=>`${p.matricula||""} ${p.tipo||""}`.trim(),imp:p=>Number(p.coste)||0,fecha:p=>p.fecha},
+  {t:"logistica",lbl:"Transporte",arr:()=>DATA.logistica,name:l=>l.transportista_nombre,con:l=>`${l.matricula||""} ${l.origen||""}→${l.destino||""}`.trim(),imp:l=>Number(l.coste)||0,fecha:l=>l.fecha_entrega||l.fecha_recogida},
+  {t:"gestoria",lbl:"Gestoría",arr:()=>DATA.gestoria,name:g=>g.gestoria,con:g=>`${g.matricula||""} ${g.tipo||""}`.trim(),imp:g=>Number(g.coste)||0,fecha:g=>g.fecha_solicitud},
+];
+const CONCIL_SRC_INGRESO=[
+  {t:"ventas",lbl:"Venta",arr:()=>DATA.ventas,name:s=>s.cliente,con:s=>`${s.numero_factura||s.numero_proforma||""} · ${s.matricula||""} ${s.marca||""} ${s.modelo||""}`.trim(),imp:s=>Number(s.precio)||0,fecha:s=>s.fecha},
+  {t:"cobros",lbl:"Cobro",arr:()=>DATA.cobros,name:c=>"",con:c=>`${c.medio||""} ${c.cambio_matricula||""}`.trim(),imp:c=>Number(c.importe)||0,fecha:c=>c.fecha},
+  {t:"facturas_emitidas",lbl:"Factura emitida",arr:()=>DATA.facturas_emitidas,name:f=>f.cliente,con:f=>`${f.numero||""} · ${f.tipo||""}`.trim(),imp:f=>(Number(f.base)||0)*(1+(Number(f.iva_pct)||0)/100),fecha:f=>f.fecha},
+];
+function concilSrc(t){return [...CONCIL_SRC_PAGO,...CONCIL_SRC_INGRESO].find(s=>s.t===t);}
+function concilLineasDe(movId){return (DATA.conciliaciones||[]).filter(l=>l.movimiento_id===movId);}
+function concilRefLabel(l){const s=concilSrc(l.ref_tipo);if(!s)return l.concepto||(l.ref_tipo+" #"+l.ref_id);const r=s.arr().find(x=>x.id===l.ref_id);if(!r)return (l.concepto||`${s.lbl} #${l.ref_id}`);return `${s.lbl}: ${s.name(r)||s.con(r)||("#"+l.ref_id)}`;}
+function concilCandidatos(m){
+  const pago=(Number(m.importe)||0)<0;
+  const srcs=pago?CONCIL_SRC_PAGO:CONCIL_SRC_INGRESO;
+  const target=Math.abs(Number(m.importe)||0)||1;
+  const con=_norm(m.concepto||"");
+  const out=[];
+  srcs.forEach(s=>s.arr().forEach(r=>{
+    const imp=Math.abs(Number(s.imp(r))||0);if(imp<=0)return;
+    const nm=_norm(s.name(r)||"");
+    let score=0;
+    if(nm){const toks=nm.split(/\s+/).filter(w=>w.length>=4);if(toks.some(w=>con.includes(w)))score+=100;}
+    const dImp=Math.abs(imp-target);
+    if(dImp<0.02)score+=60;else if(imp<=target+0.02)score+=15;
+    score+=Math.max(0,25-dImp/target*25);
+    out.push({ref_tipo:s.t,ref_id:r.id,lbl:s.lbl,name:s.name(r)||"",con:s.con(r),imp,fecha:s.fecha(r),score});
+  }));
+  out.sort((a,b)=>b.score-a.score||b.imp-a.imp);
+  return out;
+}
+let concilState=null;
+function openConciliar(movId){
+  if(bloqueadoRO("conciliaciones"))return;
+  const m=DATA.movimientos.find(x=>x.id===movId);if(!m)return;
+  concilState={movId,m,q:"",lines:concilLineasDe(movId).map(l=>({ref_tipo:l.ref_tipo,ref_id:l.ref_id,importe:Math.abs(Number(l.importe)||0),concepto:l.concepto}))};
+  currentForm={table:"__conciliar",id:movId};
+  $("#modal-title").textContent="Conciliar movimiento bancario";
+  renderConcil();
+  const act=document.querySelector(".modal .actions");
+  act.innerHTML='<button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn accent" onclick="guardarConciliacion()">Guardar conciliación</button>';
+  $("#modal-bg").classList.add("open");
+}
+function concilCandsHtml(){
+  const st=concilState,m=st.m;
+  const cands=concilCandidatos(m).filter(c=>!st.lines.some(l=>l.ref_tipo===c.ref_tipo&&l.ref_id===c.ref_id));
+  const q=_norm(st.q||"");
+  const candF=q?cands.filter(c=>_norm(c.lbl+" "+c.name+" "+c.con).includes(q)||String(Math.round(c.imp)).includes(q.replace(/\D/g,""))):cands;
+  return candF.slice(0,40).map(c=>`<div class="tl-row" style="align-items:center">
+     <span style="max-width:70%">${`<span class="minipill" style="background:var(--line-2);color:var(--muted)">${esc(c.lbl)}</span>`} <b>${esc(c.name||"—")}</b> · ${esc(c.con)} <span style="color:var(--muted-2);font-size:11px">${fdate(c.fecha)}</span></span>
+     <span style="display:flex;align-items:center;gap:6px"><b>${eur2(c.imp)}</b> <button class="btn ghost sm" onclick="concilAdd('${c.ref_tipo}',${c.ref_id})">+ añadir</button></span></div>`).join("")||'<div style="color:var(--muted);font-size:12.5px">Sin documentos que proponer. Ajusta la búsqueda.</div>';
+}
+function renderConcil(){
+  const st=concilState,m=st.m,target=Math.abs(Number(m.importe)||0);
+  const aplicado=st.lines.reduce((s,l)=>s+(Number(l.importe)||0),0);
+  const dif=target-aplicado, cuadra=Math.abs(dif)<=0.02;
+  const lineHtml=st.lines.length?st.lines.map((l,i)=>`<div class="tl-row" style="align-items:center">
+     <span>${esc(concilRefLabel(l))}</span>
+     <span style="display:flex;align-items:center;gap:6px"><input type="number" step="0.01" value="${esc(String(l.importe))}" onchange="concilImp(${i},this.value)" style="width:110px;text-align:right;padding:4px 6px"><button class="btn danger sm" onclick="concilDel(${i})">✕</button></span></div>`).join(""):'<div style="color:var(--muted);font-size:12.5px">Aún sin líneas. Elige documentos abajo (una o varias facturas).</div>';
+  $("#modal-body").innerHTML=`
+    <div style="background:var(--line-2);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+      <div style="font-size:12px;color:var(--muted)">${fdate(m.fecha)} · ${esc(m.concepto||"")}</div>
+      <div style="font-size:18px;font-weight:800;color:${m.importe<0?'var(--danger)':'var(--ok)'}">${eur2(m.importe)}</div></div>
+    <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span>Aplicado: <b>${eur2(aplicado)}</b></span><span>Diferencia: <b style="color:${cuadra?'var(--ok)':'var(--danger)'}">${eur2(dif)}</b>${cuadra?" ✔ cuadra":""}</span></div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">${lineHtml}</div>
+    <label style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700">Documentos propuestos ${m.importe<0?"(pagos: compras, taller, transporte, gestoría…)":"(ingresos: ventas, cobros, facturas emitidas)"}</label>
+    <input placeholder="Buscar por proveedor/cliente, concepto o importe…" value="${esc(st.q||"")}" oninput="concilState.q=this.value;document.getElementById('concil-cands').innerHTML=concilCandsHtml()" style="width:100%;margin:6px 0 8px">
+    <div id="concil-cands" style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow:auto">${concilCandsHtml()}</div>`;
+}
+function concilAdd(refTipo,refId){
+  const st=concilState,target=Math.abs(Number(st.m.importe)||0);
+  const s=concilSrc(refTipo);const r=s?s.arr().find(x=>x.id===refId):null;
+  const docImp=r?Math.abs(Number(s.imp(r))||0):0;
+  const aplicado=st.lines.reduce((a,l)=>a+(Number(l.importe)||0),0);
+  const resto=Math.max(0,target-aplicado);
+  const imp=docImp>0?Math.min(docImp,resto>0?resto:docImp):resto;
+  st.lines.push({ref_tipo:refTipo,ref_id:refId,importe:Math.round((imp||docImp)*100)/100,concepto:r?concilRefLabel({ref_tipo:refTipo,ref_id:refId}):""});
+  renderConcil();
+}
+function concilImp(i,val){if(concilState.lines[i]){concilState.lines[i].importe=Number(val)||0;renderConcil();}}
+function concilDel(i){concilState.lines.splice(i,1);renderConcil();}
+async function guardarConciliacion(){
+  if(_saving)return;_saving=true;
+  try{
+    const st=concilState;
+    const prev=concilLineasDe(st.movId);
+    for(const p of prev)await api("/api/conciliaciones/"+p.id,{method:"DELETE"});
+    for(const l of st.lines){if(!(Number(l.importe))) continue;
+      await api("/api/conciliaciones",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({movimiento_id:st.movId,ref_tipo:l.ref_tipo,ref_id:l.ref_id,importe:Number(l.importe)||0,concepto:l.concepto||concilRefLabel(l)})});
+    }
+    closeModal();toast("Conciliación guardada ✔");await loadAll();render();
+  }catch(e){toast("Error al guardar la conciliación");}
+  finally{_saving=false;}
 }
 
 /* ---------- USUARIOS (admin) ---------- */
