@@ -1752,9 +1752,16 @@ const CONCIL_SRC_INGRESO=[
 function concilSrc(t){return [...CONCIL_SRC_PAGO,...CONCIL_SRC_INGRESO].find(s=>s.t===t);}
 function concilLineasDe(movId){return (DATA.conciliaciones||[]).filter(l=>l.movimiento_id===movId);}
 function concilRefLabel(l){const s=concilSrc(l.ref_tipo);if(!s)return l.concepto||(l.ref_tipo+" #"+l.ref_id);const r=s.arr().find(x=>x.id===l.ref_id);if(!r)return (l.concepto||`${s.lbl} #${l.ref_id}`);return `${s.lbl}: ${s.name(r)||s.con(r)||("#"+l.ref_id)}`;}
-const CONCIL_STOP=new Set(["factura","facturas","fra","fras","pago","pagos","pagar","concepto","transferencia","transf","recibo","adeudo","abono","compra","compras","venta","ventas","nomina","cuota","cuotas","varios","importe","total","numero","enero","febrero","marzo","abril","mayo","junio","julio","agosto","agost","septiembre","octubre","noviembre","diciembre","del","los","las","por","para","con","sus"]);
+const CONCIL_STOP=new Set(["factura","facturas","fra","fras","pago","pagos","pagar","concepto","transferencia","transf","recibo","adeudo","abono","compra","compras","venta","ventas","nomina","cuota","cuotas","varios","importe","total","numero","favor","gestoria","gestoría","enero","febrero","marzo","abril","mayo","junio","julio","agosto","agost","septiembre","octubre","noviembre","diciembre","del","los","las","por","para","con","sus"]);
+const CONCIL_NAME_STOP=["sl","sa","slu","scp","srl","cb","sociedad","limitada","gestoria","gestoría","asesoria","asesoría","taller","talleres","auto","autos","motor","the"];
 function _tokens(s,min){return _norm(s||"").split(/[^a-z0-9áéíóúñ]+/).filter(w=>w.length>=(min||4)&&!CONCIL_STOP.has(w));}
-// Candidatos a conciliar. Con q → busca en TODO. Sin q → propone SOLO lo relacionado (proveedor/cliente, importe, fecha).
+function _plates(t){const up=String(t||"").toUpperCase();const out=new Set();
+  (up.match(/\b\d{4}\s?[A-Z]{3}\b/g)||[]).forEach(p=>out.add(p.replace(/\s/g,"")));
+  (up.match(/\b[A-Z]{1,2}\s?\d{4}\s?[A-Z]{1,2}\b/g)||[]).forEach(p=>out.add(p.replace(/\s/g,"")));
+  return out;
+}
+// Candidatos a conciliar. Con q → busca en TODO. Sin q → propone SOLO lo relacionado
+// usando TODO lo disponible: matrícula/bastidor del concepto, nombre del receptor, importe y fecha.
 function concilCandidatos(m,q){
   const pago=(Number(m.importe)||0)<0;
   const srcs=pago?CONCIL_SRC_PAGO:CONCIL_SRC_INGRESO;
@@ -1763,26 +1770,33 @@ function concilCandidatos(m,q){
   const all=[];
   srcs.forEach(s=>s.arr().forEach(r=>{
     const imp=Math.abs(Number(s.imp(r))||0);if(imp<=0)return;
-    all.push({ref_tipo:s.t,ref_id:r.id,lbl:s.lbl,name:s.name(r)||"",con:s.con(r),imp,fecha:s.fecha(r),paid:!!(s.paid&&s.paid(r))});
+    all.push({ref_tipo:s.t,ref_id:r.id,lbl:s.lbl,name:s.name(r)||"",con:s.con(r),imp,fecha:s.fecha(r),
+      paid:!!(s.paid&&s.paid(r)),
+      plate:String(r.matricula||"").toUpperCase().replace(/\s/g,""),
+      vin:String(r.bastidor||"").toUpperCase().replace(/\s/g,"")});
   }));
   if(q&&q.trim()){
     const qq=_norm(q);
     return all.filter(c=>_norm(c.lbl+" "+c.name+" "+c.con).includes(qq)||String(Math.round(c.imp)).includes(qq.replace(/\D/g,""))).slice(0,60);
   }
   const conTok=_tokens(m.concepto,4);
+  const conPlates=_plates(m.concepto);
+  const conNoSp=String(m.concepto||"").toUpperCase().replace(/\s/g,"");
   const scored=all.filter(c=>!c.paid).map(c=>{
     const nameNorm=_norm(c.name);
-    const nameTok=_tokens(c.name,3).filter(w=>!["sl","sa","slu","scp","srl","sociedad","limitada","gestoria","gestoría","asesoria","asesoría","taller","talleres","auto","autos","motor"].includes(w));
-    const nameHit=nameTok.some(w=>conTok.includes(w))||conTok.some(w=>w.length>=4&&nameNorm.includes(w));
+    const nameTok=_tokens(c.name,3).filter(w=>!CONCIL_NAME_STOP.includes(w));
+    const nameHit=(!!nameNorm)&&(nameTok.some(w=>conTok.includes(w))||conTok.some(w=>w.length>=4&&nameNorm.includes(w)));
+    const plateHit=(c.plate&&conPlates.has(c.plate))||(c.vin&&c.vin.length>=10&&conNoSp.includes(c.vin));
     const dImp=Math.abs(c.imp-target);
     const exact=dImp<0.02, le=target&&c.imp<=target+0.02;
     let dDias=999;try{dDias=Math.abs((new Date(fMov)-new Date((c.fecha||"").slice(0,10)))/86400000);}catch(_){}
-    let score=(nameHit?100:0)+(exact?60:(le?15:0))+Math.max(0,25-(target?dImp/target*25:25))+Math.max(0,15-dDias/6);
-    return {...c,nameHit,exact,score};
+    const rel=nameHit||plateHit;
+    let score=(plateHit?130:0)+(nameHit?100:0)+(exact?60:(le&&rel?20:0))+Math.max(0,25-(target?dImp/target*25:25))+Math.max(0,15-dDias/6);
+    return {...c,nameHit,plateHit,rel,exact,score};
   });
-  const named=scored.filter(c=>c.nameHit);
-  let res = named.length ? scored.filter(c=>c.nameHit||c.exact)
-                         : scored.filter(c=>c.exact||(target&&Math.abs(c.imp-target)<target*0.1));
+  const relacionados=scored.filter(c=>c.rel);
+  // Con relación (matrícula o proveedor/cliente): esos + los de importe exacto. Sin relación: SOLO importe exacto.
+  let res = relacionados.length ? scored.filter(c=>c.rel||c.exact) : scored.filter(c=>c.exact);
   res.sort((a,b)=>b.score-a.score||((a.fecha||"")<(b.fecha||"")?1:-1));
   return res;
 }
