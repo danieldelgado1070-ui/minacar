@@ -1829,7 +1829,7 @@ def list_ventas(q=None):
                cl.nombre AS cliente, cl.nif AS cliente_nif,
                cl.direccion AS cliente_direccion, cl.email AS cliente_email,
                cl.telefono AS cliente_telefono, cl.es_profesional AS cliente_profesional, co.nombre AS comercial,
-               (COALESCE((SELECT precio + gastos FROM compras c WHERE c.vehiculo_id=v.id ORDER BY c.id DESC LIMIT 1),0)
+               (COALESCE((SELECT COALESCE(precio,0) + COALESCE(gastos,0) FROM compras c WHERE c.vehiculo_id=v.id ORDER BY c.id DESC LIMIT 1),0)
                 + COALESCE((SELECT SUM(coste) FROM taller t WHERE t.vehiculo_id=v.id),0)
                 + COALESCE((SELECT SUM(coste) FROM logistica l WHERE l.vehiculo_id=v.id),0)) AS coste
         FROM ventas s
@@ -2135,9 +2135,9 @@ def dashboard(params):
     margen_row = conn.execute(
         f"""SELECT COALESCE(SUM(
                 CASE WHEN s.regimen='REBU'
-                    THEN (s.precio - COALESCE((SELECT c.precio + c.gastos FROM compras c
+                    THEN (s.precio - COALESCE((SELECT COALESCE(c.precio,0) + COALESCE(c.gastos,0) FROM compras c
                           WHERE c.vehiculo_id = s.vehiculo_id ORDER BY c.id DESC LIMIT 1),0)) * 100.0/121.0
-                    ELSE s.precio/1.21 - COALESCE((SELECT c.precio + c.gastos FROM compras c
+                    ELSE s.precio/1.21 - COALESCE((SELECT COALESCE(c.precio,0) + COALESCE(c.gastos,0) FROM compras c
                           WHERE c.vehiculo_id = s.vehiculo_id ORDER BY c.id DESC LIMIT 1),0)
                 END),0) AS margen
             FROM ventas s LEFT JOIN vehiculos v ON v.id=s.vehiculo_id {where_s}""",
