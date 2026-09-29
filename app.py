@@ -3209,7 +3209,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header("X-Frame-Options", "DENY")
             self.send_header("Referrer-Policy", "no-referrer")
             self.send_header("Content-Security-Policy",
-                             "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+                             "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; "
+                             "worker-src 'self' blob:; child-src 'self' blob:; "
                              "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
                              "font-src 'self' data:; connect-src 'self'; "
                              "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; "
@@ -3298,6 +3299,37 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b"index.html no encontrado")
 
+    def serve_ocr(self, path):
+        """Sirve los ficheros del motor OCR (tesseract.js) desde la carpeta ocr/.
+        Son librería pública (no datos): el OCR se ejecuta en el navegador y los
+        documentos escaneados NO salen del equipo."""
+        name = os.path.basename(path)
+        allowed = {
+            "tesseract.min.js": "application/javascript; charset=utf-8",
+            "worker.min.js": "application/javascript; charset=utf-8",
+            "tesseract-core-simd.wasm": "application/wasm",
+            "tesseract-core-simd.wasm.js": "application/javascript; charset=utf-8",
+            "spa.traineddata.gz": "application/octet-stream",
+        }
+        ct = allowed.get(name)
+        if not ct:
+            self.close_connection = True
+            self.send_response(404); self.send_header("Content-Length", "0"); self.end_headers(); return
+        try:
+            with open(os.path.join(BASE_DIR, "ocr", name), "rb") as f:
+                body = f.read()
+        except OSError:
+            self.close_connection = True
+            self.send_response(404); self.send_header("Content-Length", "0"); self.end_headers(); return
+        self.close_connection = True
+        self.send_response(200)
+        self.send_header("Content-Type", ct)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "public, max-age=604800")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+
     def serve_static(self, path):
         """Sirve iconos y el manifest (para poder instalar la app en el móvil).
         Los iconos son archivos de la carpeta; para cambiarlos, reemplázalos."""
@@ -3346,6 +3378,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "/icono-180.png", "/apple-touch-icon.png",
                     "/apple-touch-icon-precomposed.png", "/manifest.webmanifest"):
             return self.serve_static(path)
+
+        if path.startswith("/ocr/"):
+            return self.serve_ocr(path)
 
         if path == "/api/me":
             u = self.current_user()
