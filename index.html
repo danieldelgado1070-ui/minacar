@@ -3138,24 +3138,49 @@ async function ocrEnsure(){
     workerPath:"/ocr/worker.min.js",langPath:"/ocr",corePath:"/ocr/tesseract-core-simd.wasm.js",workerBlobURL:false});
   return _ocrWorker;
 }
+function dniValido(s){
+  s=String(s||"").toUpperCase();const L="TRWAGMYFPDXBNJZSQVHLCKE";
+  let m=s.match(/^([0-9]{8})([A-Z])$/);if(m)return L[parseInt(m[1],10)%23]===m[2];
+  m=s.match(/^([XYZ])([0-9]{7})([A-Z])$/);if(m){const n=({X:"0",Y:"1",Z:"2"}[m[1]])+m[2];return L[parseInt(n,10)%23]===m[3];}
+  return null;
+}
 function ocrParse(t){
   const T=String(t||"").replace(/ /g," ");
   const up=T.toUpperCase();
+  const lines=up.split(/\n+/).map(s=>s.trim());
   const out={};
-  const mnif=up.match(/\b([0-9]{8}\s?[A-Z]|[XYZ]\s?[0-9]{7}\s?[A-Z]|[ABCDEFGHJNPQRSUVW]\s?[0-9]{7}\s?[0-9A-J])\b/);
-  if(mnif)out.nif=mnif[1].replace(/\s/g,"");
+  // NIF/CIF/DNI/NIE: candidatos con límites de palabra; preferir DNI/NIE válido (evita el nº de soporte del DNI)
+  const cands=[...up.matchAll(/\b([0-9]{8}[A-Z]|[XYZ][0-9]{7}[A-Z]|[ABCDEFGHJNPQRSUVW][0-9]{7}[0-9A-J])\b/g)].map(m=>m[1]);
+  const pick=cands.find(c=>/^[0-9]{8}[A-Z]$/.test(c)&&dniValido(c))||cands.find(c=>/^[XYZ]/.test(c)&&dniValido(c))
+    ||cands.find(c=>/^[0-9]{8}[A-Z]$/.test(c)||/^[XYZ]/.test(c))||cands[0];
+  if(pick)out.nif=pick;
   const mmail=T.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
   if(mmail)out.email=mmail[0].toLowerCase();
-  const mtel=T.replace(/[^\d+]/g," ").match(/(?:\+?34\s?)?([6-9]\d{2})\s?(\d{2})\s?(\d{2})\s?(\d{2})/);
-  if(mtel)out.telefono=mtel[1]+mtel[2]+mtel[3]+mtel[4];
-  const mcp=T.match(/\b(0[1-9]|[1-4]\d|5[0-2])\d{3}\b/);
+  // Teléfono: solo si hay palabra clave cerca, o un móvil 6/7 no embebido en otra cifra (evita MRZ/nº de soporte)
+  let tel=null;
+  const mk=T.match(/(?:tel[eé]fono|tel\.?|tfno|m[oó]vil|movil|whatsapp|fax)\D{0,6}((?:\+?34[ .\-]?)?[6-9]\d{2}[ .\-]?\d{2}[ .\-]?\d{2}[ .\-]?\d{2})/i);
+  if(mk)tel=mk[1];else{const mm=T.match(/(?<!\d)([67]\d{2})[ .\-]?(\d{2})[ .\-]?(\d{2})[ .\-]?(\d{2})(?!\d)/);if(mm)tel=mm[0];}
+  if(tel)out.telefono=tel.replace(/[ .\-+]/g,"").replace(/^34(?=\d{9}$)/,"");
+  const mcp=up.match(/\b(0[1-9]|[1-4]\d|5[0-2])\d{3}\b/);
   if(mcp)out.cp=mcp[0];
-  let mnom=up.match(/(?:RAZ[OÓ]N\s+SOCIAL|DENOMINACI[OÓ]N)[:\s]+([A-ZÑÁÉÍÓÚ0-9 .,&-]{4,60})/);
-  if(mnom)out.nombre=mnom[1].trim().replace(/\s{2,}/g," ");
-  else{
-    const ap=up.match(/APELLIDOS?\s*[:\n]\s*([A-ZÑÁÉÍÓÚ ]{2,40})/);
-    const no=up.match(/NOMBRE\s*[:\n]\s*([A-ZÑÁÉÍÓÚ ]{2,30})/);
-    if(ap||no)out.nombre=[(no?no[1].trim():""),(ap?ap[1].trim():"")].filter(Boolean).join(" ").replace(/\s{2,}/g," ").trim();
+  // Nombre: zona MRZ del DNI (APELLIDOS<<NOMBRES) cuando es legible
+  const mrz=lines.find(l=>{const c=l.replace(/\s/g,"");return /^[A-ZÑ<]{10,}$/.test(c)&&(c.match(/</g)||[]).length>=2&&!/\d/.test(c);});
+  if(mrz){const parts=mrz.replace(/\s/g,"").split(/<<+/);if(parts.length>=2){const ap=parts[0].replace(/</g," ").trim(),no=parts[1].replace(/</g," ").trim();if(ap&&no)out.nombre=(no+" "+ap).replace(/\s{2,}/g," ").trim();}}
+  if(!out.nombre){
+    const mnom=up.match(/(?:RAZ[OÓ]N\s+SOCIAL|DENOMINACI[OÓ]N)\s*[:\-]?\s*\n?\s*([A-ZÑÁÉÍÓÚ0-9 .,&-]{4,60})/);
+    if(mnom)out.nombre=mnom[1].trim().replace(/\s{2,}/g," ");
+    else{
+      const ap=up.match(/APELLIDOS?\s*[:\-]?\s*\n\s*([A-ZÑÁÉÍÓÚ]{2,20}(?:\s+[A-ZÑÁÉÍÓÚ]{2,20})?)/);
+      const no=up.match(/NOMBRE\s*[:\-]?\s*\n\s*([A-ZÑÁÉÍÓÚ]{2,20})/);
+      if(ap||no)out.nombre=[(no?no[1].trim():""),(ap?ap[1].trim():"")].filter(Boolean).join(" ").replace(/\s{2,}/g," ").trim();
+    }
+  }
+  const md=up.match(/(?:DOMICILIO|DIRECCI[OÓ]N)\s*[:\-]?\s*\n?\s*([A-ZÑÁÉÍÓÚ0-9 .,ºª\/-]{6,60})/);
+  if(md)out.direccion=md[1].trim().replace(/\s{2,}/g," ");
+  if(!out.direccion){
+    const vias=/^(PLAZA|PLZA|CALLE|C\/|AVDA|AVENIDA|AV|CTRA|CARRETERA|PASEO|CAMINO|URB|URBANIZACION|RONDA|TRAVESIA|GLORIETA|PARAJE|BARRIO|POLIGONO)\b/;
+    const dl=lines.find(l=>vias.test(l)&&l.replace(/\s/g,"").length>=6&&l.length<=60);
+    if(dl)out.direccion=dl.replace(/[^A-ZÑÁÉÍÓÚ0-9 .,ºª\/-]/g," ").replace(/\s{2,}/g," ").trim();
   }
   return out;
 }
@@ -3163,6 +3188,7 @@ function ocrAplicar(c){
   const set=(id,val)=>{const e=document.getElementById(id);if(e&&val&&!String(e.value||"").trim()){e.value=val;e.style.background="var(--ok-s)";}};
   set("f-nombre",c.nombre);set("f-nif",c.nif);set("f-email",c.email);set("f-telefono",c.telefono);
   const dir=document.getElementById("f-direccion");
+  if(dir&&c.direccion&&!String(dir.value||"").trim()){dir.value=c.direccion;dir.style.background="var(--ok-s)";}
   if(dir&&c.cp&&!/\b\d{5}\b/.test(String(dir.value||"")))dir.value=(String(dir.value||"").trim()?dir.value+", ":"")+c.cp;
   const nifEl=document.getElementById("f-nif");if(nifEl&&typeof chkNif==="function")chkNif(nifEl.value);
 }
@@ -3182,7 +3208,7 @@ async function ocrDePDF(file){
   const n=Math.min(pdf.numPages,3);   // primeras páginas (suficiente para DNI/CIF/factura)
   for(let p=1;p<=n;p++){
     const page=await pdf.getPage(p);
-    const vp=page.getViewport({scale:2});
+    const vp=page.getViewport({scale:3});
     const cv=document.createElement("canvas");cv.width=vp.width;cv.height=vp.height;
     await page.render({canvasContext:cv.getContext("2d"),viewport:vp}).promise;
     // Si la página ya trae texto embebido, úsalo (más preciso que el OCR)
@@ -3191,6 +3217,15 @@ async function ocrDePDF(file){
     else{const {data}=await w.recognize(cv);texto+="\n"+(data&&data.text||"");}
   }
   return texto;
+}
+function ocrPrepImg(file){
+  return new Promise((res)=>{
+    const img=new Image();
+    img.onload=()=>{const long=Math.max(img.width,img.height);const scale=long<1600?Math.min(3,1600/long):1;
+      const cv=document.createElement("canvas");cv.width=Math.round(img.width*scale);cv.height=Math.round(img.height*scale);
+      const x=cv.getContext("2d");x.imageSmoothingEnabled=true;x.imageSmoothingQuality="high";x.drawImage(img,0,0,cv.width,cv.height);res(cv);};
+    img.onerror=()=>res(file);img.src=URL.createObjectURL(file);
+  });
 }
 async function escanearOCR(table){
   const inp=document.createElement("input");inp.type="file";inp.accept="image/*,application/pdf";
@@ -3201,7 +3236,7 @@ async function escanearOCR(table){
     try{
       let texto;
       if(esPdf){texto=await ocrDePDF(file);}
-      else{const w=await ocrEnsure();const {data}=await w.recognize(file);texto=data&&data.text||"";}
+      else{const w=await ocrEnsure();const src=await ocrPrepImg(file);const {data}=await w.recognize(src);texto=data&&data.text||"";}
       const campos=ocrParse(texto);
       ocrAplicar(campos);
       const nm={nif:"NIF/CIF",email:"email",telefono:"teléfono",nombre:"nombre",cp:"CP"};
