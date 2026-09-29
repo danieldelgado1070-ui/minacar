@@ -1738,38 +1738,53 @@ function viewExtracto(e,puedeW){
 }
 /* ===== Conciliación bancaria: proponer documentos y conciliar 1..n ===== */
 const CONCIL_SRC_PAGO=[
-  {t:"compras",lbl:"Compra",arr:()=>DATA.compras,name:c=>c.proveedor,con:c=>`${c.numero_factura?("Fra "+c.numero_factura+" · "):""}${c.matricula||""} ${c.marca||""} ${c.modelo||""}`.trim(),imp:c=>totalCompra(c),fecha:c=>c.fecha},
-  {t:"taller",lbl:"Taller",arr:()=>DATA.taller,name:t=>t.proveedor,con:t=>`${t.numero_factura?("Fra "+t.numero_factura+" · "):""}${t.matricula||""} ${t.tipo||""}`.trim(),imp:t=>Number(t.coste)||0,fecha:t=>t.fecha},
-  {t:"postventa",lbl:"Postventa",arr:()=>DATA.postventa,name:p=>p.proveedor,con:p=>`${p.matricula||""} ${p.tipo||""}`.trim(),imp:p=>Number(p.coste)||0,fecha:p=>p.fecha},
-  {t:"logistica",lbl:"Transporte",arr:()=>DATA.logistica,name:l=>l.transportista_nombre,con:l=>`${l.matricula||""} ${l.origen||""}→${l.destino||""}`.trim(),imp:l=>Number(l.coste)||0,fecha:l=>l.fecha_entrega||l.fecha_recogida},
-  {t:"gestoria",lbl:"Gestoría",arr:()=>DATA.gestoria,name:g=>g.gestoria,con:g=>`${g.matricula||""} ${g.tipo||""}`.trim(),imp:g=>Number(g.coste)||0,fecha:g=>g.fecha_solicitud},
+  {t:"compras",lbl:"Compra",arr:()=>DATA.compras,name:c=>c.proveedor,con:c=>`${c.numero_factura?("Fra "+c.numero_factura+" · "):""}${c.matricula||""} ${c.marca||""} ${c.modelo||""}`.trim(),imp:c=>totalCompra(c),fecha:c=>c.fecha,paid:c=>c.pagado==="Sí"},
+  {t:"taller",lbl:"Taller",arr:()=>DATA.taller,name:t=>t.proveedor,con:t=>`${t.numero_factura?("Fra "+t.numero_factura+" · "):""}${t.matricula||""} ${t.tipo||""}`.trim(),imp:t=>Number(t.coste)||0,fecha:t=>t.fecha,paid:t=>t.pago==="Pagado"},
+  {t:"postventa",lbl:"Postventa",arr:()=>DATA.postventa,name:p=>p.proveedor,con:p=>`${p.matricula||""} ${p.tipo||""}`.trim(),imp:p=>Number(p.coste)||0,fecha:p=>p.fecha,paid:p=>p.pago==="Pagado"},
+  {t:"logistica",lbl:"Transporte",arr:()=>DATA.logistica,name:l=>l.transportista_nombre,con:l=>`${l.matricula||""} ${l.origen||""}→${l.destino||""}`.trim(),imp:l=>Number(l.coste)||0,fecha:l=>l.fecha_entrega||l.fecha_recogida,paid:l=>l.pagado==="Sí"},
+  {t:"gestoria",lbl:"Gestoría",arr:()=>DATA.gestoria,name:g=>g.gestoria,con:g=>`${g.numero_factura?("Fra "+g.numero_factura+" · "):""}${g.matricula||""} ${g.tipo||""}`.trim(),imp:g=>Number(g.coste)||0,fecha:g=>g.fecha_factura||g.fecha_solicitud,paid:g=>g.pagado==="Sí"},
 ];
 const CONCIL_SRC_INGRESO=[
-  {t:"ventas",lbl:"Venta",arr:()=>DATA.ventas,name:s=>s.cliente,con:s=>`${s.numero_factura||s.numero_proforma||""} · ${s.matricula||""} ${s.marca||""} ${s.modelo||""}`.trim(),imp:s=>Number(s.precio)||0,fecha:s=>s.fecha},
-  {t:"cobros",lbl:"Cobro",arr:()=>DATA.cobros,name:c=>"",con:c=>`${c.medio||""} ${c.cambio_matricula||""}`.trim(),imp:c=>Number(c.importe)||0,fecha:c=>c.fecha},
-  {t:"facturas_emitidas",lbl:"Factura emitida",arr:()=>DATA.facturas_emitidas,name:f=>f.cliente,con:f=>`${f.numero||""} · ${f.tipo||""}`.trim(),imp:f=>(Number(f.base)||0)*(1+(Number(f.iva_pct)||0)/100),fecha:f=>f.fecha},
+  {t:"ventas",lbl:"Venta",arr:()=>DATA.ventas,name:s=>s.cliente,con:s=>`${s.numero_factura||s.numero_proforma||""} · ${s.matricula||""} ${s.marca||""} ${s.modelo||""}`.trim(),imp:s=>Number(s.precio)||0,fecha:s=>s.fecha,paid:s=>false},
+  {t:"cobros",lbl:"Cobro",arr:()=>DATA.cobros,name:c=>"",con:c=>`${c.medio||""} ${c.cambio_matricula||""}`.trim(),imp:c=>Number(c.importe)||0,fecha:c=>c.fecha,paid:c=>false},
+  {t:"facturas_emitidas",lbl:"Factura emitida",arr:()=>DATA.facturas_emitidas,name:f=>f.cliente,con:f=>`${f.numero||""} · ${f.tipo||""}`.trim(),imp:f=>(Number(f.base)||0)*(1+(Number(f.iva_pct)||0)/100),fecha:f=>f.fecha,paid:f=>false},
 ];
 function concilSrc(t){return [...CONCIL_SRC_PAGO,...CONCIL_SRC_INGRESO].find(s=>s.t===t);}
 function concilLineasDe(movId){return (DATA.conciliaciones||[]).filter(l=>l.movimiento_id===movId);}
 function concilRefLabel(l){const s=concilSrc(l.ref_tipo);if(!s)return l.concepto||(l.ref_tipo+" #"+l.ref_id);const r=s.arr().find(x=>x.id===l.ref_id);if(!r)return (l.concepto||`${s.lbl} #${l.ref_id}`);return `${s.lbl}: ${s.name(r)||s.con(r)||("#"+l.ref_id)}`;}
-function concilCandidatos(m){
+const CONCIL_STOP=new Set(["factura","facturas","fra","fras","pago","pagos","pagar","concepto","transferencia","transf","recibo","adeudo","abono","compra","compras","venta","ventas","nomina","cuota","cuotas","varios","importe","total","numero","enero","febrero","marzo","abril","mayo","junio","julio","agosto","agost","septiembre","octubre","noviembre","diciembre","del","los","las","por","para","con","sus"]);
+function _tokens(s,min){return _norm(s||"").split(/[^a-z0-9áéíóúñ]+/).filter(w=>w.length>=(min||4)&&!CONCIL_STOP.has(w));}
+// Candidatos a conciliar. Con q → busca en TODO. Sin q → propone SOLO lo relacionado (proveedor/cliente, importe, fecha).
+function concilCandidatos(m,q){
   const pago=(Number(m.importe)||0)<0;
   const srcs=pago?CONCIL_SRC_PAGO:CONCIL_SRC_INGRESO;
-  const target=Math.abs(Number(m.importe)||0)||1;
-  const con=_norm(m.concepto||"");
-  const out=[];
+  const target=Math.abs(Number(m.importe)||0)||0;
+  const fMov=(m.fecha||"").slice(0,10);
+  const all=[];
   srcs.forEach(s=>s.arr().forEach(r=>{
     const imp=Math.abs(Number(s.imp(r))||0);if(imp<=0)return;
-    const nm=_norm(s.name(r)||"");
-    let score=0;
-    if(nm){const toks=nm.split(/\s+/).filter(w=>w.length>=4);if(toks.some(w=>con.includes(w)))score+=100;}
-    const dImp=Math.abs(imp-target);
-    if(dImp<0.02)score+=60;else if(imp<=target+0.02)score+=15;
-    score+=Math.max(0,25-dImp/target*25);
-    out.push({ref_tipo:s.t,ref_id:r.id,lbl:s.lbl,name:s.name(r)||"",con:s.con(r),imp,fecha:s.fecha(r),score});
+    all.push({ref_tipo:s.t,ref_id:r.id,lbl:s.lbl,name:s.name(r)||"",con:s.con(r),imp,fecha:s.fecha(r),paid:!!(s.paid&&s.paid(r))});
   }));
-  out.sort((a,b)=>b.score-a.score||b.imp-a.imp);
-  return out;
+  if(q&&q.trim()){
+    const qq=_norm(q);
+    return all.filter(c=>_norm(c.lbl+" "+c.name+" "+c.con).includes(qq)||String(Math.round(c.imp)).includes(qq.replace(/\D/g,""))).slice(0,60);
+  }
+  const conTok=_tokens(m.concepto,4);
+  const scored=all.filter(c=>!c.paid).map(c=>{
+    const nameNorm=_norm(c.name);
+    const nameTok=_tokens(c.name,3).filter(w=>!["sl","sa","slu","scp","srl","sociedad","limitada","gestoria","gestoría","asesoria","asesoría","taller","talleres","auto","autos","motor"].includes(w));
+    const nameHit=nameTok.some(w=>conTok.includes(w))||conTok.some(w=>w.length>=4&&nameNorm.includes(w));
+    const dImp=Math.abs(c.imp-target);
+    const exact=dImp<0.02, le=target&&c.imp<=target+0.02;
+    let dDias=999;try{dDias=Math.abs((new Date(fMov)-new Date((c.fecha||"").slice(0,10)))/86400000);}catch(_){}
+    let score=(nameHit?100:0)+(exact?60:(le?15:0))+Math.max(0,25-(target?dImp/target*25:25))+Math.max(0,15-dDias/6);
+    return {...c,nameHit,exact,score};
+  });
+  const named=scored.filter(c=>c.nameHit);
+  let res = named.length ? scored.filter(c=>c.nameHit||c.exact)
+                         : scored.filter(c=>c.exact||(target&&Math.abs(c.imp-target)<target*0.1));
+  res.sort((a,b)=>b.score-a.score||((a.fecha||"")<(b.fecha||"")?1:-1));
+  return res;
 }
 let concilState=null;
 function openConciliar(movId){
@@ -1785,12 +1800,11 @@ function openConciliar(movId){
 }
 function concilCandsHtml(){
   const st=concilState,m=st.m;
-  const cands=concilCandidatos(m).filter(c=>!st.lines.some(l=>l.ref_tipo===c.ref_tipo&&l.ref_id===c.ref_id));
-  const q=_norm(st.q||"");
-  const candF=q?cands.filter(c=>_norm(c.lbl+" "+c.name+" "+c.con).includes(q)||String(Math.round(c.imp)).includes(q.replace(/\D/g,""))):cands;
-  return candF.slice(0,40).map(c=>`<div class="tl-row" style="align-items:center">
-     <span style="max-width:70%">${`<span class="minipill" style="background:var(--line-2);color:var(--muted)">${esc(c.lbl)}</span>`} <b>${esc(c.name||"—")}</b> · ${esc(c.con)} <span style="color:var(--muted-2);font-size:11px">${fdate(c.fecha)}</span></span>
-     <span style="display:flex;align-items:center;gap:6px"><b>${eur2(c.imp)}</b> <button class="btn ghost sm" onclick="concilAdd('${c.ref_tipo}',${c.ref_id})">+ añadir</button></span></div>`).join("")||'<div style="color:var(--muted);font-size:12.5px">Sin documentos que proponer. Ajusta la búsqueda.</div>';
+  const cands=concilCandidatos(m,st.q).filter(c=>!st.lines.some(l=>l.ref_tipo===c.ref_tipo&&l.ref_id===c.ref_id));
+  if(!cands.length)return '<div style="color:var(--muted);font-size:12.5px">'+(st.q?'Sin resultados para la búsqueda.':'No hay documentos pendientes que coincidan por proveedor/cliente o importe. Usa el buscador para elegir manualmente.')+'</div>';
+  return cands.slice(0,40).map(c=>`<div class="tl-row" style="align-items:center">
+     <span style="max-width:66%"><span class="minipill" style="background:var(--line-2);color:var(--muted)">${esc(c.lbl)}</span> <b>${esc(c.name||"—")}</b> · ${esc(c.con)} <span style="color:var(--muted-2);font-size:11px">${fdate(c.fecha)}</span></span>
+     <span style="display:flex;align-items:center;gap:6px"><b>${eur2(c.imp)}</b> <button class="btn ghost sm" onclick="concilAdd('${c.ref_tipo}',${c.ref_id})">+ añadir</button></span></div>`).join("");
 }
 function renderConcil(){
   const st=concilState,m=st.m,target=Math.abs(Number(m.importe)||0);
