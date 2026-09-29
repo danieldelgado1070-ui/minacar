@@ -1768,9 +1768,12 @@ function concilCandidatos(m,q){
   const target=Math.abs(Number(m.importe)||0)||0;
   const fMov=(m.fecha||"").slice(0,10);
   const all=[];
+  const movId=concilState?concilState.movId:null;
+  const aplicadoOtros=(rt,ri)=>(DATA.conciliaciones||[]).filter(l=>l.ref_tipo===rt&&l.ref_id===ri&&l.movimiento_id!==movId).reduce((a,l)=>a+Math.abs(Number(l.importe)||0),0);
   srcs.forEach(s=>s.arr().forEach(r=>{
-    const imp=Math.abs(Number(s.imp(r))||0);if(imp<=0)return;
-    all.push({ref_tipo:s.t,ref_id:r.id,lbl:s.lbl,name:s.name(r)||"",con:s.con(r),imp,fecha:s.fecha(r),
+    const tot=Math.abs(Number(s.imp(r))||0);if(tot<=0)return;
+    const pend=tot-aplicadoOtros(s.t,r.id);if(pend<=0.02)return;   // ya conciliado del todo en otros movimientos
+    all.push({ref_tipo:s.t,ref_id:r.id,lbl:s.lbl,name:s.name(r)||"",con:s.con(r),imp:pend,total:tot,fecha:s.fecha(r),
       paid:!!(s.paid&&s.paid(r)),
       plate:String(r.matricula||"").toUpperCase().replace(/\s/g,""),
       vin:String(r.bastidor||"").toUpperCase().replace(/\s/g,"")});
@@ -1818,7 +1821,7 @@ function concilCandsHtml(){
   if(!cands.length)return '<div style="color:var(--muted);font-size:12.5px">'+(st.q?'Sin resultados para la búsqueda.':'No hay documentos pendientes que coincidan por proveedor/cliente o importe. Usa el buscador para elegir manualmente.')+'</div>';
   return cands.slice(0,40).map(c=>`<div class="tl-row" style="align-items:center">
      <span style="max-width:66%"><span class="minipill" style="background:var(--line-2);color:var(--muted)">${esc(c.lbl)}</span> <b>${esc(c.name||"—")}</b> · ${esc(c.con)} <span style="color:var(--muted-2);font-size:11px">${fdate(c.fecha)}</span></span>
-     <span style="display:flex;align-items:center;gap:6px"><b>${eur2(c.imp)}</b> <button class="btn ghost sm" onclick="concilAdd('${c.ref_tipo}',${c.ref_id})">+ añadir</button></span></div>`).join("");
+     <span style="display:flex;align-items:center;gap:6px"><b>${eur2(c.imp)}</b>${(c.total&&c.total-c.imp>0.02)?`<span style="font-size:10px;color:var(--muted-2)">pend. de ${eur2(c.total)}</span>`:""} <button class="btn ghost sm" onclick="concilAdd('${c.ref_tipo}',${c.ref_id})">+ añadir</button></span></div>`).join("");
 }
 function renderConcil(){
   const st=concilState,m=st.m,target=Math.abs(Number(m.importe)||0);
@@ -1840,11 +1843,14 @@ function renderConcil(){
 function concilAdd(refTipo,refId){
   const st=concilState,target=Math.abs(Number(st.m.importe)||0);
   const s=concilSrc(refTipo);const r=s?s.arr().find(x=>x.id===refId):null;
-  const docImp=r?Math.abs(Number(s.imp(r))||0):0;
+  const tot=r?Math.abs(Number(s.imp(r))||0):0;
+  const apOtros=(DATA.conciliaciones||[]).filter(l=>l.ref_tipo===refTipo&&l.ref_id===refId&&l.movimiento_id!==st.movId).reduce((a,l)=>a+Math.abs(Number(l.importe)||0),0);
+  const pend=Math.max(0,tot-apOtros);
   const aplicado=st.lines.reduce((a,l)=>a+(Number(l.importe)||0),0);
   const resto=Math.max(0,target-aplicado);
-  const imp=docImp>0?Math.min(docImp,resto>0?resto:docImp):resto;
-  st.lines.push({ref_tipo:refTipo,ref_id:refId,importe:Math.round((imp||docImp)*100)/100,concepto:r?concilRefLabel({ref_tipo:refTipo,ref_id:refId}):""});
+  const base=pend||tot;
+  const imp=base>0?Math.min(base,resto>0?resto:base):resto;
+  st.lines.push({ref_tipo:refTipo,ref_id:refId,importe:Math.round((imp||base)*100)/100,concepto:r?concilRefLabel({ref_tipo:refTipo,ref_id:refId}):""});
   renderConcil();
 }
 function concilImp(i,val){if(concilState.lines[i]){concilState.lines[i].importe=Number(val)||0;renderConcil();}}
@@ -3177,9 +3183,16 @@ function ocrParse(t){
   const up=T.toUpperCase();
   const lines=up.split(/\n+/).map(s=>s.trim());
   const out={};
+  // ¿Es un DNI? (banda MRZ con IDESP / relleno <<)
+  const mrzLines=lines.filter(l=>{const c=l.replace(/\s/g,"");return /IDESP/.test(c)||/^[A-Z0-9<]{20,}$/.test(c);});
+  const esDNI=mrzLines.length>0;
   // NIF/CIF/DNI/NIE: candidatos con límites de palabra; preferir DNI/NIE válido (evita el nº de soporte del DNI)
   const cands=[...up.matchAll(/\b([0-9]{8}[A-Z]|[XYZ][0-9]{7}[A-Z]|[ABCDEFGHJNPQRSUVW][0-9]{7}[0-9A-J])\b/g)].map(m=>m[1]);
-  const pick=cands.find(c=>/^[0-9]{8}[A-Z]$/.test(c)&&dniValido(c))||cands.find(c=>/^[XYZ]/.test(c)&&dniValido(c))
+  // En un DNI, el número aparece en la banda MRZ pegado a otros dígitos: búscalo sin límites de palabra
+  const mrzTxt=mrzLines.join(" ");
+  const mrzCands=[...mrzTxt.matchAll(/([0-9]{8}[A-Z]|[XYZ][0-9]{7}[A-Z])/g)].map(m=>m[1]).filter(dniValido);
+  const pick=mrzCands[0]
+    ||cands.find(c=>/^[0-9]{8}[A-Z]$/.test(c)&&dniValido(c))||cands.find(c=>/^[XYZ]/.test(c)&&dniValido(c))
     ||cands.find(c=>/^[0-9]{8}[A-Z]$/.test(c)||/^[XYZ]/.test(c))||cands[0];
   if(pick)out.nif=pick;
   const mmail=T.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
@@ -3209,6 +3222,20 @@ function ocrParse(t){
     const vias=/(PLAZA|PLZA|PZA|CALLE|C\/|AVDA|AVENIDA|\bAV\b|CTRA|CARRETERA|PASEO|CAMINO|URBANIZACI[OÓ]N|URB|RONDA|TRAVES[IÍ]A|GLORIETA|PARAJE|BARRIO|POL[IÍ]GONO|PJE|CAMÍNO)/;
     for(const l of lines){const m=l.match(vias);if(m&&l.length<=70){let d=l.slice(l.indexOf(m[0])).replace(/[^A-ZÑÁÉÍÓÚ0-9 .,ºª\/-]/g," ").replace(/\s{2,}/g," ").trim();if(d.replace(/\s/g,"").length>=6){out.direccion=d;break;}}}
   }
+  // DNI: el domicilio suele venir sin "CALLE/AVDA" (solo el nombre de la vía + número). Tómalo del reverso.
+  if(!out.direccion&&esDNI){
+    const bad=/DOCUMENTO|NACIONAL|IDENTIDAD|APELLIDOS|NOMBRE|SEXO|NACIONALIDAD|NACIMIENTO|VALIDEZ|EMISI[OÓ]N|SOPORTE|IDESP|LUGAR|HIJO|EQUIPO|ESPA[NÑ]A|\bESP\b|IDENTITY|CARD|VALIDITY/;
+    const dl=lines.find(l=>{const c=l.replace(/[^A-ZÑÁÉÍÓÚ0-9 ]/g," ").replace(/\s{2,}/g," ").trim();
+      if(c.length<8||c.length>50)return false;
+      if(bad.test(c))return false;
+      if((c.match(/</g)||[]).length)return false;
+      if(/\b\d{2}\s+\d{2}\s+(19|20)\d{2}\b/.test(c))return false;   // línea de fecha
+      if(!/[A-ZÑÁÉÍÓÚ]{4,}/.test(c))return false;                    // nombre de vía (palabra larga)
+      if(!/\b\d{1,4}\b/.test(c))return false;                        // número de portal
+      return true;});
+    if(dl)out.direccion=dl.replace(/[^A-ZÑÁÉÍÓÚ0-9 .,ºª\/-]/g," ").replace(/\s{2,}/g," ").trim();
+  }
+  if(out.direccion)out.direccion=out.direccion.replace(/^[^0-9A-ZÑÁÉÍÓÚ]+/,"").replace(/\s{2,}/g," ").trim();
   return out;
 }
 function ocrAplicar(c){
