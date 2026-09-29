@@ -3178,9 +3178,8 @@ function ocrParse(t){
   const md=up.match(/(?:DOMICILIO|DIRECCI[OÓ]N)\s*[:\-]?\s*\n?\s*([A-ZÑÁÉÍÓÚ0-9 .,ºª\/-]{6,60})/);
   if(md)out.direccion=md[1].trim().replace(/\s{2,}/g," ");
   if(!out.direccion){
-    const vias=/^(PLAZA|PLZA|CALLE|C\/|AVDA|AVENIDA|AV|CTRA|CARRETERA|PASEO|CAMINO|URB|URBANIZACION|RONDA|TRAVESIA|GLORIETA|PARAJE|BARRIO|POLIGONO)\b/;
-    const dl=lines.find(l=>vias.test(l)&&l.replace(/\s/g,"").length>=6&&l.length<=60);
-    if(dl)out.direccion=dl.replace(/[^A-ZÑÁÉÍÓÚ0-9 .,ºª\/-]/g," ").replace(/\s{2,}/g," ").trim();
+    const vias=/(PLAZA|PLZA|PZA|CALLE|C\/|AVDA|AVENIDA|\bAV\b|CTRA|CARRETERA|PASEO|CAMINO|URBANIZACI[OÓ]N|URB|RONDA|TRAVES[IÍ]A|GLORIETA|PARAJE|BARRIO|POL[IÍ]GONO|PJE|CAMÍNO)/;
+    for(const l of lines){const m=l.match(vias);if(m&&l.length<=70){let d=l.slice(l.indexOf(m[0])).replace(/[^A-ZÑÁÉÍÓÚ0-9 .,ºª\/-]/g," ").replace(/\s{2,}/g," ").trim();if(d.replace(/\s/g,"").length>=6){out.direccion=d;break;}}}
   }
   return out;
 }
@@ -3208,7 +3207,9 @@ async function ocrDePDF(file){
   const n=Math.min(pdf.numPages,3);   // primeras páginas (suficiente para DNI/CIF/factura)
   for(let p=1;p<=n;p++){
     const page=await pdf.getPage(p);
-    const vp=page.getViewport({scale:3});
+    const b0=page.getViewport({scale:1});
+    const scale=Math.min(4,Math.max(2.5,2200/Math.max(b0.width,b0.height)));   // sube la resolución de páginas pequeñas
+    const vp=page.getViewport({scale});
     const cv=document.createElement("canvas");cv.width=vp.width;cv.height=vp.height;
     await page.render({canvasContext:cv.getContext("2d"),viewport:vp}).promise;
     // Si la página ya trae texto embebido, úsalo (más preciso que el OCR)
@@ -3227,25 +3228,30 @@ function ocrPrepImg(file){
     img.onerror=()=>res(file);img.src=URL.createObjectURL(file);
   });
 }
+async function procesarEscaneoOCR(file,table){
+  if(!file)return;
+  const esPdf=/pdf$/i.test(file.type||"")||/\.pdf$/i.test(file.name||"");
+  if(!esPdf&&!/^image\//i.test(file.type||"")){toast("Sube una imagen (foto/escaneo) o un PDF");return;}
+  toast((esPdf?"Leyendo el PDF":"Leyendo el documento")+"… la primera vez tarda unos segundos");
+  try{
+    let texto;
+    if(esPdf){texto=await ocrDePDF(file);}
+    else{const w=await ocrEnsure();const src=await ocrPrepImg(file);const {data}=await w.recognize(src);texto=data&&data.text||"";}
+    const campos=ocrParse(texto);
+    ocrAplicar(campos);
+    const nm={nif:"NIF/CIF",email:"email",telefono:"teléfono",nombre:"nombre",cp:"CP",direccion:"dirección"};
+    const found=Object.keys(campos).filter(k=>campos[k]).map(k=>nm[k]||k);
+    toast(found.length?("Detectado: "+found.join(", ")+" · revísalo antes de guardar"):"No pude extraer datos claros; rellénalo a mano");
+  }catch(e){toast("No se pudo leer el documento (prueba con una foto nítida o un PDF válido)");}
+}
 async function escanearOCR(table){
   const inp=document.createElement("input");inp.type="file";inp.accept="image/*,application/pdf";
-  inp.onchange=async()=>{
-    const file=inp.files&&inp.files[0];if(!file)return;
-    const esPdf=/pdf$/i.test(file.type||"")||/\.pdf$/i.test(file.name||"");
-    toast((esPdf?"Leyendo el PDF":"Leyendo el documento")+"… la primera vez tarda unos segundos");
-    try{
-      let texto;
-      if(esPdf){texto=await ocrDePDF(file);}
-      else{const w=await ocrEnsure();const src=await ocrPrepImg(file);const {data}=await w.recognize(src);texto=data&&data.text||"";}
-      const campos=ocrParse(texto);
-      ocrAplicar(campos);
-      const nm={nif:"NIF/CIF",email:"email",telefono:"teléfono",nombre:"nombre",cp:"CP"};
-      const found=Object.keys(campos).filter(k=>campos[k]).map(k=>nm[k]||k);
-      toast(found.length?("Detectado: "+found.join(", ")+" · revísalo antes de guardar"):"No pude extraer datos claros; rellénalo a mano");
-    }catch(e){toast("No se pudo leer el documento (prueba con una foto nítida o un PDF válido)");}
-  };
+  inp.onchange=()=>{const f=inp.files&&inp.files[0];if(f)procesarEscaneoOCR(f,table);};
   inp.click();
 }
+function ocrDragOver(e){e.preventDefault();try{e.dataTransfer.dropEffect="copy";}catch(_){}const dz=document.getElementById("ocr-dz");if(dz)dz.style.background="var(--ok-s)";}
+function ocrDragLeave(e){const dz=document.getElementById("ocr-dz");if(dz)dz.style.background="";}
+function ocrDrop(e,table){e.preventDefault();const dz=document.getElementById("ocr-dz");if(dz)dz.style.background="";const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];if(f)procesarEscaneoOCR(f,table);}
 
 async function openForm(table,id=null,prefill=null){
   if(bloqueadoRO(table))return;
@@ -3282,7 +3288,7 @@ async function openForm(table,id=null,prefill=null){
   }).join("")+"</div>";
   if(sc.nota)$("#modal-body").insertAdjacentHTML("afterbegin",`<div style="background:var(--info-s);border-radius:8px;padding:8px 12px;font-size:12.5px;color:var(--info);margin-bottom:10px">${sc.nota}</div>`);
   if(["clientes","proveedores","transportistas","gestorias"].includes(table))
-    $("#modal-body").insertAdjacentHTML("afterbegin",`<div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><button type="button" class="btn ghost sm" onclick="escanearOCR('${table}')">📷 Escanear documento (OCR)</button><span style="font-size:11px;color:var(--muted-2)">DNI, CIF, factura… (foto o PDF). Rellena los datos que detecte. Revísalos antes de guardar.</span></div>`);
+    $("#modal-body").insertAdjacentHTML("afterbegin",`<div id="ocr-dz" ondragover="ocrDragOver(event)" ondragleave="ocrDragLeave(event)" ondrop="ocrDrop(event,'${table}')" style="margin-bottom:10px;border:1.5px dashed var(--line);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;transition:background .15s"><button type="button" class="btn ghost sm" onclick="escanearOCR('${table}')">📷 Escanear documento (OCR)</button><span style="font-size:11px;color:var(--muted-2)">Arrastra aquí un DNI, CIF o factura (foto o PDF) — o pulsa el botón. Rellena lo que detecte; revísalo antes de guardar.</span></div>`);
   const nifEl=$("#f-nif");if(nifEl){nifEl.insertAdjacentHTML("afterend",'<div id="nif-msg" class="nif-msg"></div>');nifEl.oninput=()=>chkNif(nifEl.value);chkNif(nifEl.value);}
   $("#modal-bg").classList.add("open");
 }
