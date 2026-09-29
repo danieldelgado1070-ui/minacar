@@ -1812,6 +1812,16 @@ def list_compras(q=None):
     return rows_to_list(rows)
 
 
+def margen_bruto(precio, regimen, coste):
+    """Margen bruto comparando BASES: base imponible de la venta menos coste.
+    En REBU el IVA recae solo sobre el margen, así que se descuenta del precio."""
+    precio = float(precio or 0)
+    coste = float(coste or 0)
+    if (regimen or "") == "REBU":
+        return (precio - coste) * 100.0 / 121.0
+    return precio / 1.21 - coste
+
+
 def list_ventas(q=None):
     conn = get_db()
     base = """
@@ -2121,11 +2131,15 @@ def dashboard(params):
         args_s,
     ).fetchone()
 
-    # Margen: por cada venta, precio de venta menos coste de compra del vehiculo
+    # Margen bruto: comparar BASES (base imponible de la venta − coste). REBU: IVA sobre el margen.
     margen_row = conn.execute(
-        f"""SELECT COALESCE(SUM(s.precio - COALESCE(
-                    (SELECT c.precio + c.gastos FROM compras c
-                     WHERE c.vehiculo_id = s.vehiculo_id ORDER BY c.id DESC LIMIT 1), 0)),0) AS margen
+        f"""SELECT COALESCE(SUM(
+                CASE WHEN s.regimen='REBU'
+                    THEN (s.precio - COALESCE((SELECT c.precio + c.gastos FROM compras c
+                          WHERE c.vehiculo_id = s.vehiculo_id ORDER BY c.id DESC LIMIT 1),0)) * 100.0/121.0
+                    ELSE s.precio/1.21 - COALESCE((SELECT c.precio + c.gastos FROM compras c
+                          WHERE c.vehiculo_id = s.vehiculo_id ORDER BY c.id DESC LIMIT 1),0)
+                END),0) AS margen
             FROM ventas s LEFT JOIN vehiculos v ON v.id=s.vehiculo_id {where_s}""",
         args_s,
     ).fetchone()
@@ -3045,7 +3059,7 @@ def informe_xlsx():
         ("Ref web", "ref_web")])
     ventas = list_ventas()
     for s in ventas:
-        s["margen"] = (s.get("precio") or 0) - (s.get("coste") or 0)
+        s["margen"] = margen_bruto(s.get("precio"), s.get("regimen"), s.get("coste"))
     add("Ventas", ventas, [
         ("Fecha", "fecha"), ("Nº factura", "numero_factura"), ("Matrícula", "matricula"),
         ("Marca", "marca"), ("Modelo", "modelo"), ("Cliente", "cliente"),

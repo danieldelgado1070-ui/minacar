@@ -558,7 +558,7 @@ function enrich(){
     v._enStockFisico=!!v.recepcionado&&!vendido;      // físico: recepcionado en instalaciones
     v._valorCompra=base+gastos;                        // valor de adquisición (existencias a coste de compra)
     v._cruz=v._venta?((Number(v._venta.cruz_fin)||0)+(Number(v._venta.cruz_seg)||0)+(Number(v._venta.cruz_gar)||0)):0;
-    v._margen=v._venta?(Number(v._venta.precio)||0)-v._coste:null;
+    v._margen=v._venta?margenBruto(v._venta.precio,v._venta.regimen,v._coste):null;
     v._resultado=v._venta?v._margen+v._cruz:null;
     const entrega=(v._log&&v._log.estado==="Entregado"&&v._log.fecha_entrega)?v._log.fecha_entrega:(v._compra?v._compra.fecha:v.creado);
     const fin=v._venta?v._venta.fecha:todayISO();
@@ -847,7 +847,7 @@ function viewCompras(){
 function viewVentas(){
   const oc=ocultaCostes();
   const rows=DATA.ventas.filter(s=>s.estado_factura==="factura").filter(s=>matchQ(s,[s.matricula,s.marca,s.modelo,s.cliente,s.numero_factura,s.numero_proforma,s.regimen])).map(s=>{
-    const margen=(Number(s.precio)||0)-(Number(s.coste)||0);
+    const margen=margenBruto(s.precio,s.regimen,s.coste);
     const prof=s.estado_factura!=="factura";
     const doc=prof?`<span class="minipill" style="background:var(--warn-s);color:var(--warn)">Proforma ${esc(s.numero_proforma||"")}</span>`:`<span class="minipill" style="background:var(--ok-s);color:var(--ok)">Factura ${esc(s.numero_factura||"")}</span>`;
     return `<tr data-veh="${s.vehiculo_id||''}">
@@ -1230,6 +1230,14 @@ function nombreMes(mes){const[y,m]=mes.split("-").map(Number);return ["enero","f
 // Compra: el "precio" es BASE imponible (sin IVA). IVA soportado y total a pagar:
 function ivaPctCompra(c){return (c.regimen==="REBU")?0:((c.iva_pct!=null&&c.iva_pct!=="")?Number(c.iva_pct):21);}
 function ivaCompra(c){return (Number(c.precio)||0)*ivaPctCompra(c)/100;}                 // IVA soportado de la compra
+// Margen bruto: comparar BASES. Venta a base imponible − coste (compra ya es base sin IVA).
+// En REBU el IVA recae solo sobre el margen, por eso se descuenta del precio de venta.
+function baseVentaImponible(precio,regimen,coste){
+  precio=Number(precio)||0;coste=Number(coste)||0;
+  if(regimen==="REBU")return precio-Math.max(0,precio-coste)*21/121;
+  return precio/1.21;
+}
+function margenBruto(precio,regimen,coste){return baseVentaImponible(precio,regimen,coste)-(Number(coste)||0);}
 function totalCompra(c){return (Number(c.precio)||0)+ivaCompra(c)+(Number(c.gastos)||0);} // importe real a pagar / caja
 function pagadoCompra(c){return (DATA.pagos_prov||[]).filter(p=>p.compra_id===c.id).reduce((s,p)=>s+(Number(p.importe)||0),0);}
 function pendienteCompra(c){return Math.max(0,totalCompra(c)-pagadoCompra(c));}
