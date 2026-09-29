@@ -3310,6 +3310,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "tesseract-core-simd.wasm": "application/wasm",
             "tesseract-core-simd.wasm.js": "application/javascript; charset=utf-8",
             "spa.traineddata.gz": "application/octet-stream",
+            "pdf.min.js": "application/javascript; charset=utf-8",
+            "pdf.worker.min.js": "application/javascript; charset=utf-8",
         }
         ct = allowed.get(name)
         if not ct:
