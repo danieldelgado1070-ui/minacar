@@ -845,7 +845,7 @@ function viewCompras(){
 
 /* ---------- VENTAS ---------- */
 function viewVentas(){
-  const oc=ocultaCostes();
+  const oc=true;   // en el listado de Ventas no se muestran coste ni margen
   const rows=DATA.ventas.filter(s=>s.estado_factura==="factura").filter(s=>matchQ(s,[s.matricula,s.marca,s.modelo,s.cliente,s.numero_factura,s.numero_proforma,s.regimen])).map(s=>{
     const margen=margenBruto(s.precio,s.regimen,s.coste);
     const prof=s.estado_factura!=="factura";
@@ -2433,6 +2433,7 @@ function docsCard(v){
       const badge=oblig?(faltan>0?`<span style="color:var(--danger)">faltan ${faltan}</span>`:`<span style="color:var(--ok)">completo ✓</span>`):`<span style="color:var(--muted-2)">(${n}/${tipos.length})</span>`;
       return `<div style="margin-top:10px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin-bottom:2px">${esc(g.grupo)} ${badge}</div>
         <div style="font-size:11px;color:var(--muted-2);margin-bottom:6px">${sub}</div>
+        <div style="margin-bottom:8px"><button class="btn gold sm" onclick="subirExpediente(${v.id})">📎 Subir todo en un archivo y marcar lo que contiene</button></div>
         <div style="display:flex;flex-direction:column;gap:6px">${tipos.map(t=>fila(t,oblig)).join("")}</div></div>`;
     }
     const n=g.tipos.filter(t=>v._docTipos.has(t)).length;
@@ -2471,6 +2472,42 @@ function adjuntarDoc(vid,tipo){
   inp.click();
 }
 async function quitarDoc(did,vid){if(!confirm("¿Quitar este documento?"))return;await api("/api/documentos/"+did,{method:"DELETE"});toast("Documento quitado");await loadAll();if(vid!=null&&drawer.classList.contains("show"))openDrawer(vid);else render();}
+/* Subir el expediente del vendedor en UN solo archivo y marcar qué documentos contiene */
+function subirExpediente(vid){
+  if(bloqueadoRO("documentos"))return;
+  const v=DATA.vehiculos.find(x=>x.id===vid);if(!v)return;
+  const cli=clienteDeVehiculo(v);const emp=cli?esEmpresaNif(cli.nif):null;
+  const grupo=DOC_GRUPOS.find(g=>g.grupo==="Expediente vendedor")||{tipos:[]};
+  let tipos=grupo.tipos;
+  if(emp===false)tipos=tipos.filter(t=>!DOCS_SOLO_EMPRESA.includes(t));
+  currentForm={table:"__expediente",id:vid};
+  $("#modal-title").textContent="Subir expediente del vendedor (un solo archivo)";
+  $("#modal-body").innerHTML=`<div class="row">
+    <div style="flex:1 1 100%;font-size:12px;color:var(--muted);background:var(--info-s);border-radius:8px;padding:8px 12px;margin-bottom:2px">Sube <b>un único archivo</b> (un PDF con todo, o una foto) y marca qué documentos contiene. Se registrarán todos apuntando a ese mismo archivo — sin escanear uno a uno.</div>
+    <div class="field" style="flex:1 1 100%"><label>Archivo (PDF o imagen) *</label><input type="file" id="exp-file" accept="image/*,application/pdf"></div>
+    <div class="field" style="flex:1 1 100%"><label>¿Qué documentos contiene? *</label>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-top:4px">${tipos.map(t=>`<label style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" class="exp-t" value="${esc(t)}"> ${esc(t)}</label>`).join("")}</div></div>
+  </div>`;
+  const act=document.querySelector(".modal .actions");
+  act.innerHTML='<button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn accent" onclick="guardarExpediente()">Guardar</button>';
+  $("#modal-bg").classList.add("open");
+}
+async function guardarExpediente(){
+  if(_saving)return;_saving=true;
+  try{
+    const vid=currentForm.id, file=$("#exp-file").files[0];
+    const tipos=[...document.querySelectorAll(".exp-t:checked")].map(c=>c.value);
+    if(!file){toast("Elige el archivo del expediente");return;}
+    if(!tipos.length){toast("Marca al menos un documento que contiene el archivo");return;}
+    if(file.size>20*1024*1024){toast("El archivo supera los 20 MB");return;}
+    const dataurl=await new Promise(r=>{const rd=new FileReader();rd.onload=e=>r(e.target.result);rd.readAsDataURL(file);});
+    const res=await api("/api/documento_multi",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({vehiculo_id:vid,tipos,filename:file.name,data:dataurl,fecha:todayISO()})});
+    if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo guardar"));return;}
+    closeModal();toast(tipos.length+(tipos.length===1?" documento registrado":" documentos registrados")+" ✔");
+    await loadAll();if(drawer.classList.contains("show"))openDrawer(vid);
+  }catch(e){toast("Error al subir el expediente");}
+  finally{_saving=false;}
+}
 /* Adjuntar uno o varios ficheros a una gestión → van al expediente del coche. No abre la ficha, solo refresca la vista. */
 function adjuntarDocMod(vid,tipo){
   if(!vid){toast("Esta gestión no tiene coche asociado; no se puede adjuntar al expediente");return;}
@@ -2984,6 +3021,7 @@ const SCHEMAS={
     {k:"entregado",l:"¿Entregado al cliente?",t:"select",opts:["","Sí","No"]},
     {k:"fecha_entrega_cli",l:"Fecha de entrega al cliente",t:"date"},
     {k:"fecha_entrega_doc",l:"Fecha de entrega de la documentación",t:"date"},
+    {k:"detalle_factura",l:"Detalle adicional para el concepto de la factura (opcional)",t:"textarea",full:1},
     {k:"notas",l:"Notas",t:"textarea",full:1}]},
   logistica:{title:"transporte",fields:[
     {k:"vehiculo_id",l:"Vehículo (no aparecen los que ya están en stock)",t:"veh-transporte",req:1,full:1},
@@ -3536,11 +3574,26 @@ async function factura(id){
   const prof=s.estado_factura!=="factura";
   const numDoc=prof?(s.numero_proforma||("PRO-"+s.id)):(s.numero_factura||("V-"+s.id));
   const fechaDoc=prof?(s.fecha_proforma||s.fecha||""):(s.fecha||"");
-  const veh=`${esc(s.marca||"")} ${esc(s.modelo||"")}`.trim();
-  const concepto=`Venta de vehículo usado ${veh}`+(s.matricula?` · Matrícula ${esc(s.matricula)}`:"")+(s.bastidor?` · Bastidor ${esc(s.bastidor)}`:"")+(s.km!=null&&s.km!==""?` · ${num(s.km)} km`:"")+(s.anio?` · Año ${esc(s.anio)}`:"");
-  // Detalle de forma de cobro (solo en la factura definitiva)
+  const vObj=DATA.vehiculos.find(x=>x.id===s.vehiculo_id)||{};
+  const version=s.version||vObj.version||"";
+  const fmat=vObj.fecha_matriculacion||"";
   const cobrosV=(DATA.cobros||[]).filter(c=>c.venta_id===s.id);
   const cobrado=cobrosV.reduce((a,c)=>a+(Number(c.importe)||0),0), pendCob=total-cobrado;
+  const cobradaTotal=total>0&&cobrado>=total-0.01;
+  let concepto=`Venta de vehículo usado ${esc(s.marca||"")} ${esc(s.modelo||"")}${version?" "+esc(version):""}`.replace(/\s+/g," ").trim();
+  const det=[];
+  if(s.matricula)det.push("Matrícula "+esc(s.matricula));
+  if(s.bastidor)det.push("Bastidor "+esc(s.bastidor));
+  if(s.km!=null&&s.km!=="")det.push(num(s.km)+" km");
+  if(fmat)det.push("1ª matriculación "+esc(fdate(fmat)));
+  else if(s.anio)det.push("Año "+esc(s.anio));
+  if(det.length)concepto+=`<br><span style="color:#555;font-size:12px">${det.join(" · ")}</span>`;
+  if(!prof&&cobradaTotal){
+    const medios=[...new Set(cobrosV.map(c=>c.medio).filter(Boolean))].join(", ");
+    const fcob=cobrosV.map(c=>(c.fecha||"").slice(0,10)).filter(Boolean).sort().slice(-1)[0];
+    concepto+=`<br><span style="color:#555;font-size:12px">Cobrada${medios?" mediante "+esc(medios):""}${fcob?" el "+esc(fdate(fcob)):""}</span>`;
+  }
+  if(s.detalle_factura)concepto+=`<br><span style="color:#555;font-size:12px">${esc(s.detalle_factura)}</span>`;
   const cobrosHtml=(!prof&&cobrosV.length)?`<h4 style="margin:22px 0 6px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#888">Forma de cobro</h4>
     <table><thead><tr><th>Medio</th><th>Fecha</th><th class="n">Importe</th></tr></thead><tbody>
     ${cobrosV.map(c=>`<tr><td>${esc(c.medio||"")}${c.banco?` · ${esc(c.banco)}`:""}${c.cuenta?` (${esc(c.cuenta)})`:""}${c.veh_cambio_id?` · coche a cambio ${esc(c.cambio_matricula||"")}`:""}${c.factura_emitida_id?` · incluye ${esc(c.fe_numero||"factura garantía/gestoría")}`:""}</td><td>${esc(fdate(c.fecha))}</td><td class="n">${eur2(c.importe)}</td></tr>`).join("")}

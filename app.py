@@ -727,6 +727,7 @@ def migrate(conn):
         add("compras", "pagado TEXT")
         add("compras", "fecha_pago_est TEXT")
         add("ventas", "fecha_cobro_est TEXT")
+        add("ventas", "detalle_factura TEXT")
         add("ventas", "entregado TEXT")
         add("ventas", "fecha_entrega_cli TEXT")
         add("ventas", "comercial_id INTEGER")
@@ -1012,7 +1013,7 @@ FIELDS = {
                "regimen", "fecha", "precio", "cruz_fin", "cruz_seg", "cruz_gar",
                "forma_pago", "fecha_cobro_est", "entregado",
                "fecha_entrega_cli", "estado_factura", "numero_proforma",
-               "fecha_proforma", "fecha_entrega_doc", "notas"],
+               "fecha_proforma", "fecha_entrega_doc", "detalle_factura", "notas"],
     "comerciales": ["nombre", "nif", "telefono", "email", "fecha_incorporacion",
                     "comision_pct", "franquicia", "activo", "notas"],
     "logistica": ["vehiculo_id", "transportista_id", "transportista", "origen",
@@ -2064,15 +2065,60 @@ def guardar_documento(data):
     return did
 
 
+def guardar_documento_multi(data):
+    """Guarda UN archivo (dataURI) y crea un registro por cada tipo marcado, compartiendo el fichero.
+    Sirve para subir el expediente completo del vendedor en un único archivo."""
+    vid = data.get("vehiculo_id")
+    tipos = [t for t in (data.get("tipos") or []) if str(t).strip()]
+    dataurl = data.get("data") or ""
+    m = re.match(r"data:([^;]+);base64,(.*)", dataurl, re.S)
+    if not m or not vid or not tipos:
+        raise ReglaNegocio("Archivo o tipos no válidos.")
+    mime = m.group(1)
+    try:
+        raw = base64.b64decode(m.group(2))
+    except Exception:
+        raise ReglaNegocio("No se pudo leer el archivo.")
+    if len(raw) > 20 * 1024 * 1024:
+        raise ReglaNegocio("El archivo supera los 20 MB.")
+    ext = (mimetypes.guess_extension(mime) or "").lstrip(".")
+    if not ext:
+        fn = data.get("filename") or ""
+        ext = (fn.rsplit(".", 1)[-1] if "." in fn else "bin").lower()[:5]
+    ext = re.sub(r"[^a-z0-9]", "", ext.lower())[:5] or "bin"
+    conn = get_db()
+    fname = None
+    ids = []
+    for tipo in tipos:
+        cur = conn.execute(
+            """INSERT INTO documentos (vehiculo_id, tipo, nombre_original, mime, fecha, notas)
+               VALUES (?,?,?,?,?,?)""",
+            (vid, tipo, data.get("filename"), mime, data.get("fecha"), data.get("notas")))
+        did = cur.lastrowid
+        ids.append(did)
+        if fname is None:
+            fname = f"doc_{did}.{ext}"
+            with open(os.path.join(DOCS_DIR, fname), "wb") as f:
+                f.write(raw)
+        conn.execute("UPDATE documentos SET archivo=? WHERE id=?", (fname, did))
+    conn.commit()
+    conn.close()
+    return ids
+
+
 def borrar_documento(did):
     conn = get_db()
     row = conn.execute("SELECT archivo FROM documentos WHERE id=?", (did,)).fetchone()
-    if row and row["archivo"]:
-        try:
-            os.remove(os.path.join(DOCS_DIR, row["archivo"]))
-        except OSError:
-            pass
+    arch = row["archivo"] if row else None
     conn.execute("DELETE FROM documentos WHERE id=?", (did,))
+    # borrar el fichero solo si ningún otro registro lo comparte (subida multi-tipo)
+    if arch:
+        n = conn.execute("SELECT COUNT(*) AS c FROM documentos WHERE archivo=?", (arch,)).fetchone()["c"]
+        if n == 0:
+            try:
+                os.remove(os.path.join(DOCS_DIR, arch))
+            except OSError:
+                pass
     conn.commit()
     conn.close()
 
@@ -3681,6 +3727,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except ReglaNegocio as e:
                 return self.send_json({"ok": False, "error": str(e)}, status=400)
             return self.send_json({"id": nid, "ok": True})
+
+        if path == "/api/documento_multi":
+            data = self.read_body()
+            try:
+                ids = guardar_documento_multi(data)
+            except ReglaNegocio as e:
+                return self.send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:
+                return self.send_json({"ok": False, "error": f"Error al guardar el expediente: {e}"}, status=400)
+            return self.send_json({"ids": ids, "ok": True})
 
         table = self._table_from_path()
         if table is None:
