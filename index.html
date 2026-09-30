@@ -3209,9 +3209,14 @@ function ocrParse(t){
   const mmail=T.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
   if(mmail)out.email=mmail[0].toLowerCase();
   // Teléfono: solo si hay palabra clave cerca, o un móvil 6/7 no embebido en otra cifra (evita MRZ/nº de soporte)
+  const OCR_AEAT=/AGENCIA|TRIBUTAR|DELEGACI|OFICINA|ADMINISTRAC|\bAEAT\b|SEDE|MINISTERIO|HACIENDA|REMESA|CERTIFICAD/;
   let tel=null;
-  const mk=T.match(/(?:tel[eé]fono|tel\.?|tfno|m[oó]vil|movil|whatsapp|fax)\D{0,6}((?:\+?34[ .\-]?)?[6-9]\d{2}[ .\-]?\d{2}[ .\-]?\d{2}[ .\-]?\d{2})/i);
-  if(mk)tel=mk[1];else{const mm=T.match(/(?<!\d)([67]\d{2})[ .\-]?(\d{2})[ .\-]?(\d{2})[ .\-]?(\d{2})(?!\d)/);if(mm)tel=mm[0];}
+  for(const l of lines){
+    if(OCR_AEAT.test(l))continue;
+    let m=l.match(/(?:tel[eé]fono|tel\.?|tfno|m[oó]vil|movil|whatsapp|fax)\D{0,6}((?:\+?34[ .\-]?)?[6-9]\d{2}[ .\-]?\d{2}[ .\-]?\d{2}[ .\-]?\d{2})/i);
+    if(!m)m=l.match(/(?<!\d)((?:6|7)\d{2}[ .\-]?\d{2}[ .\-]?\d{2}[ .\-]?\d{2})(?!\d)/);
+    if(m){tel=m[1];break;}
+  }
   if(tel)out.telefono=tel.replace(/[ .\-+]/g,"").replace(/^34(?=\d{9}$)/,"");
   // Nombre: MRZ del DNI, etiqueta de razón social, línea del destinatario o APELLIDOS/NOMBRE
   const mrz=lines.find(l=>{const c=l.replace(/\s/g,"");return /^[A-ZÑ<]{10,}$/.test(c)&&(c.match(/</g)||[]).length>=2&&!/\d/.test(c);});
@@ -3220,9 +3225,12 @@ function ocrParse(t){
   let nomIdx=-1;
   for(let i=0;i<lines.length;i++){if(ocrEsNombreLinea(lines[i])){nomIdx=i;if(!out.nombre)out.nombre=lines[i].replace(/[^A-ZÑÁÉÍÓÚ0-9&.\-\/ ]/g," ").replace(/\s{2,}/g," ").trim();break;}}
   if(!out.nombre){const ap=up.match(/APELLIDOS?\s*[:\-]?\s*\n\s*([A-ZÑÁÉÍÓÚ]{2,20}(?:\s+[A-ZÑÁÉÍÓÚ]{2,20})?)/);const no=up.match(/NOMBRE\s*[:\-]?\s*\n\s*([A-ZÑÁÉÍÓÚ]{2,20})/);if(ap||no)out.nombre=[(no?no[1].trim():""),(ap?ap[1].trim():"")].filter(Boolean).join(" ").replace(/\s{2,}/g," ").trim();}
-  // DIRECCIÓN: la vía que sigue al nombre (destinatario); si no, la primera vía que no sea la oficina AEAT
+  // DIRECCIÓN. Prioridad: 1) Domicilio Fiscal etiquetado (tarjeta AEAT)  2) vía tras el nombre  3) primera vía no-AEAT
   let dirIdx=-1;
-  if(nomIdx>=0){for(let i=nomIdx+1;i<Math.min(lines.length,nomIdx+4);i++){if(OCR_VIA.test(lines[i])){out.direccion=ocrGrabVia(lines[i]);dirIdx=i;break;}}}
+  {let fis=null,fisI=-1,soc=null,socI=-1;
+   for(let i=0;i<lines.length;i++){ if(/DOMICILIO/.test(lines[i])&&OCR_VIA.test(lines[i])){ const near=lines[i]+" "+(lines[i+1]||"")+" "+(lines[i+2]||""); const v=ocrGrabVia(lines[i]); if(/FISCAL/.test(near)&&!fis){fis=v;fisI=i;} else if(!soc){soc=v;socI=i;} } }
+   if(fis){out.direccion=fis;dirIdx=fisI;} else if(soc){out.direccion=soc;dirIdx=socI;} }
+  if(!out.direccion&&nomIdx>=0){for(let i=nomIdx+1;i<Math.min(lines.length,nomIdx+4);i++){if(OCR_VIA.test(lines[i])){out.direccion=ocrGrabVia(lines[i]);dirIdx=i;break;}}}
   if(!out.direccion){for(let i=0;i<lines.length;i++){if(OCR_VIA.test(lines[i])&&lines[i].length<=70){const ctx=(lines[i-1]||"")+" "+lines[i];if(/OFICINA|DELEGACI|GESTION|TRIBUTAR|ADMINISTRAC|AEAT/.test(ctx))continue;out.direccion=ocrGrabVia(lines[i]);dirIdx=i;break;}}}
   const md=up.match(/(?:DOMICILIO|DIRECCI[OÓ]N)\s*[:\-]?\s*\n\s*([A-ZÑÁÉÍÓÚ0-9 .,ºª\/-]{6,60})/);
   if(!out.direccion&&md){const v=md[1].trim().replace(/\s{2,}/g," ");if(!OCR_NBAD.test(v)&&/\d/.test(v))out.direccion=v;}
