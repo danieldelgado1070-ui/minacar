@@ -979,6 +979,13 @@ function abrirRecepcion(vid){
         <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="rc-luz" value="encendida"> 🔴 Encendida (posible avería)</label>
       </div>
     </div>
+    <div class="field" style="margin-top:4px;background:var(--line-2);border-radius:10px;padding:9px 12px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="rc-llav-chk" onchange="onRecLlaves()"> He <b>comprobado el número de llaves</b> entregadas *</label>
+      <div id="rc-llav-box" style="display:none;margin-top:8px">
+        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;margin-right:16px"><input type="radio" name="rc-llav" value="1"> 🔑 1 llave</label>
+        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="rc-llav" value="2"> 🔑🔑 2 llaves</label>
+      </div>
+    </div>
     <div class="field" style="margin-top:4px"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="rc-desp" onchange="onRecDesp()"> El coche <b>tiene desperfectos</b></label></div>
     <div id="rc-desp-box" style="display:none">
       <div style="font-size:12.5px;color:var(--muted);margin:4px 0 8px">Haz clic sobre el dibujo para marcar con una <b>✕</b> dónde están los daños (vista desde arriba). Pulsa una marca para quitarla.</div>
@@ -992,6 +999,7 @@ function abrirRecepcion(vid){
 }
 function onRecDesp(){$("#rc-desp-box").style.display=$("#rc-desp").checked?"block":"none";}
 function onRecLuz(){$("#rc-luz-box").style.display=$("#rc-luz-chk").checked?"block":"none";}
+function onRecLlaves(){$("#rc-llav-box").style.display=$("#rc-llav-chk").checked?"block":"none";}
 function recDiagClick(ev){
   if(ev.target.classList&&ev.target.classList.contains("rc-mark"))return;
   const box=$("#rc-diagram"),r=box.getBoundingClientRect();
@@ -1023,10 +1031,12 @@ async function guardarRecepcion(){
   const vid=currentForm.id,tiene=$("#rc-desp").checked,alm=$("#rc-alm").value;
   const luzChk=$("#rc-luz-chk").checked;
   const luz=luzChk?((document.querySelector('input[name="rc-luz"]:checked')||{}).value||"apagada"):"";
+  const llaves=$("#rc-llav-chk").checked?((document.querySelector('input[name="rc-llav"]:checked')||{}).value||""):"";
+  if(!llaves){toast("Indica el número de llaves (marca la comprobación y elige 1 o 2)");return;}
   const payload={vehiculo_id:vid,fecha:$("#rc-fecha").value||todayISO(),responsable:$("#rc-resp").value.trim(),
     almacen_id:alm&&alm!=="__new__"?Number(alm):null,ubicacion:$("#rc-ubi").value.trim(),
     tiene_desperfectos:tiene?1:0,desperfectos:tiene?$("#rc-desptxt").value.trim():"",
-    marcas:tiene?JSON.stringify(recMarcas):"",luz_motor:luz,notas:$("#rc-notas").value.trim()};
+    marcas:tiene?JSON.stringify(recMarcas):"",luz_motor:luz,llaves:llaves,notas:$("#rc-notas").value.trim()};
   let res=await api("/api/recepciones",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
   if(res&&res.ok===false&&res.puede_forzar){
     const motivo=(prompt("⚠ "+res.error+"\n\nSi el vehículo NO necesita transporte, escribe el motivo para continuar:")||"").trim();
@@ -2367,6 +2377,7 @@ function datosCard(v){
     ["Marca",esc(v.marca||"—")],["Modelo",esc(v.modelo||"—")],
     ["Año",v.anio?esc(v.anio):"—"],["Kilómetros",v.km!=null?num(v.km)+" km":"—"],
     ["Color",esc(v.color||"—")],["Combustible",esc(v.combustible||"—")],
+    ["Cambio",esc(v.transmision||"—")],["Nº de llaves",v.llaves?("🔑 "+esc(v.llaves)):'<span style="color:var(--warn)">sin indicar</span>'],
     ["Estado",estInfo(v.estado).lab+(v.recepcionado?"":" · <span style='color:var(--warn)'>no recepcionado</span>")],
     ["Días en stock",v._dias!=null?v._dias+" días":"—"],
     ["Almacén",esc(v.almacen_nombre||"—")],["Posición",esc(v.ubicacion||"—")],
@@ -2976,6 +2987,8 @@ const SCHEMAS={
     {k:"version",l:"Versión / acabado",t:"text",ph:"Ej.: 1.5 TSI 150 CV Style DSG"},
     {k:"anio",l:"Año",t:"number"},{k:"km",l:"Kilómetros",t:"number"},{k:"color",l:"Color",t:"text"},
     {k:"combustible",l:"Combustible",t:"select",opts:["","Gasolina","Diésel","Híbrido","Eléctrico","GLP","GNC"]},
+    {k:"transmision",l:"Cambio",t:"select",opts:["","Manual","Automático"]},
+    {k:"llaves",l:"Nº de llaves",t:"select",opts:["","1","2"]},
     {k:"carroceria",l:"Carrocería",t:"select",opts:["","Turismo","Berlina","Familiar","Monovolumen","SUV / TT","Coupé","Cabrio","Furgoneta","Minicoche","Pick-up","Otro"]},
     {k:"fecha_matriculacion",l:"Fecha de 1ª matriculación",t:"date"},
     {k:"itv_pasada",l:"¿ITV pasada?",t:"select",opts:["","Sí","No"]},{k:"itv_expira",l:"Caducidad ITV",t:"date"},

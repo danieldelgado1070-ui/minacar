@@ -830,8 +830,11 @@ def migrate(conn):
         # Versión del modelo (relleno manual) y verificación de luz testigo de motor en recepción
         add("vehiculos", "version TEXT")
         add("vehiculos", "luz_motor TEXT")           # '' no verificada | 'apagada' | 'encendida'
+        add("vehiculos", "llaves TEXT")              # '1' | '2' (nº de llaves entregadas)
+        add("vehiculos", "transmision TEXT")         # 'Manual' | 'Automático'
         if has_table("recepciones"):
             add("recepciones", "luz_motor TEXT")
+            add("recepciones", "llaves TEXT")
         # Cobros: banco y nº de cuenta por medio de cobro (financiación/tarjeta/transferencia)
         if has_table("cobros"):
             add("cobros", "banco TEXT")
@@ -1001,6 +1004,7 @@ FIELDS = {
     "transportistas": ["nombre", "nif", "telefono", "email", "direccion", "notas"],
     "vehiculos": ["matricula", "bastidor", "marca", "modelo", "version", "anio", "km",
                   "color", "combustible", "estado", "recepcionado", "luz_motor",
+                  "llaves", "transmision",
                   "reserva_cliente_id", "reserva_fecha", "almacen_id", "ubicacion",
                   "itv_pasada", "itv_expira", "proxima_revision", "etiqueta",
                   "carroceria", "fecha_matriculacion",
@@ -1022,7 +1026,7 @@ FIELDS = {
                   "numero_factura", "factura_recibida", "fecha_factura", "pagado", "fecha_pago_est", "notas"],
     "almacenes": ["nombre", "direccion", "notas"],
     "recepciones": ["vehiculo_id", "fecha", "responsable", "almacen_id",
-                    "ubicacion", "tiene_desperfectos", "desperfectos", "marcas", "luz_motor", "notas"],
+                    "ubicacion", "tiene_desperfectos", "desperfectos", "marcas", "luz_motor", "llaves", "notas"],
     "traspasos": ["vehiculo_id", "almacen_destino", "fecha", "responsable", "notas"],
     "reservas": ["vehiculo_id", "cliente_id", "comercial_id", "fecha", "importe",
                  "forma_cobro", "iban", "email_rgpd", "plazo_dias", "estado", "notas"],
@@ -1212,24 +1216,26 @@ def registrar_recepcion(data):
         if isinstance(marcas, (list, dict)):
             marcas = json.dumps(marcas, ensure_ascii=False)
         luz = data.get("luz_motor") or ""
+        llaves = str(data.get("llaves") or "").strip()
         cur = conn.execute(
             """INSERT INTO recepciones
                (vehiculo_id, fecha, responsable, almacen_id, ubicacion,
-                tiene_desperfectos, desperfectos, marcas, luz_motor, notas)
-               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                tiene_desperfectos, desperfectos, marcas, luz_motor, llaves, notas)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
             (vid, data.get("fecha") or date.today().isoformat(),
              data.get("responsable"), data.get("almacen_id") or None,
              data.get("ubicacion"), 1 if data.get("tiene_desperfectos") else 0,
-             data.get("desperfectos"), marcas, luz, data.get("notas")))
+             data.get("desperfectos"), marcas, luz, llaves or None, data.get("notas")))
         rid = cur.lastrowid
         conn.execute(
             """UPDATE vehiculos SET recepcionado=1,
                    estado=CASE WHEN estado='pendiente' THEN 'disponible' ELSE estado END,
                    ubicacion=COALESCE(?, ubicacion),
                    almacen_id=COALESCE(?, almacen_id),
-                   luz_motor=?
+                   luz_motor=?,
+                   llaves=COALESCE(?, llaves)
                WHERE id=?""",
-            (data.get("ubicacion") or None, data.get("almacen_id") or None, luz, vid))
+            (data.get("ubicacion") or None, data.get("almacen_id") or None, luz, llaves or None, vid))
         # Al recepcionar, el transporte deja de estar 'En tránsito' → 'Entregado'
         fentrega = data.get("fecha") or date.today().isoformat()
         conn.execute(
@@ -2750,11 +2756,16 @@ def _movs_from_rows(rows):
     rows = [r for r in rows if any((c or "").strip() for c in r)]
     if not rows:
         return []
+
+    def _esfecha(c):
+        return ("fecha" in c or "contable" in c or bool(re.search(r"\bf[\.\s]*(contable|valor|oper)", c)))
     header_idx = None
-    for i, r in enumerate(rows[:20]):
+    for i, r in enumerate(rows[:30]):   # los exports de banco traen muchas filas de cabecera
         low = [(c or "").strip().lower() for c in r]
-        if any("fecha" in c for c in low) and any(
-                ("importe" in c or "concepto" in c or "descrip" in c or "cantidad" in c) for c in low):
+        has_imp = any(("importe" in c or "cantidad" in c) for c in low)
+        has_con = any(("concepto" in c or "descrip" in c or "detalle" in c or "movimiento" in c) for c in low)
+        has_date = any(_esfecha(c) for c in low)
+        if has_imp and (has_con or has_date):
             header_idx = i
             break
     movs = []
@@ -2766,19 +2777,31 @@ def _movs_from_rows(rows):
                 if any(k in c for k in keys):
                     return j
             return None
-        cf = col("fecha valor", "fecha oper", "fecha")
+        cf = col("fecha contable", "f. contable", "f.contable", "f contable",
+                 "fecha valor", "f. valor", "f.valor", "f valor", "fecha oper", "fecha") \
+            or col("contable", "valor")
         cc = col("concepto", "descrip", "detalle", "movimiento")
-        ci = col("importe", "cantidad", "cargo", "abono")
+        cben = col("beneficiario", "ordenante")
+        cobs = col("observaci", "ampliado", "concepto ampliado")
+        ci = col("importe", "cantidad")
         cs = col("saldo")
+        if ci is None:
+            return []
         for r in rows[header_idx + 1:]:
-            if ci is None or ci >= len(r):
+            if ci >= len(r):
                 continue
             imp = _num_es(r[ci])
             if imp is None:
                 continue
+            partes = []
+            for cidx in (cc, cben, cobs):
+                if cidx is not None and cidx < len(r):
+                    v = (r[cidx] or "").strip()
+                    if v and v.lower() not in [p.lower() for p in partes]:
+                        partes.append(v)
             movs.append({
                 "fecha": _fecha_es(r[cf]) if cf is not None and cf < len(r) else "",
-                "concepto": (r[cc] or "").strip() if cc is not None and cc < len(r) else "",
+                "concepto": " · ".join(partes),
                 "importe": imp,
                 "saldo": _num_es(r[cs]) if cs is not None and cs < len(r) else None})
     else:
