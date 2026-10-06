@@ -431,6 +431,27 @@ def init_db():
             creado          TEXT DEFAULT (datetime('now','localtime'))
         );
 
+        CREATE TABLE IF NOT EXISTS expedientes (
+            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+            ambito             TEXT,            -- 'lyrwirs' | 'rafael'
+            titulo             TEXT,
+            responsable        TEXT,            -- persona de la empresa a cargo
+            despacho           TEXT,            -- despacho juridico
+            contraria          TEXT,            -- persona/parte contraria
+            resumen            TEXT,
+            tipo_objeto        TEXT,            -- 'vehiculo' | 'inmueble' | 'otro'
+            matricula          TEXT,
+            inmueble           TEXT,
+            judicializado      INTEGER DEFAULT 0,
+            num_procedimiento  TEXT,
+            juzgado            TEXT,
+            tipo_procedimiento TEXT,
+            estado             TEXT DEFAULT 'Abierto',
+            proxima_revision   TEXT,
+            notas              TEXT,
+            creado             TEXT DEFAULT (datetime('now','localtime'))
+        );
+
         CREATE TABLE IF NOT EXISTS logistica (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             vehiculo_id     INTEGER REFERENCES vehiculos(id) ON DELETE CASCADE,
@@ -495,6 +516,7 @@ TABLE_AREA = {
     "facturas_emitidas": "ventas",
     "pagos_prov": "compras",
     "reservas": "reservas",
+    "expedientes": "expedientes",
 }
 
 
@@ -1030,6 +1052,10 @@ FIELDS = {
     "traspasos": ["vehiculo_id", "almacen_destino", "fecha", "responsable", "notas"],
     "reservas": ["vehiculo_id", "cliente_id", "comercial_id", "fecha", "importe",
                  "forma_cobro", "iban", "email_rgpd", "plazo_dias", "estado", "notas"],
+    "expedientes": ["ambito", "titulo", "responsable", "despacho", "contraria", "resumen",
+                    "tipo_objeto", "matricula", "inmueble", "judicializado",
+                    "num_procedimiento", "juzgado", "tipo_procedimiento",
+                    "estado", "proxima_revision", "notas"],
     "garantias": ["vehiculo_id", "cliente_id", "tipo", "fecha_inicio", "meses",
                   "fecha_fin", "alcance", "estado", "notas"],
     "postventa": ["vehiculo_id", "tipo", "descripcion", "proveedor", "prov_id", "fecha",
@@ -1996,6 +2022,19 @@ def list_reservas(q=None):
         out = [r for r in out if any(ql in str(r.get(k) or "").lower()
                for k in ("cliente", "cliente_nif", "matricula", "marca",
                          "modelo", "bastidor", "forma_cobro", "estado"))]
+    return out
+
+
+def list_expedientes(q=None):
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM expedientes ORDER BY judicializado DESC, proxima_revision IS NULL, proxima_revision, id DESC").fetchall()
+    conn.close()
+    out = rows_to_list(rows)
+    if q:
+        ql = q.lower()
+        out = [r for r in out if any(ql in str(r.get(k) or "").lower()
+               for k in ("titulo", "responsable", "despacho", "contraria", "resumen",
+                         "matricula", "inmueble", "num_procedimiento", "juzgado", "ambito", "estado"))]
     return out
 
 
@@ -3552,6 +3591,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_json(list_traspasos(params.get("q", [None])[0]))
         if path == "/api/reservas":
             return self.send_json(list_reservas(params.get("q", [None])[0]))
+        if path == "/api/expedientes":
+            return self.send_json(list_expedientes(params.get("q", [None])[0]))
         if path == "/api/documentos":
             vid = params.get("vehiculo_id", [None])[0]
             return self.send_json(list_documentos(int(vid) if vid else None))
@@ -3871,7 +3912,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "garantias", "postventa", "agenda", "cobros",
                     "seguimientos", "extractos", "movimientos", "listas",
                     "recepciones", "gestorias", "facturas_emitidas", "pagos_prov",
-                    "reservas", "conciliaciones"}
+                    "reservas", "conciliaciones", "expedientes"}
 
     def _table_from_path(self):
         parts = urlparse(self.path).path.strip("/").split("/")

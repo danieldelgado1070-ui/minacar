@@ -391,10 +391,11 @@ const NAV=[
   ["ventas","Ventas",IC.tag,"op"],["reservas","Reservas",IC.stamp,"op"],["proformas","Proformas",IC.stamp,"op"],["facturas_emitidas","Facturas emitidas",IC.stamp,"op"],["tesoreria","Cobros y pagos",IC.euro,"op"],["facturas","Facturas prov.",IC.supplier,"op"],["profesionales","Venta a Profesionales",IC.book,"op"],["bancos","Bancos",IC.bank,"op"],["gestoria","Gestoría",IC.stamp,"op"],["garantias","Garantías",IC.shield,"op"],["postventa","Postventa",IC.support,"op"],["documentos","Documentos",IC.folder,"op"],["almacenes","Almacenes",IC.box,"op"],["web","Web",IC.globe,"op"],
   ["clientes","Clientes",IC.users,"dir"],["proveedores","Proveedores",IC.supplier,"dir"],["comerciales","Comerciales",IC.users,"dir"],["transportistas","Transportistas",IC.wheel,"dir"],["gestorias","Gestorías",IC.stamp,"dir"],
   ["itv","ITV",IC.clock,"an"],["informes","Informes",IC.chart,"an"],
+  ["expedientes","Expedientes jurídicos",IC.shield,"jur"],
   ["usuarios","Usuarios",IC.users,"adm"],
 ];
-const SUB={panel:"Visión general de la operación",stock:"Existencias y ficha 360 de cada vehículo",compras:"Facturas y pagos a proveedor",valoracion:"Precio de compra recomendado según tu margen y el mercado",taller:"Reacondicionamiento y costes de preparación",logistica:"Transporte, entrega y coches pendientes",marketing:"Leads e interesados por vehículo",agenda:"Gestiones diarias de leads y postventa",ventas:"Operaciones cerradas y facturas",reservas:"Reservas de vehículo y contrato de reserva (arras)",proformas:"Proformas / presupuestos (se confirman en factura)",tesoreria:"Facturas pendientes de cobro y de pago",facturas:"Facturas de proveedor: pendientes de recibir y de pagar",profesionales:"Venta a profesionales: informe de deudas (la proforma genera deuda)",bancos:"Extractos bancarios y conciliación de movimientos",gestoria:"Transferencias y exenciones de matriculación",garantias:"Garantías comerciales por vehículo",postventa:"Atenciones tras venta y agenda de reclamaciones",documentos:"Documentación aportada por vehículo",almacenes:"Ubicaciones, valoración del stock y traspasos",web:"Conciliación con minacar.es",clientes:"Directorio de clientes",proveedores:"Directorio de proveedores",comerciales:"Comerciales y cálculo de comisiones",transportistas:"Directorio de transportistas",gestorias:"Directorio de gestorías / asesorías",itv:"Control de ITV por vencimiento y revisiones concertadas",informes:"Rotación y margen por dimensión",usuarios:"Usuarios y permisos de acceso",rc_inicio:"Alquiler de vehículos (en construcción, enlazado con Compraventa)"};
-const NEWMAP={stock:"vehiculos",compras:"compras",taller:"taller",ventas:"ventas",logistica:"logistica",marketing:"leads",gestoria:"gestoria",garantias:"garantias",postventa:"postventa",almacenes:"almacenes",clientes:"clientes",proveedores:"proveedores",comerciales:"comerciales",transportistas:"transportistas",gestorias:"gestorias",proformas:"ventas",usuarios:"usuarios"};
+const SUB={panel:"Visión general de la operación",stock:"Existencias y ficha 360 de cada vehículo",compras:"Facturas y pagos a proveedor",valoracion:"Precio de compra recomendado según tu margen y el mercado",taller:"Reacondicionamiento y costes de preparación",logistica:"Transporte, entrega y coches pendientes",marketing:"Leads e interesados por vehículo",agenda:"Gestiones diarias de leads y postventa",ventas:"Operaciones cerradas y facturas",reservas:"Reservas de vehículo y contrato de reserva (arras)",proformas:"Proformas / presupuestos (se confirman en factura)",tesoreria:"Facturas pendientes de cobro y de pago",facturas:"Facturas de proveedor: pendientes de recibir y de pagar",profesionales:"Venta a profesionales: informe de deudas (la proforma genera deuda)",bancos:"Extractos bancarios y conciliación de movimientos",gestoria:"Transferencias y exenciones de matriculación",garantias:"Garantías comerciales por vehículo",postventa:"Atenciones tras venta y agenda de reclamaciones",documentos:"Documentación aportada por vehículo",almacenes:"Ubicaciones, valoración del stock y traspasos",web:"Conciliación con minacar.es",clientes:"Directorio de clientes",proveedores:"Directorio de proveedores",comerciales:"Comerciales y cálculo de comisiones",transportistas:"Directorio de transportistas",gestorias:"Directorio de gestorías / asesorías",itv:"Control de ITV por vencimiento y revisiones concertadas",informes:"Rotación y margen por dimensión",expedientes:"Seguimiento de expedientes jurídicos (LYRWIRS / Rafael García-Miña)",usuarios:"Usuarios y permisos de acceso",rc_inicio:"Alquiler de vehículos (en construcción, enlazado con Compraventa)"};
+const NEWMAP={stock:"vehiculos",compras:"compras",taller:"taller",ventas:"ventas",logistica:"logistica",marketing:"leads",gestoria:"gestoria",garantias:"garantias",postventa:"postventa",almacenes:"almacenes",clientes:"clientes",proveedores:"proveedores",comerciales:"comerciales",transportistas:"transportistas",gestorias:"gestorias",proformas:"ventas",expedientes:"expedientes",usuarios:"usuarios"};
 const AREA_LABEL=Object.fromEntries(NAV.map(n=>[n[0],n[1]]));
 const DOC_GRUPOS=[
   {grupo:"Expediente del coche",tipos:["Factura proforma","Factura de compra","Pago al proveedor","Hoja de transporte","Albarán de entrega","Ficha técnica","Permiso de circulación","Facturas de reparación/mantenimiento","Garantía comercial","Factura de venta","Justificante de cobro"]},
@@ -409,7 +410,7 @@ function ordenarStock(campo){if(stockSort.campo===campo)stockSort.dir*=-1;else s
 
 let CURRENTUSER=null;
 // Qué área controla la escritura de cada tabla/módulo (frontend, espejo del backend)
-const TAREA={vehiculos:"stock",compras:"compras",ventas:"ventas",reservas:"reservas",cobros:"ventas",logistica:"logistica",traspasos:"logistica",taller:"taller",leads:"marketing",gestoria:"gestoria",garantias:"garantias",postventa:"postventa",almacenes:"almacenes",clientes:"clientes",proveedores:"proveedores",comerciales:"comerciales",transportistas:"transportistas",extractos:"bancos",movimientos:"bancos",conciliaciones:"bancos",recepciones:"logistica",gestorias:"gestoria"};
+const TAREA={vehiculos:"stock",compras:"compras",ventas:"ventas",reservas:"reservas",cobros:"ventas",logistica:"logistica",traspasos:"logistica",taller:"taller",leads:"marketing",gestoria:"gestoria",garantias:"garantias",postventa:"postventa",almacenes:"almacenes",clientes:"clientes",proveedores:"proveedores",comerciales:"comerciales",transportistas:"transportistas",extractos:"bancos",movimientos:"bancos",conciliaciones:"bancos",recepciones:"logistica",gestorias:"gestoria",expedientes:"expedientes"};
 function nivel(area){ // "w" | "r" | null
   if(!CURRENTUSER)return null;
   if(CURRENTUSER.rol==="admin")return "w";
@@ -438,6 +439,7 @@ const DEPTS={
     {dept:"Comercial / Ventas",items:["ventas","reservas","proformas","profesionales","tesoreria","facturas_emitidas"]},
     {dept:"Postventa y gestoría",items:["garantias","postventa","gestoria"]},
     {dept:"Análisis y documentación",items:["informes","itv","bancos","documentos"]},
+    {dept:"Jurídico",items:["expedientes"]},
     {dept:"Directorio",items:["clientes","proveedores","comerciales","transportistas","gestorias"]},
     {dept:"Administración",items:["usuarios"]},
   ],
@@ -497,16 +499,16 @@ function go(v){
 const IMPORT_VIEWS={clientes:"clientes",proveedores:"proveedores",transportistas:"transportistas",gestorias:"gestorias",comerciales:"comerciales",stock:"vehiculos"};
 
 /* ---------- datos ---------- */
-let DATA={vehiculos:[],clientes:[],transportistas:[],proveedores:[],comerciales:[],compras:[],ventas:[],logistica:[],taller:[],leads:[],gestoria:[],documentos:[],almacenes:[],traspasos:[],garantias:[],postventa:[],agenda:[],cobros:[],seguimientos:[],extractos:[],movimientos:[],recepciones:[],gestorias:[],facturas_emitidas:[],pagos_prov:[],reservas:[],conciliaciones:[]};
+let DATA={vehiculos:[],clientes:[],transportistas:[],proveedores:[],comerciales:[],compras:[],ventas:[],logistica:[],taller:[],leads:[],gestoria:[],documentos:[],almacenes:[],traspasos:[],garantias:[],postventa:[],agenda:[],cobros:[],seguimientos:[],extractos:[],movimientos:[],recepciones:[],gestorias:[],facturas_emitidas:[],pagos_prov:[],reservas:[],conciliaciones:[],expedientes:[]};
 let listasCache={marca:[],ciudad:[],ubicacion:[]}, modelosActuales=[];
 async function loadAll(){
-  const [veh,cli,tra,prv,com,ven,log,tal,led,ges,doc,alm,tsp,gar,pos,age,cob,cme,seg,ext,mov,rec,gst,fem,ppr,rsv,cnc]=await Promise.all([
+  const [veh,cli,tra,prv,com,ven,log,tal,led,ges,doc,alm,tsp,gar,pos,age,cob,cme,seg,ext,mov,rec,gst,fem,ppr,rsv,cnc,exp]=await Promise.all([
     api("/api/vehiculos"),api("/api/clientes"),api("/api/transportistas"),api("/api/proveedores"),
     api("/api/compras"),api("/api/ventas"),api("/api/logistica"),
     api("/api/taller"),api("/api/leads"),api("/api/gestoria"),api("/api/documentos"),
     api("/api/almacenes"),api("/api/traspasos"),
-    api("/api/garantias"),api("/api/postventa"),api("/api/agenda"),api("/api/cobros"),api("/api/comerciales"),api("/api/seguimientos"),api("/api/extractos"),api("/api/movimientos"),api("/api/recepciones"),api("/api/gestorias"),api("/api/facturas_emitidas"),api("/api/pagos_prov"),api("/api/reservas"),api("/api/conciliaciones")]);
-  DATA={vehiculos:veh,clientes:cli,transportistas:tra,proveedores:prv,compras:com,ventas:ven,logistica:log,taller:tal,leads:led,gestoria:ges,documentos:doc,almacenes:alm,traspasos:tsp,garantias:gar,postventa:pos,agenda:age,cobros:cob,comerciales:cme,seguimientos:seg,extractos:ext,movimientos:mov,recepciones:rec,gestorias:gst||[],facturas_emitidas:fem||[],pagos_prov:ppr||[],reservas:rsv||[],conciliaciones:cnc||[],usuarios:[]};
+    api("/api/garantias"),api("/api/postventa"),api("/api/agenda"),api("/api/cobros"),api("/api/comerciales"),api("/api/seguimientos"),api("/api/extractos"),api("/api/movimientos"),api("/api/recepciones"),api("/api/gestorias"),api("/api/facturas_emitidas"),api("/api/pagos_prov"),api("/api/reservas"),api("/api/conciliaciones"),api("/api/expedientes")]);
+  DATA={vehiculos:veh,clientes:cli,transportistas:tra,proveedores:prv,compras:com,ventas:ven,logistica:log,taller:tal,leads:led,gestoria:ges,documentos:doc,almacenes:alm,traspasos:tsp,garantias:gar,postventa:pos,agenda:age,cobros:cob,comerciales:cme,seguimientos:seg,extractos:ext,movimientos:mov,recepciones:rec,gestorias:gst||[],facturas_emitidas:fem||[],pagos_prov:ppr||[],reservas:rsv||[],conciliaciones:cnc||[],expedientes:exp||[],usuarios:[]};
   if(CURRENTUSER&&CURRENTUSER.rol==="admin"){try{DATA.usuarios=await api("/api/usuarios")||[];}catch(e){}}
   await cargarListas();
   enrich();
@@ -644,6 +646,7 @@ function render(){
   else if(current==="clientes")views.innerHTML=viewClientes();
   else if(current==="transportistas")views.innerHTML=viewTransportistas();
   else if(current==="gestorias")views.innerHTML=viewGestorias();
+  else if(current==="expedientes")views.innerHTML=viewExpedientes();
   else if(current==="itv")views.innerHTML=viewITV();
   else if(current==="informes")views.innerHTML=viewInformes();
   else if(current==="web")viewWeb();
@@ -1680,6 +1683,66 @@ function recalcVal(){
     <div class="tot" style="border:none;padding-top:2px"><span>− Margen objetivo (${pct}% s/ venta)</span><b>${eur2(margenEur)}</b></div>
     <div class="tot" style="border-top:2px solid var(--ink);padding-top:8px;margin-top:6px"><span><b>Precio máximo de compra</b></span><b style="font-size:19px;color:${maxCompra>0?'var(--ok)':'var(--danger)'}">${eur2(maxCompra)}</b></div>
     <div style="font-size:11.5px;color:var(--muted-2);margin-top:6px">Comprando por <b>${eur2(maxCompra)}</b> o menos conservas tu margen objetivo. Cálculo orientativo con importes IVA incluido (en REBU el IVA recae sobre el margen).</div>`;
+}
+/* ================= EXPEDIENTES JURÍDICOS ================= */
+let expAmbito="";
+function viewExpedientes(){
+  const puedeW=puedeEscribirTabla("expedientes");
+  const hoy=todayISO();
+  const proxDe=e=>{const segs=segsDe("expediente",e.id);const sp=segs.length?segs[segs.length-1].proxima_fecha:"";return e.proxima_revision||sp||"";};
+  let arr=DATA.expedientes.filter(e=>matchQ(e,[e.titulo,e.responsable,e.despacho,e.contraria,e.resumen,e.matricula,e.inmueble,e.num_procedimiento,e.juzgado,e.ambito,e.estado]));
+  if(expAmbito)arr=arr.filter(e=>e.ambito===expAmbito);
+  const abiertos=arr.filter(e=>e.estado!=="Cerrado");
+  const judic=arr.filter(e=>e.judicializado).length;
+  const venc=abiertos.filter(e=>{const p=proxDe(e);return p&&p<=hoy;}).length;
+  const kpi=(l,v,c)=>`<div class="kpi"><div class="k-lab">${l}</div><div class="k-val" style="color:${c||'var(--ink)'}">${v}</div></div>`;
+  const ambitos=[["","Todos"],["LYRWIRS, S.L. (MIÑACAR)","LYRWIRS / MIÑACAR"],["Rafael García-Miña","Rafael García-Miña"]];
+  const tabs=ambitos.map(a=>`<button class="btn ${expAmbito===a[0]?'accent':'ghost'} sm" onclick="expAmbito='${a[0].replace(/'/g,"\\'")}';render()">${esc(a[1])}</button>`).join(" ");
+  const rows=arr.map(e=>{
+    const p=proxDe(e), pv=p&&p<=hoy&&e.estado!=="Cerrado";
+    const obj=e.tipo_objeto==="Vehículo"?(e.matricula?`<span class="plate">${esc(e.matricula)}</span>`:"Vehículo"):(e.tipo_objeto==="Inmueble/Propiedad"?esc(e.inmueble||"Inmueble"):esc(e.tipo_objeto||"—"));
+    const jud=e.judicializado?`<span class="minipill" style="background:var(--danger-s);color:var(--danger)">⚖ Judicializado</span>${e.num_procedimiento||e.juzgado?`<br><span style="font-size:11px;color:var(--muted-2)">${esc(e.num_procedimiento||"")}${e.juzgado?" · "+esc(e.juzgado):""}${e.tipo_procedimiento?" · "+esc(e.tipo_procedimiento):""}</span>`:""}`:`<span class="minipill" style="background:var(--ok-s);color:var(--ok)">No judicializado</span>`;
+    const nseg=segsDe("expediente",e.id).length;
+    return `<tr>
+      <td><span class="dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${e.judicializado?'var(--danger)':'var(--ok)'}"></span></td>
+      <td style="max-width:230px;white-space:normal"><b title="${esc(e.resumen||"")}">${esc(e.titulo||"")}</b><br><span style="font-size:11px;color:var(--muted-2)">${esc(e.ambito||"")}</span></td>
+      <td>${esc(e.contraria||"—")}</td>
+      <td>${esc(e.despacho||"—")}${e.responsable?`<br><span style="font-size:11px;color:var(--muted-2)">👤 ${esc(e.responsable)}</span>`:""}</td>
+      <td>${obj||"—"}</td>
+      <td style="white-space:normal">${jud}</td>
+      <td>${esc(e.estado||"")}</td>
+      <td>${p?`<span style="color:${pv?'var(--danger)':'var(--muted)'};font-weight:${pv?'700':'400'}">${fdate(p)}${pv?' ⚠':''}</span>`:'—'}</td>
+      <td class="r"><button class="btn accent sm" onclick="openGestionExp(${e.id})" title="Registrar gestión / estado procesal">📝</button> <button class="btn ghost sm" onclick="verHistorial('expediente',${e.id})" title="Histórico (${nseg})">📋</button> ${puedeW?`<button class="btn ghost sm" onclick="openForm('expedientes',${e.id})">✎</button> <button class="btn danger sm" onclick="delRow('expedientes',${e.id})">🗑</button>`:""}</td>
+    </tr>`;}).join("");
+  return `<div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">${kpi("Expedientes",arr.length)}${kpi("Abiertos",abiertos.length)}${kpi("Judicializados",judic,judic?'var(--danger)':'var(--ink)')}${kpi("Revisiones vencidas",venc,venc?'var(--danger)':'var(--ok)')}</div>
+    <div class="toolbar" style="margin-bottom:12px"><div style="display:flex;gap:6px;flex-wrap:wrap">${tabs}</div>${puedeW?`<button class="btn gold" style="margin-left:auto" onclick="openForm('expedientes')"><span>+ Nuevo expediente</span></button>`:""}</div>`
+    +(arr.length?tableWrap([{t:""},{t:"Título / Ámbito"},{t:"Contraria"},{t:"Despacho / Responsable"},{t:"Objeto"},{t:"Judicial"},{t:"Estado"},{t:"Próx. revisión"},{t:"",r:1}],rows):'<div class="empty">Sin expedientes en este ámbito. Pulsa «+ Nuevo expediente».</div>');
+}
+function openGestionExp(expId){
+  if(bloqueadoRO("expedientes"))return;
+  const e=DATA.expedientes.find(x=>x.id===expId)||{};
+  currentForm={table:"__gestion_exp",id:expId};
+  $("#modal-title").textContent="Gestión del expediente"+(e.titulo?" · "+e.titulo:"");
+  $("#modal-body").innerHTML=`<div class="row">
+    <div class="field" style="flex:1 1 45%"><label>Fecha</label><input type="date" id="ge-fecha" value="${todayISO()}"></div>
+    <div class="field" style="flex:1 1 45%"><label>Responsable / quién gestiona</label><input id="ge-resp" value="${esc(e.responsable||"")}"></div>
+    <div class="field" style="flex:1 1 100%"><label>Gestión realizada / estado procesal</label><textarea id="ge-detalle" rows="3" placeholder="Ej.: presentada demanda; señalada vista para…; recurso de apelación; requerimiento…"></textarea></div>
+    <div class="field" style="flex:1 1 100%"><label>Próxima revisión</label><input type="date" id="ge-proxima"></div>
+  </div>`;
+  const act=document.querySelector(".modal .actions");
+  act.innerHTML='<button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn accent" onclick="saveGestionExp()">Guardar gestión</button>';
+  $("#modal-bg").classList.add("open");
+}
+async function saveGestionExp(){
+  if(_saving)return;_saving=true;
+  try{
+    const id=currentForm.id, detalle=$("#ge-detalle").value.trim(), prox=$("#ge-proxima").value;
+    if(!detalle){toast("Anota la gestión / estado procesal");return;}
+    await api("/api/seguimientos",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ambito:"expediente",ref_id:id,fecha:$("#ge-fecha").value||todayISO(),contacto:$("#ge-resp").value.trim(),detalle,proxima_fecha:prox})});
+    if(prox)await api("/api/expedientes/"+id,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({proxima_revision:prox})});
+    closeModal();toast("Gestión registrada ✔");await reloadAll();
+  }catch(e){toast("Error al guardar la gestión");}
+  finally{_saving=false;}
 }
 let bancoFiltro={cuenta:"",fecha:""};
 function bancosCuentas(){return [...new Set(DATA.extractos.map(e=>e.cuenta||"(sin nombre)"))].filter(Boolean);}
@@ -3090,6 +3153,23 @@ const SCHEMAS={
     {k:"numero_factura",l:"Nº de factura",t:"text"},
     {k:"factura_recibida",l:"¿Factura recibida de la gestoría?",t:"select",opts:["","No","Sí"]},
     {k:"pagado",l:"¿Pagada?",t:"select",opts:["","No","Sí"]},{k:"fecha_pago_est",l:"Fecha estimada de pago",t:"date"},
+    {k:"notas",l:"Notas",t:"textarea",full:1}]},
+  expedientes:{title:"expediente jurídico",nota:"Distingue el ámbito (LYRWIRS, S.L. / Rafael García-Miña). Si está judicializado, rellena nº de procedimiento, juzgado y tipo. La «próxima revisión» te avisará para no perder el control del asunto.",fields:[
+    {k:"ambito",l:"Ámbito",t:"select",opts:["LYRWIRS, S.L. (MIÑACAR)","Rafael García-Miña"],req:1},
+    {k:"titulo",l:"Título del expediente",t:"text",req:1,full:1},
+    {k:"responsable",l:"Responsable en la empresa",t:"text"},
+    {k:"despacho",l:"Despacho jurídico a cargo",t:"text"},
+    {k:"contraria",l:"Parte contraria",t:"text",full:1},
+    {k:"resumen",l:"Resumen del asunto",t:"textarea",full:1},
+    {k:"tipo_objeto",l:"¿Sobre qué trata?",t:"select",opts:["","Vehículo","Inmueble/Propiedad","Otro"]},
+    {k:"matricula",l:"Matrícula (si es sobre un vehículo)",t:"text"},
+    {k:"inmueble",l:"Inmueble/Propiedad (si aplica)",t:"text"},
+    {k:"estado",l:"Estado",t:"select",opts:["Abierto","En trámite","En espera","Cerrado"]},
+    {k:"judicializado",l:"¿Está judicializado?",t:"check"},
+    {k:"num_procedimiento",l:"Nº de procedimiento (si judicializado)",t:"text"},
+    {k:"juzgado",l:"Juzgado (si judicializado)",t:"text"},
+    {k:"tipo_procedimiento",l:"Tipo de procedimiento (si judicializado)",t:"text"},
+    {k:"proxima_revision",l:"Próxima revisión",t:"date"},
     {k:"notas",l:"Notas",t:"textarea",full:1}]},
   almacenes:{title:"almacén",fields:[
     {k:"nombre",l:"Nombre del almacén",t:"text",req:1,full:1},
