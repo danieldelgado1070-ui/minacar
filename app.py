@@ -446,6 +446,7 @@ def init_db():
             num_procedimiento  TEXT,
             juzgado            TEXT,
             tipo_procedimiento TEXT,
+            cuantia            REAL,
             estado             TEXT DEFAULT 'Abierto',
             proxima_revision   TEXT,
             notas              TEXT,
@@ -854,6 +855,8 @@ def migrate(conn):
         add("vehiculos", "luz_motor TEXT")           # '' no verificada | 'apagada' | 'encendida'
         add("vehiculos", "llaves TEXT")              # '1' | '2' (nº de llaves entregadas)
         add("vehiculos", "transmision TEXT")         # 'Manual' | 'Automático'
+        if has_table("expedientes"):
+            add("expedientes", "cuantia REAL")       # cuantía del asunto (vacío = indeterminada)
         if has_table("recepciones"):
             add("recepciones", "luz_motor TEXT")
             add("recepciones", "llaves TEXT")
@@ -1054,7 +1057,7 @@ FIELDS = {
                  "forma_cobro", "iban", "email_rgpd", "plazo_dias", "estado", "notas"],
     "expedientes": ["ambito", "titulo", "responsable", "despacho", "contraria", "resumen",
                     "tipo_objeto", "matricula", "inmueble", "judicializado",
-                    "num_procedimiento", "juzgado", "tipo_procedimiento",
+                    "num_procedimiento", "juzgado", "tipo_procedimiento", "cuantia",
                     "estado", "proxima_revision", "notas"],
     "garantias": ["vehiculo_id", "cliente_id", "tipo", "fecha_inicio", "meses",
                   "fecha_fin", "alcance", "estado", "notas"],

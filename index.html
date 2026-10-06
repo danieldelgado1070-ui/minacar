@@ -1709,6 +1709,7 @@ function viewExpedientes(){
       <td>${esc(e.contraria||"—")}</td>
       <td>${esc(e.despacho||"—")}${e.responsable?`<br><span style="font-size:11px;color:var(--muted-2)">👤 ${esc(e.responsable)}</span>`:""}</td>
       <td>${obj||"—"}</td>
+      <td class="r">${(e.cuantia!=null&&e.cuantia!=="")?eur2(e.cuantia):'<span style="color:var(--muted-2)">Indeterminada</span>'}</td>
       <td style="white-space:normal">${jud}</td>
       <td>${esc(e.estado||"")}</td>
       <td>${p?`<span style="color:${pv?'var(--danger)':'var(--muted)'};font-weight:${pv?'700':'400'}">${fdate(p)}${pv?' ⚠':''}</span>`:'—'}</td>
@@ -1716,7 +1717,7 @@ function viewExpedientes(){
     </tr>`;}).join("");
   return `<div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">${kpi("Expedientes",arr.length)}${kpi("Abiertos",abiertos.length)}${kpi("Judicializados",judic,judic?'var(--danger)':'var(--ink)')}${kpi("Revisiones vencidas",venc,venc?'var(--danger)':'var(--ok)')}</div>
     <div class="toolbar" style="margin-bottom:12px"><div style="display:flex;gap:6px;flex-wrap:wrap">${tabs}</div>${puedeW?`<button class="btn gold" style="margin-left:auto" onclick="openForm('expedientes')"><span>+ Nuevo expediente</span></button>`:""}</div>`
-    +(arr.length?tableWrap([{t:""},{t:"Título / Ámbito"},{t:"Contraria"},{t:"Despacho / Responsable"},{t:"Objeto"},{t:"Judicial"},{t:"Estado"},{t:"Próx. revisión"},{t:"",r:1}],rows):'<div class="empty">Sin expedientes en este ámbito. Pulsa «+ Nuevo expediente».</div>');
+    +(arr.length?tableWrap([{t:""},{t:"Título / Ámbito"},{t:"Contraria"},{t:"Despacho / Responsable"},{t:"Objeto"},{t:"Cuantía",r:1},{t:"Judicial"},{t:"Estado"},{t:"Próx. revisión"},{t:"",r:1}],rows):'<div class="empty">Sin expedientes en este ámbito. Pulsa «+ Nuevo expediente».</div>');
 }
 function openGestionExp(expId){
   if(bloqueadoRO("expedientes"))return;
@@ -1742,6 +1743,29 @@ async function saveGestionExp(){
     if(prox)await api("/api/expedientes/"+id,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({proxima_revision:prox})});
     closeModal();toast("Gestión registrada ✔");await reloadAll();
   }catch(e){toast("Error al guardar la gestión");}
+  finally{_saving=false;}
+}
+/* Derivar una reclamación de Postventa a Jurídico: la cierra en postventa y abre un expediente (sin duplicar) */
+async function pasarAJuridico(agendaId){
+  if(bloqueadoRO("expedientes")){toast("No tienes permiso en Expedientes jurídicos");return;}
+  const a=DATA.agenda.find(x=>x.id===agendaId);if(!a){toast("No se encontró la anotación");return;}
+  if(!confirm("Se CERRARÁ esta reclamación en Postventa y se ABRIRÁ un expediente en Jurídico (sin duplicar).\n\nDespués podrás completar despacho, parte contraria, cuantía, etc. ¿Continuar?"))return;
+  if(_saving)return;_saving=true;
+  try{
+    const exp={ambito:"LYRWIRS, S.L. (MIÑACAR)",
+      titulo:(a.asunto||a.tipo||"Reclamación")+(a.matricula?" · "+a.matricula:""),
+      resumen:a.detalle||"",tipo_objeto:a.matricula?"Vehículo":"Otro",matricula:a.matricula||"",
+      estado:"Abierto",judicializado:0};
+    const res=await api("/api/expedientes",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(exp)});
+    if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo crear el expediente"));return;}
+    const newId=res.id;
+    // primera gestión del expediente: deja constancia del origen
+    await api("/api/seguimientos",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ambito:"expediente",ref_id:newId,fecha:todayISO(),contacto:"Origen: Postventa",detalle:"Expediente abierto al derivar a despacho de abogados la reclamación de postventa"+(a.asunto?" «"+a.asunto+"»":"")+"."})});
+    // cerrar la reclamación en postventa (sin duplicar)
+    await api("/api/agenda/"+agendaId,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({cerrado:1,motivo_cierre:"Derivado a jurídico (expediente #"+newId+")"})});
+    toast("Reclamación derivada a jurídico ✔");
+    await loadAll();go("expedientes");openForm("expedientes",newId);
+  }catch(e){toast("Error al derivar a jurídico");}
   finally{_saving=false;}
 }
 let bancoFiltro={cuenta:"",fecha:""};
@@ -2032,7 +2056,7 @@ const AG_COL={"Reclamación":"var(--danger)","Comunicación":"var(--info)","Llam
 function viewPostventa(){
   const rep=DATA.postventa.filter(p=>matchQ(p,[p.matricula,p.marca,p.modelo,p.tipo,p.descripcion,p.proveedor]));
   const totRep=rep.reduce((s,p)=>s+(Number(p.coste)||0),0);
-  const age=DATA.agenda.filter(a=>matchQ(a,[a.matricula,a.marca,a.modelo,a.tipo,a.asunto,a.detalle]));
+  const age=DATA.agenda.filter(a=>!a.cerrado&&matchQ(a,[a.matricula,a.marca,a.modelo,a.tipo,a.asunto,a.detalle]));
   const kpi=(l,v)=>`<div class="kpi"><div class="k-lab">${l}</div><div class="k-val">${v}</div></div>`;
   const repRows=rep.map(p=>`
     <tr data-veh="${p.vehiculo_id||''}">
@@ -2061,6 +2085,7 @@ function viewPostventa(){
           <button class="btn ghost sm" onclick="verHistorial('agenda',${a.id})" title="Historial de gestiones">📋</button>
           <button class="btn ghost sm" onclick="traspasarGestion('agenda',${a.id})" title="Traspasar responsable">🔄</button>
           <button class="btn ghost sm" onclick="adjuntarAgendaDoc(${a.vehiculo_id},${a.id})">📎 Adjuntar prueba</button>
+          <button class="btn gold sm" onclick="pasarAJuridico(${a.id})" title="Derivar a un despacho: cierra en postventa y abre expediente jurídico">⚖ Pasar a jurídico</button>
           <button class="btn ghost sm" onclick="openForm('agenda',${a.id})">✎</button>
           <button class="btn danger sm" onclick="delRow('agenda',${a.id})">🗑</button></div>
       </div></div>`;}).join("");
@@ -3169,6 +3194,7 @@ const SCHEMAS={
     {k:"num_procedimiento",l:"Nº de procedimiento (si judicializado)",t:"text"},
     {k:"juzgado",l:"Juzgado (si judicializado)",t:"text"},
     {k:"tipo_procedimiento",l:"Tipo de procedimiento (si judicializado)",t:"text"},
+    {k:"cuantia",l:"Cuantía del asunto (€) — en blanco = indeterminada",t:"number"},
     {k:"proxima_revision",l:"Próxima revisión",t:"date"},
     {k:"notas",l:"Notas",t:"textarea",full:1}]},
   almacenes:{title:"almacén",fields:[
