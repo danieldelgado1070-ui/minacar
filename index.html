@@ -1589,16 +1589,15 @@ function viewValoracion(){
       <div class="row">
         <div class="field" style="flex:1 1 45%"><label>Marca</label><select id="val-marca" onchange="valMarca()"><option value="">— seleccionar —</option>${marcas.map(m=>`<option>${esc(m)}</option>`).join("")}</select></div>
         <div class="field" style="flex:1 1 45%"><label>Modelo</label><select id="val-modelo" onchange="valSimilares()"><option value="">— elige la marca —</option></select></div>
+        <div class="field" style="flex:1 1 45%"><label>Versión / acabado</label><input id="val-version" type="text" placeholder="Ej.: 2.0 TDI 150 Style"></div>
         <div class="field" style="flex:1 1 45%"><label>Año</label><input id="val-anio" type="number" oninput="valSimilares()"></div>
         <div class="field" style="flex:1 1 45%"><label>Km</label><input id="val-km" type="number"></div>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px">
-        <span style="font-size:12px;color:var(--muted)">Ver anuncios similares:</span>
-        <button class="btn ghost sm" onclick="valBuscar('coches')">Coches.net</button>
-        <button class="btn ghost sm" onclick="valBuscar('milanuncios')">Milanuncios</button>
-        <button class="btn ghost sm" onclick="valBuscar('wallapop')">Wallapop</button>
-        <button class="btn ghost sm" onclick="valBuscar('autoscout')">AutoScout24</button></div>
-      <div style="font-size:11.5px;color:var(--muted-2);margin-top:6px">Se abren en el navegador con la marca/modelo puestos. Copia los precios que veas y pégalos en el paso 2.</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
+        <span style="font-size:12px;color:var(--muted);width:100%">Ver anuncios similares (se abren con marca/modelo/versión/año puestos):</span>
+        ${VAL_SITES.map(s=>`<button class="btn ghost sm" onclick="valBuscar('${s[0]}')">${esc(s[1])}</button>`).join("")}
+        <button class="btn accent sm" onclick="valBuscarTodas()">↗ Abrir portales de ocasión</button></div>
+      <div style="font-size:11.5px;color:var(--muted-2);margin-top:6px">Copia los precios que veas en cada portal y pégalos en el paso 2; la app calcula máximo, mínimo, media y mediana.</div>
     </div></div>
     <div class="card"><div class="card-h"><h3>Coches similares en tu histórico</h3></div><div class="card-b" id="val-similares"><div style="color:var(--muted);font-size:12.5px">Elige marca (y modelo) para ver tus operaciones similares.</div></div></div>
   </div>
@@ -1638,15 +1637,34 @@ function valSimilares(){
   const rows=sim.slice(0,25).map(v=>`<tr><td><span class="plate">${esc(v.matricula||"")}</span></td><td>${v.anio||""}</td><td class="r">${v.km!=null?num(v.km):""}</td><td class="r">${eur(v._base)}</td><td class="r">${v._venta?eur(v._venta.precio):"—"}</td><td class="r">${v._margen!=null?eur(v._margen):"—"}</td></tr>`).join("");
   el.innerHTML=sim.length?`<div style="font-size:12.5px;margin-bottom:6px">${sim.length} similar(es)${mVenta?` · venta media <b>${eur(mVenta)}</b> · margen medio <b>${eur(mMargen)}</b>`:""}</div>${tableWrap([{t:"Matr."},{t:"Año"},{t:"Km",r:1},{t:"Compra",r:1},{t:"Venta",r:1},{t:"Margen",r:1}],rows)}${mVenta?`<button class="btn ghost sm" style="margin-top:8px" onclick="document.getElementById('val-venta').value=${mVenta};recalcVal()">Usar venta media (${eur(mVenta)}) como precio de venta</button>`:""}`:'<div style="color:var(--muted);font-size:12.5px">No hay coches similares en tu histórico.</div>';
 }
-function valBuscar(sitio){
-  const m=($("#val-marca").value||"").trim(),mo=($("#val-modelo").value||"").trim(),anio=($("#val-anio").value||"").trim();
-  if(!m){toast("Elige al menos la marca");return;}
-  const q=encodeURIComponent([m,mo,anio].filter(Boolean).join(" "));
-  const urls={coches:`https://www.google.com/search?q=site:coches.net+${q}+segunda+mano`,
-    milanuncios:`https://www.milanuncios.com/coches-de-segunda-mano/?s=${q}`,
-    wallapop:`https://es.wallapop.com/app/search?keywords=${q}&category_ids=100`,
-    autoscout:`https://www.google.com/search?q=site:autoscout24.es+${q}`};
-  window.open(urls[sitio]||urls.coches,"_blank","noopener");
+const VAL_SITES=[
+  ["coches","Coches.net",q=>`https://www.google.com/search?q=site:coches.net+${q}`],
+  ["milanuncios","Milanuncios",q=>`https://www.milanuncios.com/coches-de-segunda-mano/?s=${q}`],
+  ["wallapop","Wallapop",q=>`https://es.wallapop.com/app/search?keywords=${q}&category_ids=100`],
+  ["autoscout","AutoScout24",q=>`https://www.google.com/search?q=site:autoscout24.es+${q}`],
+  ["flexicar","Flexicar",q=>`https://www.google.com/search?q=flexicar+${q}+ocasi%C3%B3n`],
+  ["clicars","Clicars",q=>`https://www.google.com/search?q=clicars+${q}`],
+  ["ocasionplus","OcasiónPlus",q=>`https://www.google.com/search?q=ocasionplus+${q}`],
+  ["moliere","Autos Moliere",q=>`https://www.google.com/search?q=%22autos+moliere%22+${q}`],
+  ["autohero","Autohero",q=>`https://www.google.com/search?q=autohero+${q}`],
+  ["crestanevada","Crestanevada",q=>`https://www.google.com/search?q=crestanevada+${q}`],
+  ["hrmotor","HR Motor",q=>`https://www.google.com/search?q=%22hr+motor%22+${q}+coches`],
+  ["jdelpaso","Autos J. del Paso",q=>`https://www.google.com/search?q=%22autos+j+del+paso%22+${q}`],
+];
+function valQuery(){
+  const m=($("#val-marca").value||"").trim(),mo=($("#val-modelo").value||"").trim(),ve=($("#val-version")?$("#val-version").value||"":"").trim(),an=($("#val-anio").value||"").trim();
+  return {ok:!!m,q:encodeURIComponent([m,mo,ve,an].filter(Boolean).join(" "))};
+}
+function valBuscar(key){
+  const {ok,q}=valQuery();if(!ok){toast("Elige al menos la marca");return;}
+  const s=VAL_SITES.find(x=>x[0]===key)||VAL_SITES[0];
+  window.open(s[2](q),"_blank","noopener");
+}
+function valBuscarTodas(){
+  const {ok,q}=valQuery();if(!ok){toast("Elige al menos la marca");return;}
+  const dealers=["flexicar","clicars","ocasionplus","moliere","autohero","crestanevada","hrmotor","jdelpaso"];
+  let n=0;dealers.forEach(k=>{const s=VAL_SITES.find(x=>x[0]===k);if(s){window.open(s[2](q),"_blank","noopener");n++;}});
+  toast(n?("Abriendo "+n+" portales… permite las ventanas emergentes"):"No se pudo abrir");
 }
 function extraerPrecios(txt){
   txt=String(txt||"");
@@ -1670,8 +1688,12 @@ function recalcVal(){
   const media=comps.length?comps.reduce((a,b)=>a+b,0)/comps.length:null;
   let mediana=null;
   if(comps.length){const s=comps.slice().sort((a,b)=>a-b),h=Math.floor(s.length/2);mediana=s.length%2?s[h]:(s[h-1]+s[h])/2;}
+  const maxp=comps.length?Math.max(...comps):null, minp=comps.length?Math.min(...comps):null;
   const me=$("#val-media");
-  if(me)me.innerHTML=comps.length?`Detectados <b>${comps.length}</b> precio(s): ${comps.map(eur).join(" · ")}<br>Media <b>${eur2(media)}</b> · Mediana <b>${eur2(mediana)}</b> <button class="btn ghost sm" onclick="document.getElementById('val-venta').value=${Math.round(mediana)};recalcVal()">Usar mediana</button> <button class="btn ghost sm" onclick="document.getElementById('val-venta').value=${Math.round(media)};recalcVal()">Usar media</button>`:'<span style="color:var(--muted)">Pega anuncios o precios y detectaré los importes automáticamente.</span>';
+  if(me)me.innerHTML=comps.length?`Detectados <b>${comps.length}</b> precio(s): ${comps.map(eur).join(" · ")}
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px">
+      <span>Mín. <b>${eur2(minp)}</b></span><span>Máx. <b>${eur2(maxp)}</b></span><span>Media <b>${eur2(media)}</b></span><span>Mediana <b>${eur2(mediana)}</b></span></div>
+    <div style="margin-top:6px"><button class="btn ghost sm" onclick="document.getElementById('val-venta').value=${Math.round(mediana)};recalcVal()">Usar mediana</button> <button class="btn ghost sm" onclick="document.getElementById('val-venta').value=${Math.round(media)};recalcVal()">Usar media</button> <button class="btn ghost sm" onclick="document.getElementById('val-venta').value=${Math.round(minp)};recalcVal()">Usar mínimo</button></div>`:'<span style="color:var(--muted)">Pega anuncios o precios y detectaré los importes automáticamente.</span>';
   const venta=Number($("#val-venta").value)||0, gastos=Number($("#val-gastos").value)||0, transp=Number($("#val-transp").value)||0, taller=Number($("#val-taller").value)||0;
   const margen=Number($("#val-margen").value)||0, mtipo=$("#val-mtipo").value;
   const margenEur=mtipo==="pct"?venta*margen/100:margen, costes=gastos+transp+taller, maxCompra=venta-costes-margenEur;
