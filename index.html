@@ -1617,11 +1617,11 @@ function viewValoracion(){
         <div class="field" style="flex:1 1 30%"><label>Tipo</label><select id="val-mtipo" onchange="recalcVal()"><option value="eur">€</option><option value="pct">% s/ venta</option></select></div>
       </div>
       <div id="val-result" style="margin-top:10px"><div style="color:var(--muted);font-size:12.5px">Introduce el precio de venta estimado.</div></div>
-      <div style="margin-top:10px"><button class="btn gold sm" onclick="generarInformeValoracion()">🖨 Generar informe de valoración</button></div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn gold sm" onclick="generarInformeValoracion()">🖨 Generar informe (imprimir/PDF)</button><button class="btn ghost sm" onclick="guardarInformeValoracion()">💾 Guardar en el expediente del coche</button></div>
     </div></div>
   </div>`;
 }
-function generarInformeValoracion(){
+function _buildInformeValoracion(){
   const marca=($("#val-marca").value||"").trim(), modelo=($("#val-modelo").value||"").trim(),
         version=($("#val-version")?$("#val-version").value||"":"").trim(),
         anio=($("#val-anio").value||"").trim(), km=($("#val-km").value||"").trim();
@@ -1629,7 +1629,7 @@ function generarInformeValoracion(){
   const venta=Number($("#val-venta").value)||0, gastos=Number($("#val-gastos").value)||0, transp=Number($("#val-transp").value)||0, taller=Number($("#val-taller").value)||0;
   const margen=Number($("#val-margen").value)||0, mtipo=$("#val-mtipo").value;
   const margenEur=mtipo==="pct"?venta*margen/100:margen, costes=gastos+transp+taller, maxCompra=venta-costes-margenEur;
-  if(venta<=0){toast("Introduce el precio de venta estimado antes de generar el informe");return;}
+  if(venta<=0)return null;
   const media=comps.length?comps.reduce((a,b)=>a+b,0)/comps.length:null;
   let mediana=null;if(comps.length){const s=comps.slice().sort((a,b)=>a-b),h=Math.floor(s.length/2);mediana=s.length%2?s[h]:(s[h-1]+s[h])/2;}
   const maxp=comps.length?Math.max(...comps):null, minp=comps.length?Math.min(...comps):null;
@@ -1664,8 +1664,41 @@ function generarInformeValoracion(){
   +'<div style="margin-top:10px;font-size:11.5px;color:#555;background:#fbfbea;border:1px solid #e6ea9a;border-radius:8px;padding:10px 12px">Comprando por <b>'+eur2(maxCompra)+'</b> o menos se conserva el margen objetivo. Cálculo orientativo con importes IVA incluido; en REBU el IVA recae sobre el margen, por lo que el margen neto exige un precio de compra algo inferior.</div>'
   +'<div class="foot">'+esc(EC.razon)+' · CIF '+esc(EC.cif)+' — Informe orientativo generado por la aplicación de gestión MIÑACAR.</div>'
   +'</body></html>';
+  return {html,coche};
+}
+function generarInformeValoracion(){
+  const r=_buildInformeValoracion();
+  if(!r){toast("Introduce el precio de venta estimado antes de generar el informe");return;}
   const w=window.open("","_blank");if(!w){toast("Permite las ventanas emergentes para ver el informe");return;}
-  w.document.write(html);w.document.close();
+  w.document.write(r.html);w.document.close();
+}
+let _infVal=null;
+function guardarInformeValoracion(){
+  const r=_buildInformeValoracion();
+  if(!r){toast("Introduce el precio de venta estimado antes de guardar el informe");return;}
+  _infVal=r;currentForm={table:"__inf_val"};
+  $("#modal-title").textContent="Guardar informe en el expediente de un coche";
+  const dl=`<datalist id="dl-infval">${DATA.vehiculos.map(v=>`<option value="${esc([v.matricula,[v.marca,v.modelo].filter(Boolean).join(" ")].filter(Boolean).join(" · "))} #${v.id}"></option>`).join("")}</datalist>`;
+  $("#modal-body").innerHTML=`<div class="row">
+    <div style="flex:1 1 100%;font-size:12px;color:var(--muted);background:var(--info-s);border-radius:8px;padding:8px 12px;margin-bottom:2px">Elige el coche del stock donde guardar este informe de valoración. Quedará en <b>Documentos</b> de ese coche.</div>
+    <div class="field" style="flex:1 1 100%"><label>Coche</label><input id="iv-coche" list="dl-infval" placeholder="Matrícula, marca o modelo…" autocomplete="off">${dl}</div></div>`;
+  const act=document.querySelector(".modal .actions");
+  act.innerHTML='<button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn accent" onclick="confirmarGuardarInforme()">Guardar en el coche</button>';
+  $("#modal-bg").classList.add("open");
+}
+async function confirmarGuardarInforme(){
+  if(_saving)return;_saving=true;
+  try{
+    const vid=_idDe($("#iv-coche").value);
+    if(!vid){toast("Elige un coche de la lista");return;}
+    if(!_infVal){toast("Genera primero el informe");return;}
+    const dataurl="data:text/html;base64,"+btoa(unescape(encodeURIComponent(_infVal.html)));
+    const fn="informe_valoracion_"+String(_infVal.coche||"coche").replace(/[^a-z0-9]+/gi,"_").slice(0,40)+".html";
+    const res=await api("/api/documentos",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({vehiculo_id:vid,tipo:"Informe de valoración",filename:fn,data:dataurl,fecha:todayISO()})});
+    if(res&&res.ok===false){toast("⚠ "+(res.error||"No se pudo guardar"));return;}
+    closeModal();toast("Informe guardado en el coche ✔");await loadAll();if(drawer.classList.contains("show"))openDrawer(vid);
+  }catch(e){toast("Error al guardar el informe");}
+  finally{_saving=false;}
 }
 async function valMarca(){
   const m=$("#val-marca").value, sel=$("#val-modelo");
