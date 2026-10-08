@@ -1617,8 +1617,55 @@ function viewValoracion(){
         <div class="field" style="flex:1 1 30%"><label>Tipo</label><select id="val-mtipo" onchange="recalcVal()"><option value="eur">€</option><option value="pct">% s/ venta</option></select></div>
       </div>
       <div id="val-result" style="margin-top:10px"><div style="color:var(--muted);font-size:12.5px">Introduce el precio de venta estimado.</div></div>
+      <div style="margin-top:10px"><button class="btn gold sm" onclick="generarInformeValoracion()">🖨 Generar informe de valoración</button></div>
     </div></div>
   </div>`;
+}
+function generarInformeValoracion(){
+  const marca=($("#val-marca").value||"").trim(), modelo=($("#val-modelo").value||"").trim(),
+        version=($("#val-version")?$("#val-version").value||"":"").trim(),
+        anio=($("#val-anio").value||"").trim(), km=($("#val-km").value||"").trim();
+  const comps=extraerPrecios($("#val-comps").value).filter(n=>n!=null&&n>0);
+  const venta=Number($("#val-venta").value)||0, gastos=Number($("#val-gastos").value)||0, transp=Number($("#val-transp").value)||0, taller=Number($("#val-taller").value)||0;
+  const margen=Number($("#val-margen").value)||0, mtipo=$("#val-mtipo").value;
+  const margenEur=mtipo==="pct"?venta*margen/100:margen, costes=gastos+transp+taller, maxCompra=venta-costes-margenEur;
+  if(venta<=0){toast("Introduce el precio de venta estimado antes de generar el informe");return;}
+  const media=comps.length?comps.reduce((a,b)=>a+b,0)/comps.length:null;
+  let mediana=null;if(comps.length){const s=comps.slice().sort((a,b)=>a-b),h=Math.floor(s.length/2);mediana=s.length%2?s[h]:(s[h-1]+s[h])/2;}
+  const maxp=comps.length?Math.max(...comps):null, minp=comps.length?Math.min(...comps):null;
+  const EC=EMPRESA_CONTRATO;
+  const coche=[marca,modelo,version].filter(Boolean).join(" ")||"(sin especificar)";
+  const ficha=[anio?("Año "+esc(anio)):"",(km!==""?num(Number(km))+" km":"")].filter(Boolean).join(" · ");
+  const pct=venta?Math.round(margenEur/venta*100):0;
+  const compChips=comps.length?comps.map(p=>`<span style="display:inline-block;background:#f2f4e8;border:1px solid #e2e6b8;border-radius:6px;padding:2px 8px;margin:2px;font-size:12px">${esc(eur2(p))}</span>`).join(""):'<span style="color:#888">— no se han pegado comparables —</span>';
+  const stat=(l,v,c)=>`<div style="flex:1;min-width:120px;background:#fafbee;border:1px solid #eceeb8;border-radius:8px;padding:8px 12px"><div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:#77800a">${l}</div><div style="font-size:16px;font-weight:800;color:${c||'#1e1e1e'}">${v}</div></div>`;
+  const html='<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Informe de valoración '+esc(coche)+'</title>'
+  +'<style>*{box-sizing:border-box}body{font-family:"Trebuchet MS","Segoe UI",Arial,sans-serif;color:#1e1e1e;margin:0;padding:34px 42px;font-size:13px;line-height:1.5}'
+  +'.hd{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid #c9d400;padding-bottom:12px;margin-bottom:16px}'
+  +'.brand{display:flex;align-items:center;gap:10px}.brand .nm{font-size:23px;font-weight:800;letter-spacing:2px}.brand .nm .c{color:#a9b400}'
+  +'.emisor{text-align:right;font-size:10.5px;color:#444;line-height:1.5}'
+  +'h1{font-size:16px;letter-spacing:.6px;text-transform:uppercase;margin:4px 0 2px}h2{font-size:12px;letter-spacing:.5px;text-transform:uppercase;color:#5a6100;border-bottom:1px solid #e7ea9a;padding-bottom:3px;margin:16px 0 8px}'
+  +'table{width:100%;border-collapse:collapse}td{padding:5px 8px}.tot td{border:none}.grand td{font-weight:800;border-top:2px solid #1a1a1a;font-size:16px}.n{text-align:right}'
+  +'.foot{margin-top:22px;font-size:9.5px;color:#999;text-align:center}@media print{.noprint{display:none}body{padding:14mm 16mm}}'
+  +'.btn{background:#d6e021;border:none;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer}</style></head><body>'
+  +'<div class="noprint" style="margin-bottom:14px"><button class="btn" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button></div>'
+  +'<div class="hd"><div class="brand"><svg width="30" height="30" viewBox="0 0 44 44"><g fill="none" stroke="#1c1c1c" stroke-width="2.2" stroke-linejoin="round"><path d="M7 37 L16 18 L25 37"/><path d="M14 37 L23 12 L32 37"/><path d="M22 37 L30 22 L38 37"/></g></svg><span class="nm">MIÑA<span class="c">CAR</span></span></div>'
+  +'<div class="emisor"><b>'+esc(EC.razon)+'</b> · CIF '+esc(EC.cif)+'<br>'+esc(EC.dir)+' · '+esc(EC.cp)+' '+esc(EC.ciudad)+'</div></div>'
+  +'<h1>Informe de valoración de compra</h1><div style="color:#666;font-size:11px;margin-bottom:6px">Emitido el '+esc(fechaLarga(todayISO()))+'</div>'
+  +'<h2>Vehículo valorado</h2><div style="font-size:15px;font-weight:700">'+esc(coche)+'</div>'+(ficha?'<div style="color:#555">'+esc(ficha)+'</div>':'')
+  +'<h2>Precios de mercado (comparables)</h2>'
+  +'<div style="margin-bottom:10px">'+compChips+'</div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap">'+stat("Mínimo",minp!=null?eur2(minp):"—")+stat("Máximo",maxp!=null?eur2(maxp):"—")+stat("Media",media!=null?eur2(media):"—")+stat("Mediana",mediana!=null?eur2(mediana):"—")+'</div>'
+  +'<h2>Cálculo de compra</h2><table>'
+  +'<tr class="tot"><td>Precio de venta estimado (IVA incl.)</td><td class="n">'+eur2(venta)+'</td></tr>'
+  +'<tr class="tot"><td>− Costes (gastos+transporte+taller)</td><td class="n">'+eur2(costes)+'</td></tr>'
+  +'<tr class="tot"><td>− Margen objetivo ('+pct+'% s/ venta)</td><td class="n">'+eur2(margenEur)+'</td></tr>'
+  +'<tr class="grand"><td>PRECIO MÁXIMO DE COMPRA</td><td class="n" style="color:'+(maxCompra>0?'#1a7f37':'#b00')+'">'+eur2(maxCompra)+'</td></tr></table>'
+  +'<div style="margin-top:10px;font-size:11.5px;color:#555;background:#fbfbea;border:1px solid #e6ea9a;border-radius:8px;padding:10px 12px">Comprando por <b>'+eur2(maxCompra)+'</b> o menos se conserva el margen objetivo. Cálculo orientativo con importes IVA incluido; en REBU el IVA recae sobre el margen, por lo que el margen neto exige un precio de compra algo inferior.</div>'
+  +'<div class="foot">'+esc(EC.razon)+' · CIF '+esc(EC.cif)+' — Informe orientativo generado por la aplicación de gestión MIÑACAR.</div>'
+  +'</body></html>';
+  const w=window.open("","_blank");if(!w){toast("Permite las ventanas emergentes para ver el informe");return;}
+  w.document.write(html);w.document.close();
 }
 async function valMarca(){
   const m=$("#val-marca").value, sel=$("#val-modelo");
